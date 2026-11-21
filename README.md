@@ -1,8 +1,8 @@
-# Runnr
+# Medio
 
 **When someone in San Francisco calls 911, how long until help arrives, which neighborhoods wait longest, and what would change if the city moved stations or ambulances?**
 
-Runnr is a simulator of San Francisco's fire and EMS response, built from 300,081 real 911 incidents and tested against a month of real arrival times it never saw. You can close a station, add an ambulance or double the call volume, and see each neighborhood's wait change. The results are shown as a live 3D replay of a real day: engines, ambulances and police driving San Francisco's streets.
+Medio is a simulator of San Francisco's fire and EMS response, built from 300,081 real 911 incidents and tested against a month of real arrival times it never saw. You can close a station, add an ambulance or double the call volume, and see each neighborhood's wait change. The results are shown as a live 3D replay of a real day: engines, ambulances and police driving San Francisco's streets.
 
 - **Live:** https://runnr-cbc8.onrender.com. It's on Render's free plan, so the first load after 15 idle minutes takes 30–50 s while the server wakes.
 - **Event:** Acalanes Data Fest 2026, a student data science and AI hackathon (Nov 21, 2026, BRIDGEGOOD Studio, Oakland). Each team presents for 5 minutes.
@@ -116,8 +116,8 @@ Fit on Nov 2024 – Sep 2026, test on **October 2026 (13,417 incidents, never se
 |---|---|---|---|---|
 | Baseline: everyone gets the city median | 153 s | n/a | 28 s | 0% |
 | Baseline: straight-line distance, one speed | 100 s | 0.72 | 32 s | 39.2% |
-| Runnr v1 (units always leave from home, flat calibration) | 90 s | 0.92 | 16 s | 39.6% |
-| **Runnr v2 (first-due dispatch, unit positions, calibration by hour)** | **91 s** | **0.94** | **16 s** | 39.6% |
+| Medio v1 (units always leave from home, flat calibration) | 90 s | 0.92 | 16 s | 39.6% |
+| **Medio v2 (first-due dispatch, unit positions, calibration by hour)** | **91 s** | **0.94** | **16 s** | 39.6% |
 
 - **"Neighborhood r":** the correlation between simulated and real neighborhood median response, across neighborhoods with ≥ 30 calls. This is what the app is built to compare.
 - **Per-call error:** about 90 s. One call depends on things the model can't see, so the app compares neighborhoods and options; it doesn't predict a single call.
@@ -255,8 +255,8 @@ python3 scripts/fetch_hospitals.py       # rebuild hospitals + diversion hours
 ## 9. How we got here (decision log)
 
 1. The first idea was a copy of a past project, "LabTwin" (a 3D lab-bench physics twin, Gemini Argon hackathon). We dropped it: no dataset (the rubric gives ~75 of 100 points to data, method and validation), too close to someone else's work, and unrealistic for one day.
-2. **Runnr v0:** a lab-protocol "spellchecker" trained on BioProt (100 protocols.io protocols). It worked (cross-validated injected-error detection), but it was weak: caught ~24% of 10× typos at 5% false alarms. We pivoted. It's in git history at commit `fa7e4a4`.
-3. **Runnr (now):** the SF 911 response simulator. It has real data, real validation, a public-safety impact and an equity angle.
+2. **Medio v0:** a lab-protocol "spellchecker" trained on BioProt (100 protocols.io protocols). It worked (cross-validated injected-error detection), but it was weak: caught ~24% of 10× typos at 5% false alarms. We pivoted. It's in git history at commit `fa7e4a4`.
+3. **Medio (now):** the SF 911 response simulator. It has real data, real validation, a public-safety impact and an equity angle.
 4. Then added, in order:
    - a 3D UI (styled after Bench), then a live replay
    - street routing, 3D buildings and the Haiku Ask box

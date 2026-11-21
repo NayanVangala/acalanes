@@ -1,4 +1,4 @@
-"""Turn a typed what-if question into a Runnr scenario, using Claude Haiku.
+"""Turn a typed what-if question into a Medio scenario, using Claude Haiku.
 
 parse_scenario("close the two stations nearest Bayview", stations_meta)
   -> {"closed": ["17", "25"], "added": [], "volume": 1.0, "explanation": "..."}  or  {"error": "..."}

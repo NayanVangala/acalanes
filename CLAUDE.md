@@ -1,4 +1,4 @@
-# Runnr: notes for Claude Code
+# Medio: notes for Claude Code
 
 Acalanes Data Fest 2026 project: a live 3D replay of San Francisco 911 fire/EMS response with what-if scenarios.
 

@@ -1,4 +1,4 @@
-"""Runnr simulator: replay real SF 911 incidents with a learned travel-time model.
+"""Medio simulator: replay real SF 911 incidents with a learned travel-time model.
 
 python3 sim.py   -> fits on training months, replays the held-out month, prints validation vs real arrivals.
 

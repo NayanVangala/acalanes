@@ -1,4 +1,4 @@
-"""Street routing for Runnr: shortest paths on San Francisco's street centerlines.
+"""Street routing for Medio: shortest paths on San Francisco's street centerlines.
 
 Source: DataSF "Streets – Active and Retired" (3psu-pn9h), active segments only:
   curl -L -o data/raw/streets/streets.geojson \

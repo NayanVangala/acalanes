@@ -1,4 +1,4 @@
-"""Runnr web server. python3 app.py -> http://localhost:8000 (Render sets $PORT).
+"""Medio web server. python3 app.py -> http://localhost:8000 (Render sets $PORT).
 
 GET  /                 the app (web/index.html)
 GET  /data/<file>      stations.json, hoods.geojson, people.json, validation.json, buildings.json
@@ -257,5 +257,5 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     warm()  # build the model run, page payload and gzipped data files before taking traffic
-    print(f"Runnr on http://localhost:{port}")
+    print(f"Medio on http://localhost:{port}")
     ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()
