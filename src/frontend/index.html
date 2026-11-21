@@ -695,8 +695,8 @@ const BBOX = [-122.528, 37.700, -122.350, 37.835];
 const BAY = [-122.75, 37.40, -121.80, 38.10];  // imagery around SF so the edges never go black
 const BAY_MASK = [[[BAY[0], BAY[1]], [BAY[2], BAY[1]], [BAY[2], BAY[3]], [BAY[0], BAY[3]]],
   [[BBOX[0], BBOX[1]], [BBOX[0], BBOX[3]], [BBOX[2], BBOX[3]], [BBOX[2], BBOX[1]]]];  // outer ring with SF cut out
-// keep the camera over the city: center stays near SF, can't zoom out past the Bay
-const LIMIT = { lng: [-122.56, -122.30], lat: [37.66, 37.88], minZoom: 11.5, maxZoom: 20 };
+// furthest zoom-out = San Francisco filling the map; the camera's center stays over the city
+const LIMIT = { lng: [-122.51, -122.37], lat: [37.71, 37.82], minZoom: 12.2, maxZoom: 20 };
 const maxPitchAt = (z) => (z < 12 ? 45 : z < 12.8 ? 55 : z < 14 ? 65 : 80);  // low zoom + high tilt shows the horizon
 function clampView(v) {
   const longitude = Math.min(LIMIT.lng[1], Math.max(LIMIT.lng[0], v.longitude)), latitude = Math.min(LIMIT.lat[1], Math.max(LIMIT.lat[0], v.latitude));
