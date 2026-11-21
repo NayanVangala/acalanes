@@ -295,7 +295,42 @@ def validate():
     json.dump(results, open(DATA / "validation.json", "w"), indent=1)
 
 
+def summarize(test, sim, sample=4000):
+    """Per-neighborhood and citywide results for the UI."""
+    by_hood = defaultdict(list)
+    for i in test:
+        if i["id"] in sim:
+            by_hood[i["hood"]].append(sim[i["id"]])
+    stats = lambda xs: {"median": round(median(xs)), "over8": round(sum(x > 480 for x in xs) / len(xs), 3),
+                        "calls": len(xs)}
+    allv = [v for i in test for v in [sim.get(i["id"])] if v is not None]
+    step = max(1, len(test) // sample)
+    pts = [[i["lng"], i["lat"], round(sim[i["id"]])] for i in test[::step] if i["id"] in sim]
+    return {"city": stats(allv), "hoods": {h: stats(v) for h, v in by_hood.items() if v}, "points": pts}
+
+
+def export(path=DATA / "runtime.pkl.gz"):
+    """Everything the web server needs, fit once: model, fleet, calibration, held-out month."""
+    import pickle
+    incidents = load_incidents()
+    train, test = split(incidents)
+    stations = load_stations()
+    homes = unit_homes(train, stations)
+    model = TravelModel(train, homes)
+    off = calibrate(train, stations)
+    model.memo = {}
+    with gzip.open(path, "wb") as f:
+        pickle.dump({"model": model, "homes": homes, "offset": off, "test": test,
+                     "period": [test[0]["t"], test[-1]["t"]], "n_incidents": len(incidents)}, f)
+    print(f"runtime -> {path} ({path.stat().st_size / 1e6:.1f} MB), offset {off:+.0f}s, {len(test)} held-out incidents")
+
+
 if __name__ == "__main__":
+    import sys
+    if "--export" in sys.argv:
+        import sim  # re-import as a module so the pickle refers to sim.TravelModel, not __main__
+        sim.export()
+        sys.exit()
     assert band(int(datetime(2026, 1, 1, 8, tzinfo=SF).timestamp())) == 1
     assert abs(km(37.77, -122.42, 37.78, -122.42) - 1.11) < 0.01
     validate()
