@@ -1,0 +1,102 @@
+[
+ {
+  "name": "Zuckerberg San Francisco General",
+  "short": "SF General (trauma center)",
+  "address": "1001 POTRERO AVE",
+  "lat": 37.756161,
+  "lng": -122.4056655,
+  "approx_location": false,
+  "diversion_hours_12mo": 2547.9,
+  "diversions_12mo": 1353
+ },
+ {
+  "name": "California Pacific Medical Center - Van Ness",
+  "short": "CPMC Van Ness",
+  "address": "1101 VAN NESS AVE",
+  "lat": 37.785843,
+  "lng": -122.4217485,
+  "approx_location": false,
+  "diversion_hours_12mo": 747.7,
+  "diversions_12mo": 551
+ },
+ {
+  "name": "California Pacific Medical Center - Davies",
+  "short": "CPMC Davies",
+  "address": "601 DUBOCE AVE",
+  "lat": 37.76905359,
+  "lng": -122.4346773,
+  "approx_location": false,
+  "diversion_hours_12mo": 69.0,
+  "diversions_12mo": 67
+ },
+ {
+  "name": "California Pacific Medical Center - Mission Bernal",
+  "short": "CPMC Mission Bernal",
+  "address": "3555 CESAR CHAVEZ",
+  "lat": 37.747206,
+  "lng": -122.420664,
+  "approx_location": false,
+  "diversion_hours_12mo": 146.6,
+  "diversions_12mo": 114
+ },
+ {
+  "name": "Kaiser Permanente, San Francisco",
+  "short": "Kaiser SF",
+  "address": "2425 GEARY BLVD",
+  "lat": 37.782306,
+  "lng": -122.443227,
+  "approx_location": false,
+  "diversion_hours_12mo": 1119.7,
+  "diversions_12mo": 697
+ },
+ {
+  "name": "University of California, San Francisco Medical Center - Parnassus",
+  "short": "UCSF Parnassus",
+  "address": "505 PARNASSUS AVE",
+  "lat": 37.76350982,
+  "lng": -122.4576238,
+  "approx_location": false,
+  "diversion_hours_12mo": 1254.4,
+  "diversions_12mo": 765
+ },
+ {
+  "name": "University of California, San Francisco Medical Center - Hyde",
+  "short": "UCSF Hyde",
+  "address": "900 HYDE ST",
+  "lat": 37.789632,
+  "lng": -122.4165555,
+  "approx_location": false,
+  "diversion_hours_12mo": 212.4,
+  "diversions_12mo": 164
+ },
+ {
+  "name": "University of California, San Francisco Medical Center - Stanyan",
+  "short": "UCSF Stanyan",
+  "address": "450 STANYAN ST",
+  "lat": 37.774062,
+  "lng": -122.454189,
+  "approx_location": false,
+  "diversion_hours_12mo": 207.4,
+  "diversions_12mo": 165
+ },
+ {
+  "name": "Chinese Hospital",
+  "short": "Chinese Hospital",
+  "address": "845 JACKSON ST",
+  "lat": 37.795473,
+  "lng": -122.408982,
+  "approx_location": false,
+  "diversion_hours_12mo": 17.6,
+  "diversions_12mo": 15
+ },
+ {
+  "name": "Veterans Administration Medical Center",
+  "short": "SF VA Medical Center",
+  "address": "4150 CLEMENT ST",
+  "lat": 37.7823,
+  "lng": -122.5047,
+  "approx_location": true,
+  "diversion_hours_12mo": 39.9,
+  "diversions_12mo": 23
+ }
+]
