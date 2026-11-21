@@ -391,7 +391,7 @@ def validate():
     json.dump(results, open(BUILD / "validation.json", "w"), indent=1)
 
 
-def summarize(test, sim, sample=4000):
+def summarize(test, sim, sample=8000):
     """Per-neighborhood and citywide results for the UI."""
     by_hood = defaultdict(list)
     for i in test:
@@ -401,7 +401,8 @@ def summarize(test, sim, sample=4000):
                         "calls": len(xs)}
     allv = [v for i in test for v in [sim.get(i["id"])] if v is not None]
     step = max(1, len(test) // sample)
-    pts = [[i["lng"], i["lat"], round(sim[i["id"]])] for i in test[::step] if i["id"] in sim]
+    # [lng, lat, simulated wait, local hour of the call]: the map's gradient follows the replay's time of day
+    pts = [[i["lng"], i["lat"], round(sim[i["id"]]), datetime.fromtimestamp(i["t"], SF).hour] for i in test[::step] if i["id"] in sim]
     return {"city": stats(allv), "hoods": {h: stats(v) for h, v in by_hood.items() if v}, "points": pts}
 
 

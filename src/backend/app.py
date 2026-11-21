@@ -165,7 +165,7 @@ def run(closed=(), added=(), volume=1.0):
                                offset=RT["offset"], log=log)
             CACHE[key] = (sim.summarize(RT["test"], out), log)
             RESP[key] = out
-            if len(CACHE) > 6:  # ponytail: each run holds a month of dispatches; Render's free plan has 512 MB
+            if len(CACHE) > 3:  # ponytail: each run holds a month of dispatches (~20-70 MB); Render's free plan has 512 MB and the server starts at ~320
                 CACHE.popitem(last=False)
     CACHE.move_to_end(key)
     for k in list(RESP):
@@ -515,7 +515,7 @@ def window(h0, h1):
 
 def build_run(plan, me):
     """Turn a plan into simulator arguments plus a plain list of what was simulated and map markers."""
-    did, marks, notes, extra = [], [], [], []
+    did, marks, notes, extra, where_when = [], [], [], [], []  # where_when: (place, hours) each lever acts on
     stations = sim.load_stations()
     closed = list(plan.get("close_stations", []))
     if closed:
@@ -535,7 +535,7 @@ def build_run(plan, me):
         did.append(f"New {'fire station (an engine and an ambulance)' if n['kind'] == 'fire' else 'ambulance post'} at {r[2]}")
         where_when.append((r, None))
         marks.append({"kind": "new", "lat": r[0], "lng": r[1], "label": f"Proposed {'fire station' if n['kind'] == 'fire' else 'ambulance post'}"})
-    volume, area, vhours, where_when = plan.get("call_volume", 1.0), None, None, []
+    volume, area, vhours = plan.get("call_volume", 1.0), None, None
     if abs(volume - 1) > 0.01:
         r = resolve_place(plan.get("volume_place"), me)
         vhours = window(plan.get("volume_from_hour", -1), plan.get("volume_to_hour", -1))
@@ -612,7 +612,7 @@ def run_plan(kw):
                                offset=RT["offset"], log=log, blocked=kw["blocked"] or None, new_homes=kw["new_homes"],
                                volume_area=kw["volume_area"], extra_delay=kw["delay"], volume_hours=kw["volume_hours"])
         PLAN_CACHE[key] = (out, log)
-        if len(PLAN_CACHE) > 3:  # ponytail: each entry holds a month of dispatches; Render's free plan has 512 MB
+        if len(PLAN_CACHE) > 1:  # ponytail: one typed scenario at a time keeps Render's 512 MB plan from restarting
             PLAN_CACHE.popitem(last=False)
     PLAN_CACHE.move_to_end(key)
     step("Simulator", f"Replayed all {len(RT['test']):,} October calls with the plan" + (" (already cached)" if hit else ""), (perf_counter() - t0) * 1000)
