@@ -170,6 +170,10 @@ table.acc tr.ours td { color: var(--ok); font-weight: 600; }
 .ask input::placeholder { color: var(--ink-faint); }
 .ask-out { margin: 0; font-size: 13px; color: var(--ink-soft); line-height: 1.4; }
 .ask-out.err { color: #ffb0a6; }
+.ai-note { margin: 0; font-size: 12px; color: var(--ink-faint); line-height: 1.4; }
+.read-as { display: block; margin-top: 4px; color: var(--ink); font-weight: 500; }
+.how { margin: 0; padding-left: 20px; display: grid; gap: 8px; font-size: 13px; color: var(--ink-soft); }
+.how b { color: var(--ink); font-weight: 600; }
 
 /* your location */
 .me-block h2 { color: var(--ink); font-size: 15px; }
@@ -302,6 +306,7 @@ dialog p b { color: var(--ink); }
 
     <section class="block" id="ask-block" data-pane="whatif">
       <form class="ask" id="ask-form"><input id="ask" type="text" autocomplete="off" placeholder="Ask a what-if, e.g. close the two stations nearest Bayview" aria-label="Ask a what-if question"><button class="btn" type="submit" id="ask-go">Ask</button></form>
+      <p class="ai-note">AI only reads your question and sets the controls below. Every number comes from the simulator, not the AI.</p>
       <p class="ask-out" id="ask-out" hidden></p>
     </section>
 
@@ -357,6 +362,17 @@ dialog p b { color: var(--ink); }
         <label class="toggle" id="t-pol" hidden><input type="checkbox" id="l-pol" checked>Police</label>
         <label class="toggle" id="t-hosp" hidden><input type="checkbox" id="l-hosp" checked>Hospitals</label>
       </div>
+    </section>
+
+    <section class="block" data-pane="results">
+      <h2>How the numbers are made</h2>
+      <ol class="how">
+        <li><b>Real records:</b> <span id="how-n">300,081</span> San Francisco 911 calls, with when each unit was dispatched and when it arrived.</li>
+        <li><b>Learned travel times:</b> the typical drive from each station to each 500 m block, by hour, from 333,000 real trips.</li>
+        <li><b>Simulator:</b> replays every call in order. The unit that can arrive soonest goes; busy units stay busy.</li>
+        <li><b>Checked against reality:</b> a month the model never saw (October 2026). By neighborhood it matches real arrival times with r = <span id="how-r">0.92</span>.</li>
+      </ol>
+      <p class="ai-note">No AI calculates or predicts these numbers. Claude Haiku is used only to read questions typed in the What if tab.</p>
     </section>
 
     <section class="block" data-pane="results">
@@ -1181,6 +1197,9 @@ function renderFindings() {
   document.querySelectorAll(".finding").forEach((b) => (b.onclick = () => focusHood(b.dataset.hood)));
 }
 function renderAccuracy() {
+  const ours = Object.entries(VALID).find(([n]) => n.includes("calibrated"));
+  if (ours && ours[1].hood_corr != null) $("#how-r").textContent = ours[1].hood_corr.toFixed(2);
+  if (META) $("#how-n").textContent = fmtN(META.incidents_total);
   $("#acc").innerHTML = `<tr><th>Model</th><th>Per call</th><th>Area r</th><th>Area err</th></tr>` + Object.entries(VALID).map(([name, r]) => {
     const ours = name.includes("calibrated");
     const label = { "baseline: city median": "City average", "baseline: straight-line, one speed": "Straight line", "runnr: learned travel times": "Learned only", "runnr: learned + calibrated": "Runnr" }[name] || name;
@@ -1409,6 +1428,16 @@ $("#day").onchange = async (e) => {
 const bind = (id, k) => ($(id).onchange = (e) => { show[k] = e.target.checked; });
 bind("#l-sat", "sat"); bind("#l-grid", "grid"); bind("#l-hoods", "hoods"); bind("#l-3d", "extrude"); bind("#l-bld", "bld"); bind("#l-g3d", "g3d"); $("#l-g3d").addEventListener("change", () => { if (!useGoogle() && !BUILDINGS) loadBuildings(); if (useGoogle()) loadElevation(); if (REPLAY) loadReplay0(REPLAY); }); bind("#l-pol", "police"); bind("#l-hosp", "hosp");
 $("#follow-stop").onclick = stopFollow;
+// what the AI actually set, in plain words, so it's clear it only filled in the controls
+function readAs(sc) {
+  const parts = [];
+  if (sc.closed.length) parts.push(`close Station${sc.closed.length > 1 ? "s" : ""} ${sc.closed.join(", ")}`);
+  const adds = {};
+  for (const [st, t] of sc.added) adds[`${(KIND[t] || t).toLowerCase()} at Station ${st}`] = (adds[`${(KIND[t] || t).toLowerCase()} at Station ${st}`] || 0) + 1;
+  for (const [k, n] of Object.entries(adds)) parts.push(`add ${n} ${k}`);
+  if (sc.volume !== 1) parts.push(`911 calls ×${sc.volume}`);
+  return parts.length ? parts.join(" · ") : "no change";
+}
 $("#ask-form").onsubmit = async (e) => {
   e.preventDefault();
   const text = $("#ask").value.trim(), out = $("#ask-out");
@@ -1423,7 +1452,7 @@ $("#ask-form").onsubmit = async (e) => {
     const d = await r.json();
     if (!r.ok || d.error) { out.className = "ask-out err"; out.textContent = d.error || "That question didn’t work. Try naming a station, a neighborhood or a call volume."; return; }
     scenario = { closed: (d.closed || []).map(String), added: d.added || [], volume: d.volume || 1 };
-    out.textContent = d.explanation || "Running that scenario.";
+    out.innerHTML = `<span class="read-as">Read as: ${esc(readAs(scenario))}</span>${d.explanation ? esc(d.explanation) : ""}`;
     renderScenario(); run();
   } catch (err) {
     out.className = "ask-out err"; out.textContent = "Couldn’t reach the server. Check your connection and try again.";
