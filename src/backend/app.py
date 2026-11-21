@@ -108,6 +108,9 @@ def day_start(ordinal):
     return int(datetime.combine(date.fromordinal(ordinal), time(0), sim.SF).timestamp())
 
 
+RESP = {}  # scenario key -> {incident id: simulated response seconds}, for the location what-if
+
+
 def run(closed=(), added=(), volume=1.0):
     key = json.dumps([sorted(closed), sorted(added), volume])
     if key not in CACHE:
@@ -116,10 +119,68 @@ def run(closed=(), added=(), volume=1.0):
             out = sim.simulate(RT["test"], RT["homes"], RT["model"], closed=closed, added=added, volume=volume,
                                offset=RT["offset"], log=log)
             CACHE[key] = (sim.summarize(RT["test"], out), log)
+            RESP[key] = out
             if len(CACHE) > 24:  # ponytail: tiny LRU, raise if demo traffic grows
                 CACHE.popitem(last=False)
     CACHE.move_to_end(key)
+    for k in list(RESP):
+        if k not in CACHE:
+            del RESP[k]
     return CACHE[key]
+
+
+# ---------- "if I'm here": typical wait at a spot, by time of day and type of emergency ----------
+BAND_LABEL = {0: "Night (0–6)", 1: "Morning (6–10)", 2: "Midday (10–16)", 3: "Evening (16–20)", 4: "Late (20–24)"}
+SPOTS = [(i["lat"], i["lng"], i["id"], sim.band(i["t"]), i["type"]) for i in RT["test"]]
+
+
+def call_kind(t):
+    t = (t or "").lower()
+    return "Medical" if "medical" in t else "Fire" if "fire" in t else "Alarm" if "alarm" in t else \
+        "Traffic collision" if "traffic" in t else "Other"
+
+
+def spread(xs):
+    xs = sorted(xs)
+    if not xs:
+        return None
+    return {"median": round(xs[len(xs) // 2]), "p90": round(xs[min(len(xs) - 1, int(len(xs) * 0.9))]),
+            "over8": round(sum(x > 480 for x in xs) / len(xs), 3), "n": len(xs)}
+
+
+def here(lng, lat, closed=(), added=(), volume=1.0):
+    """Wait for help around (lng, lat): every held-out call within a radius (grown until >= 40 calls), simulated
+    today and under the scenario, split by time of day and kind of emergency; plus the likely first responders."""
+    run()
+    run(closed, added, volume)
+    base = RESP[json.dumps([[], [], 1.0])]
+    scen = RESP[json.dumps([sorted(closed), sorted(added), volume])]
+    for radius in (400, 600, 900, 1300, 1800, 2500):
+        near = [s for s in SPOTS if sim.km(lat, lng, s[0], s[1]) * 1000 <= radius and s[2] in base]
+        if len(near) >= 80:  # enough to split by time of day
+            break
+    pick = lambda resp, rows: [resp[s[2]] for s in rows if s[2] in resp]
+    out = {"radius_m": radius, "calls": len(near), "is_scenario": scen is not base,
+           "overall": {"today": spread(pick(base, near)), "scenario": spread(pick(scen, near))},
+           "by_time": [{"band": b, "label": BAND_LABEL[b], "today": spread(pick(base, [s for s in near if s[3] == b])),
+                        "scenario": spread(pick(scen, [s for s in near if s[3] == b]))} for b in range(5)],
+           "by_kind": []}
+    for kind in ["Medical", "Fire", "Alarm", "Traffic collision", "Other"]:
+        rows = [s for s in near if call_kind(s[4]) == kind]
+        if len(rows) >= 5:
+            out["by_kind"].append({"kind": kind, "today": spread(pick(base, rows)), "scenario": spread(pick(scen, rows))})
+    # likely first engine: the open stations whose learned drive time to this block is shortest (midday)
+    c, closed_set = sim.cell(lat, lng), set(closed)
+    stations = sim.load_stations()
+    resp = []
+    for st, (slat, slng) in stations.items():
+        if st in closed_set or not st.isdigit():
+            continue
+        home = ("S" + st, slat, slng, "ENGINE")
+        resp.append({"station": st, "drive_s": {BAND_LABEL[b]: round(RT["model"](home, c, lat, lng, b)) for b in range(5)},
+                     "km": round(sim.km(lat, lng, slat, slng), 2)})
+    out["responders"] = sorted(resp, key=lambda r: r["drive_s"][BAND_LABEL[2]])[:3]
+    return out
 
 
 def replay(log, ordinal):
@@ -214,7 +275,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path == "/api/ask":
             return self.ask()
-        if self.path != "/api/simulate":
+        if self.path not in ("/api/simulate", "/api/here"):
             return self.reply("not found", "text/plain", 404)
         try:
             n = min(int(self.headers.get("Content-Length", 0)), 10_000)
@@ -226,6 +287,14 @@ class Handler(BaseHTTPRequestHandler):
             day = day if day in DAYS else DEFAULT_DAY
         except (ValueError, TypeError, AttributeError):
             return self.reply('{"error": "bad request"}', code=400)
+        if self.path == "/api/here":
+            try:
+                lng, lat = float(req["lng"]), float(req["lat"])
+                if not (-122.56 < lng < -122.33 and 37.69 < lat < 37.85):
+                    raise ValueError
+            except (KeyError, ValueError, TypeError):
+                return self.reply('{"error": "lng/lat must be inside San Francisco"}', code=400)
+            return self.reply(json.dumps(here(lng, lat, closed, added, volume)))
         summary, log = run(closed, added, volume)
         self.reply(json.dumps({**summary, "replay": replay(log, day)}))
 
