@@ -409,6 +409,9 @@ details summary { color: var(--ink-soft); }
 .cta:disabled { background: transparent; color: var(--ink-faint); box-shadow: inset 0 0 0 1px var(--rule-strong); }
 
 /* over the map */
+/* soft vignette over the map: edges recede so the city in the middle carries the eye (clicks pass through) */
+.map-fade { position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: radial-gradient(ellipse 75% 70% at 50% 46%, rgba(14, 24, 34, 0) 58%, rgba(14, 24, 34, 0.22) 82%, rgba(14, 24, 34, 0.42) 100%); }
 .layer-chips { position: absolute; z-index: 5; top: 12px; right: 12px; left: 12px; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px; pointer-events: none; }
 .layer-chips .toggle { pointer-events: auto; position: relative; display: inline-flex; padding: 5px 9px; border: 1px solid var(--rule-strong); border-radius: 4px; background: rgba(223, 228, 232, 0.94); font: 500 12px var(--mono); letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-faint); cursor: pointer; }
 .layer-chips .toggle input { position: absolute; opacity: 0; pointer-events: none; }
@@ -596,13 +599,14 @@ dialog p b { color: var(--ink); }
   <button class="icon-btn" id="panel-open" aria-label="Show controls" title="Show controls"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg></button>
   <div id="map" tabindex="0" role="application" aria-label="3D map of San Francisco with fire engines, ambulances and police responding to 911 calls. Arrow keys move, Shift with arrow keys rotates and tilts, plus and minus zoom."></div>
 
+  <div class="map-fade" aria-hidden="true"></div>
   <div class="layer-chips" role="group" aria-label="Map layers">
     <label class="toggle" id="t-g3d" hidden><input type="checkbox" id="l-g3d" checked>Google 3D</label>
     <label class="toggle"><input type="checkbox" id="l-sat" checked>Satellite</label>
     <label class="toggle" id="t-bld" hidden><input type="checkbox" id="l-bld" checked>Buildings</label>
     <label class="toggle"><input type="checkbox" id="l-hoods" checked>Response</label>
     <label class="toggle"><input type="checkbox" id="l-3d">Response 3D</label>
-    <label class="toggle"><input type="checkbox" id="l-grid" checked>Grid</label>
+    <label class="toggle"><input type="checkbox" id="l-grid">Grid</label>
     <label class="toggle" id="t-pol" hidden><input type="checkbox" id="l-pol" checked>Police</label>
     <label class="toggle" id="t-hosp" hidden><input type="checkbox" id="l-hosp" checked>Hospitals</label>
   </div>
@@ -696,7 +700,7 @@ const BAY = [-122.75, 37.40, -121.80, 38.10];  // imagery around SF so the edges
 const BAY_MASK = [[[BAY[0], BAY[1]], [BAY[2], BAY[1]], [BAY[2], BAY[3]], [BAY[0], BAY[3]]],
   [[BBOX[0], BBOX[1]], [BBOX[0], BBOX[3]], [BBOX[2], BBOX[3]], [BBOX[2], BBOX[1]]]];  // outer ring with SF cut out
 // furthest zoom-out = San Francisco filling the map; the camera's center stays over the city
-const LIMIT = { lng: [-122.51, -122.37], lat: [37.71, 37.82], minZoom: 12.2, maxZoom: 20 };
+const LIMIT = { lng: [-122.51, -122.37], lat: [37.71, 37.82], minZoom: 11.9, maxZoom: 20 };
 const maxPitchAt = (z) => (z < 12 ? 45 : z < 12.8 ? 55 : z < 14 ? 65 : 80);  // low zoom + high tilt shows the horizon
 function clampView(v) {
   const longitude = Math.min(LIMIT.lng[1], Math.max(LIMIT.lng[0], v.longitude)), latitude = Math.min(LIMIT.lat[1], Math.max(LIMIT.lat[0], v.latitude));
@@ -727,7 +731,7 @@ let lastRun = JSON.stringify(scenario);
 let addType = "MEDIC";
 let view = { maxPitch: 80, ...HOME, zoom: LIMIT.minZoom, minZoom: LIMIT.minZoom, maxZoom: LIMIT.maxZoom, pitch: 0, bearing: 0 };
 let deckgl, simT = 8 * 3600, speed = 300, playing = !reduced, lastFrame = performance.now();
-const show = { sat: true, grid: true, hoods: true, extrude: false, bld: true, g3d: true, police: true, hosp: true };
+const show = { sat: true, grid: false, hoods: true, extrude: false, bld: true, g3d: true, police: true, hosp: true };
 // ---------- Google Photorealistic 3D Tiles (only when the server has a key) ----------
 let GOOGLE_KEY = null, dropIn = false;
 const TERRAIN = deck._TerrainExtension ? [new deck._TerrainExtension()] : [];
@@ -1137,10 +1141,13 @@ function memo(id, deps, make) {
 // the ground: Google 3D city, or satellite with the dimmed Bay. Drawn on its own while the 911 data loads.
 function baseLayers() {
   const L = [], g = useGoogle();
-  if (g) L.push(memo("google3d", [G_LOAD], () => new deck.Tile3DLayer({
-    id: "google3d", data: "https://tile.googleapis.com/v1/3dtiles/root.json", loadOptions: G_LOAD,
-    onTilesetLoad: G_ONLOAD, operation: "terrain+draw",
-  })));
+  if (g) {
+    L.push(memo("google3d", [G_LOAD], () => new deck.Tile3DLayer({
+      id: "google3d", data: "https://tile.googleapis.com/v1/3dtiles/root.json", loadOptions: G_LOAD,
+      onTilesetLoad: G_ONLOAD, operation: "terrain+draw",
+    })));
+    L.push(memo("bay-dim-g", [], () => bayDim(TERRAIN)));  // draped on Google's terrain
+  }
   else if (!show.sat) L.push(memo("slab", [], () => new deck.SolidPolygonLayer({ id: "slab", data: SLAB, getPolygon: (d) => d, extruded: true, getElevation: 895,
     getFillColor: [22, 34, 44], material: { ambient: 0.5, diffuse: 0.5 } })));
   if (!g && show.sat) {
@@ -1154,11 +1161,18 @@ function baseLayers() {
       },
     })));
     // the rest of the Bay stays visible but dimmed, so San Francisco reads as the focus
-    L.push(memo("bay-dim", [], () => new deck.SolidPolygonLayer({ id: "bay-dim", data: [BAY_MASK], getPolygon: (d) => d,
-      getFillColor: [11, 20, 27, 150], parameters: { depthTest: false } })));
+    L.push(memo("bay-dim", [], () => bayDim([])));
   }
   else if (!g) L.push(memo("plate", [], () => new deck.SolidPolygonLayer({ id: "plate", data: SLAB, getPolygon: (d) => d.map(([x, y]) => [x, y, 0]), getFillColor: [28, 44, 56] })));
   return L;
+}
+// The Bay around San Francisco, dimmed with a soft edge: three nested rings (outer edge = the Bay box, hole = the
+// city box grown by a pad), so the dimming deepens with distance from the city instead of stopping at a hard line.
+const DIM_PADS = [0.045, 0.02, 0];  // degrees around the city box, outermost hole first
+function bayDim(extensions) {
+  const ring = (pad) => [BAY_MASK[0], [[BBOX[0] - pad, BBOX[1] - pad], [BBOX[0] - pad, BBOX[3] + pad], [BBOX[2] + pad, BBOX[3] + pad], [BBOX[2] + pad, BBOX[1] - pad]]];
+  return new deck.SolidPolygonLayer({ id: extensions.length ? "bay-dim-g" : "bay-dim", data: DIM_PADS.map(ring), getPolygon: (d) => d,
+    getFillColor: [14, 24, 34, 52], parameters: { depthTest: false }, extensions });
 }
 function layers(t, veh) {
   const pulse = (Math.sin(performance.now() / 260) + 1) / 2;
@@ -1173,7 +1187,7 @@ function layers(t, veh) {
   if (show.hoods) L.push(memo("hoods", [RESULT, show.extrude, ext], () => new deck.GeoJsonLayer({
     id: "hoods", data: HOODS, pickable: true, stroked: true, filled: true, extruded: show.extrude,
     getElevation: (f) => Math.max(40, (((RESULT.hoods[f.properties.nhood] || {}).median || 400) - 330) * 4),
-    getFillColor: (f) => [...ramp((RESULT.hoods[f.properties.nhood] || {}).median || 400), show.extrude ? 150 : 58],
+    getFillColor: (f) => [...ramp((RESULT.hoods[f.properties.nhood] || {}).median || 400), show.extrude ? 150 : 40],  // light wash: the city shows through
     getLineColor: (f) => [...ramp((RESULT.hoods[f.properties.nhood] || {}).median || 400), 210],
     getLineWidth: 2, lineWidthUnits: "pixels",
     material: { ambient: 0.55, diffuse: 0.5 },
