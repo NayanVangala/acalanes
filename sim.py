@@ -166,10 +166,11 @@ def duty_days(incidents):
     return out
 
 
-def simulate(incidents, homes, travel, closed=(), added=(), volume=1.0, seed=0, offset=0.0):
+def simulate(incidents, homes, travel, closed=(), added=(), volume=1.0, seed=0, offset=0.0, log=None):
     """Returns {incident id: simulated response seconds}. closed: station numbers; added: [(station, type)].
     Units are only available on days they really worked (added units: every day).
-    offset: calibration seconds added to every simulated response."""
+    offset: calibration seconds added to every simulated response.
+    log: optional list; each dispatch appends a dict (unit, type, from, to, call, depart, arrive, free, travel, incident)."""
     on_duty = duty_days(incidents)
     stations = load_stations()
     fleet = {uid: h for uid, h in homes.items() if h[0][1:] not in set(map(str, closed)) or h[0][0] != "S"}
@@ -219,6 +220,11 @@ def simulate(incidents, homes, travel, closed=(), added=(), volume=1.0, seed=0, 
             on_scene = (u["available"] - u["onscene"]) if u["available"] and u["onscene"] and u["available"] > u["onscene"] else 1200
             free[uid] = arrive + on_scene
             arrivals.append(arrive)
+            if log is not None:
+                h = fleet[uid]
+                log.append({"unit": uid, "type": u["type"], "from": (h[2], h[1]), "to": (i["lng"], i["lat"]),
+                            "call": i["t"], "depart": arrive - eta + (start - t0), "arrive": arrive, "free": free[uid],
+                            "incident": i["id"], "hood": i["hood"], "call_type": i["type"]})
         if arrivals:
             out[i["id"]] = min(arrivals) - i["t"] + offset
     return out
