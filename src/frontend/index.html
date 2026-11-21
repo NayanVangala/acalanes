@@ -553,6 +553,21 @@ let G_SSE = 16;
 const DETAIL = { bay: 15, world: 9 };  // max tile depth outside SF (SF itself goes to ~18-19)
 const SF_PAD = [-122.545, 37.69, -122.34, 37.845];
 const inBox = (ll, b) => ll[0] >= b[0] && ll[0] <= b[2] && ll[1] >= b[1] && ll[1] <= b[3];
+// does a tile's bounding volume reach the Bay Area? (tile centers alone fail for the planet-sized top tiles)
+const BAY_ECEF = (() => {
+  const lng = ((BAY[0] + BAY[2]) / 2) * Math.PI / 180, lat = ((BAY[1] + BAY[3]) / 2) * Math.PI / 180, a = 6378137, e2 = 6.69437999014e-3;
+  const n = a / Math.sqrt(1 - e2 * Math.sin(lat) ** 2);
+  return [n * Math.cos(lat) * Math.cos(lng), n * Math.cos(lat) * Math.sin(lng), n * (1 - e2) * Math.sin(lat)];
+})();
+const BAY_RADIUS = 48000;  // meters from the Bay's center that we care about
+function nearBay(tile) {
+  if (tile._nearBay !== undefined) return tile._nearBay;
+  const bv = tile.boundingVolume;
+  let ok = true;
+  if (bv && typeof bv.distanceTo === "function") ok = bv.distanceTo(BAY_ECEF) < BAY_RADIUS;
+  else { const ll = tileLngLat(tile); ok = !ll || tile.depth < 8 || inBox(ll, BAY); }
+  return (tile._nearBay = ok);
+}
 function tileLngLat(tile) {  // ECEF bounding-volume center -> [lng, lat], cached on the tile
   if (tile._ll !== undefined) return tile._ll;
   const c = tile.boundingVolume && tile.boundingVolume.center;
@@ -576,14 +591,14 @@ function initGoogle(key) {
       const orig = tr.shouldRefine.bind(tr);
       tr.shouldRefine = (tile, frameState, useParentMetric) => {
         const ll = tileLngLat(tile);
-        if (ll && !inBox(ll, BAY)) return false;  // never refine (download) anything outside the Bay Area
+        if (!nearBay(tile)) return false;  // never refine (download) anything that doesn't reach the Bay Area
         if (ll && !inBox(ll, SF_PAD)) return tile.depth < DETAIL.bay && orig(tile, frameState, useParentMetric);
         return orig(tile, frameState, useParentMetric);
       };
     }
     tileset.options.onTraversalComplete = (selected) => {
       // draw only tiles over the Bay Area (deep tiles elsewhere are the far horizon nobody needs)
-      selected = selected.filter((t) => { const ll = tileLngLat(t); return !ll || t.depth < 6 || inBox(ll, BAY); });
+      selected = selected.filter(nearBay);
       G_CREDITS.clear();
       for (const t of selected) {
         const c = t.content && t.content.gltf && t.content.gltf.asset && t.content.gltf.asset.copyright;
