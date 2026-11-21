@@ -1201,7 +1201,7 @@ a.btn { display: inline-grid; place-items: center; text-decoration: none; color:
 
 <div class="timeline frost">
   <button class="play" id="play" aria-label="Pause replay"><svg viewBox="0 0 24 24" fill="currentColor" id="play-icon"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg></button>
-    <div class="clock"><span class="tl-k">Replaying a real day</span><b class="num" id="clock">08:00</b><select id="day" aria-label="Day to replay" title="Pick another real day from October 2026"></select></div>
+    <div class="clock"><span class="tl-k" id="tod-label">Time of day</span><b class="num" id="clock">08:00</b><select hidden id="day" aria-label="Day to replay" title="Pick another real day from October 2026"></select></div>
     <div class="track">
       <div class="scrubwrap"><svg id="activity" viewBox="0 0 24 100" preserveAspectRatio="none" aria-hidden="true"></svg>
         <input type="range" id="scrub" min="0" max="86340" step="60" value="28800" aria-label="Time of day" title="Drag to any time of the day"></div>
@@ -1326,6 +1326,18 @@ let META, HOODS, STATIONS, PEOPLE, VALID, BASE, RESULT, REPLAY, SEGS = [], DEPAR
 let POLICE_ST = null, POL = [], PSEGS = [], HOSP = null;
 let ME = null;  // the visitor's chosen spot: { lng, lat, label, hood }
 let ME_ROUTE = null;  // street route the first engine would drive to the visitor's spot (from /api/here)
+// time of day: the slider picks a band; map, leaderboard and verdict show that band's waits over the whole month
+let RESULT_ALL = null, BASE_ALL = null, TOD = null;
+const BAND_OF = (sec) => { const h = Math.floor(sec / 3600) % 24; return h < 6 ? 0 : h < 10 ? 1 : h < 16 ? 2 : h < 20 ? 3 : 4; };
+const sliceBand = (full, b) => { const x = full && full.by_band && full.by_band[b]; return x ? { ...full, city: x.city, hoods: x.hoods, band: x.label } : full; };
+function applyTOD(force) {
+  const b = BAND_OF(simT);
+  if ((!force && b === TOD) || !RESULT_ALL) return;
+  TOD = b;
+  RESULT = sliceBand(RESULT_ALL, b); BASE = sliceBand(BASE_ALL, b);
+  const lab = $("#tod-label"); if (lab) lab.textContent = RESULT.band ? `Time of day · ${RESULT.band}` : "Time of day · all day";
+  if (typeof renderAll === "function") renderAll();
+}
 let ROUTES = [], SEL_ROUTE = null;  // every trip's route, and the clicked one
 // Settings (menu > Settings), kept per browser. translucency/grey/routes 0-100, vehicle 50-200 (%).
 const SET_DEFAULT = { translucency: 35, grey: 0, routes: 45, vehicle: 100, labels: true, smooth: true, perf: "balanced" };
@@ -2068,6 +2080,7 @@ function attribution() {
   if (el.textContent !== txt) el.textContent = txt;
 }
 function hud(veh) {
+  applyTOD();
   markActivity();
   $("#compass-svg").style.transform = `rotate(${-view.bearing}deg)`;
   $("#clock").textContent = hhmm(simT);
@@ -2203,7 +2216,7 @@ async function run() {
     const r = await fetch("/api/simulate", { method: "POST", headers: { "Content-Type": "application/json" }, body });
     if (!r.ok) throw new Error(r.status);
     const d = await r.json();
-    RESULT = d; loadReplay(d.replay);
+    RESULT_ALL = d; loadReplay(d.replay); TOD = null; applyTOD(true);
     CUSTOM = null; MARKERS = [];
     lastRun = JSON.stringify(scenario);
     const ex = Object.keys(EXAMPLES).find((k) => JSON.stringify(EXAMPLES[k]) === lastRun);
@@ -2232,7 +2245,7 @@ function renderLeaderboard() {
       + `<span class="lb-name"><b>${esc(x.name)}</b><em>${pct(x.r.over8)} of calls over 8 min</em></span>`
       + `<span class="lb-val"><b class="num">${mmss(x.r.median)}</b>${chg}<span class="lb-bar" aria-hidden="true"><span style="width:${w.toFixed(0)}%; background:rgb(${ramp(x.r.median).join(",")})"></span></span></span></button></li>`;
   }).join("");
-  $("#lb-sub").textContent = scen ? "Typical wait for help with your what-if (change vs today)" : `Typical wait for help, ${rows.length} neighborhoods · October 2026’s real 911 calls`;
+  $("#lb-sub").textContent = scen ? "Typical wait for help with your what-if (change vs today)" : `${RESULT.band ? RESULT.band + ": t" : "T"}ypical wait for help, ${rows.length} neighborhoods · all of October 2026`;
   list.querySelectorAll(".lb-row").forEach((b) => (b.onclick = () => focusHood(b.dataset.hood)));
 }
 function setLeaderboard(open) {
@@ -2600,7 +2613,7 @@ function setPlaying(p) {
 $("#play").onclick = () => setPlaying(!playing);
 $("#scrub").oninput = (e) => { simT = +e.target.value; };
 document.querySelectorAll("[data-speed]").forEach((b) => (b.onclick = () => { speed = +b.dataset.speed; document.querySelectorAll("[data-speed]").forEach((x) => x.classList.toggle("on", x === b)); }));
-$("#day").onchange = async (e) => {
+$("#day").onchange = async (e) => { return;  // day picker removed: the time-of-day slider uses the whole month
   const r = await fetch("/api/simulate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...JSON.parse(lastRun), day: +e.target.value }) });
   if (r.ok) { const d = await r.json(); RESULT = d; loadReplay(d.replay); renderAll(); }
 };
@@ -2653,7 +2666,7 @@ function lookupHTML(d) {
 }
 // a simulated scenario drives the whole map: neighborhood colors, banner, replayed dispatches, pins
 function applyResult(d, fly = true) {
-  RESULT = d.result; CUSTOM = d.title; MARKERS = d.markers || [];
+  RESULT_ALL = d.result; RESULT = sliceBand(RESULT_ALL, TOD); CUSTOM = d.title; MARKERS = d.markers || [];
   if (d.hours) { simT = d.hours[0] * 3600; $("#scrub").value = simT; setPlaying(true); }  // watch the hour the question is about
   LAST_OUTCOME = d; if (typeof renderLast === "function") renderLast();
   loadReplay(d.result.replay);
@@ -3095,7 +3108,7 @@ renderLast();
   $("#chip-verdict").textContent = "Loading 911 data…";
   [META, HOODS, STATIONS, PEOPLE, VALID] = await data;
   STATIONS = STATIONS.filter((s) => /^\d+$/.test(s.station) && META.fleet[s.station]);
-  BASE = RESULT = META.baseline;
+  BASE_ALL = RESULT_ALL = META.baseline; TOD = BAND_OF(simT); BASE = sliceBand(BASE_ALL, TOD); RESULT = sliceBand(RESULT_ALL, TOD);
   $('[data-meta="today"]').textContent = mmss(BASE.city.median);
   loadReplay(META.replay);
   $("#day").innerHTML = META.days.map((d) => `<option value="${d.day}" ${d.day === META.replay.day ? "selected" : ""}>${esc(d.label)} · ${d.calls} calls</option>`).join("");

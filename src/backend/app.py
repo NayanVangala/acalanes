@@ -261,12 +261,39 @@ def fleet():
     return by_station
 
 
+# Time of day: the same month of calls split into the five travel-model bands, so the page can show how waits change
+# with the hour (all of October, not one day). Computed from a scenario's per-call responses and cached per scenario.
+TEST_BAND = {i["id"]: sim.band(i["t"]) for i in RT["test"]}
+BAND_CACHE = {}
+
+
+def by_band(key):
+    if key in BAND_CACHE:
+        return BAND_CACHE[key]
+    resp, city, hoods = RESP[key], {b: [] for b in range(5)}, {b: {} for b in range(5)}
+    for i in RT["test"]:
+        v = resp.get(i["id"])
+        if v is not None:
+            b = TEST_BAND[i["id"]]
+            city[b].append(v)
+            hoods[b].setdefault(i["hood"], []).append(v)
+    def stats(xs):
+        xs = sorted(xs)
+        return {"median": round(xs[len(xs) // 2]), "over8": round(sum(x > 480 for x in xs) / len(xs), 3), "calls": len(xs)}
+    out = {str(b): {"label": BAND_LABEL[b], "city": stats(city[b]), "hoods": {h: stats(v) for h, v in hoods[b].items()}}
+           for b in range(5) if city[b]}
+    if len(BAND_CACHE) > 48:
+        BAND_CACHE.clear()
+    BAND_CACHE[key] = out
+    return out
+
+
 def meta():
     by_station = fleet()
     summary, log = run()
     days = [{"day": d, "label": date.fromordinal(d).strftime("%a %b %-d"), "calls": n} for d, n in sorted(DAYS.items())]
     return {"period": RT["period"], "calls": len(RT["test"]), "units": len(RT["homes"]),
-            "incidents_total": RT["n_incidents"], "fleet": by_station, "baseline": summary,
+            "incidents_total": RT["n_incidents"], "fleet": by_station, "baseline": {**summary, "by_band": by_band(scenario_key())},
             "days": days, "replay": replay(log, DEFAULT_DAY)}
 
 
@@ -992,7 +1019,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.reply('{"error": "lng/lat must be inside San Francisco"}', code=400)
             return self.reply(json.dumps(here(lng, lat, closed, added, volume)))
         summary, log = run(closed, added, volume)
-        self.reply(json.dumps({**summary, "replay": replay(log, day)}))
+        self.reply(json.dumps({**summary, "by_band": by_band(scenario_key(closed, added, volume)), "replay": replay(log, day)}))
 
     def body(self, limit=4_000):
         n = min(int(self.headers.get("Content-Length", 0)), limit)
