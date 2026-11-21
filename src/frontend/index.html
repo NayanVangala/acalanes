@@ -959,6 +959,7 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
     <label class="toggle"><input type="checkbox" id="l-hoods" checked>Response</label>
     <label class="toggle"><input type="checkbox" id="l-3d">Response 3D</label>
     <label class="toggle"><input type="checkbox" id="l-grid">Grid</label>
+    <label class="toggle"><input type="checkbox" id="l-traffic">Live traffic</label>
     <label class="toggle" id="t-pol" hidden><input type="checkbox" id="l-pol" checked>Police</label>
     <label class="toggle" id="t-hosp" hidden><input type="checkbox" id="l-hosp" checked>Hospitals</label>
 </div>
@@ -1281,7 +1282,7 @@ let CUSTOM = null, MARKERS = [], PROPS = [], PICKING = false, PROP_KIND = "fire"
 let addType = "MEDIC";
 let view = { maxPitch: 80, ...HOME, zoom: LIMIT.minZoom, minZoom: LIMIT.minZoom, maxZoom: LIMIT.maxZoom, pitch: 0, bearing: 0 };
 let deckgl, simT = 8 * 3600, speed = 300, playing = !reduced, lastFrame = performance.now();
-const show = { sat: true, grid: false, hoods: true, extrude: false, bld: true, g3d: true, police: true, hosp: true };
+const show = { sat: true, grid: false, hoods: true, extrude: false, bld: true, g3d: true, police: true, hosp: true, traffic: false };  // traffic: the replay's moving vehicles, trails, routes and call pulses (heavy on the GPU, off by default)
 // ---------- Google Photorealistic 3D Tiles (only when the server has a key) ----------
 let GOOGLE_KEY = null, dropIn = false;
 const TERRAIN = deck._TerrainExtension ? [new deck._TerrainExtension()] : [];
@@ -1794,7 +1795,7 @@ function layers(t, veh) {
     }));
   }
   // every route driven so far today stays on the map, faint; click one for the vehicle and the call log
-  if (SET.routes > 0) L.push(memo("routes", [ROUTES, zk, SET.routes], () => new deck.PathLayer({
+  if (show.traffic && SET.routes > 0) L.push(memo("routes", [ROUTES, zk, SET.routes], () => new deck.PathLayer({
     id: "routes", data: ROUTES, getPath: (d) => d.path, widthUnits: "pixels", getWidth: 3, widthMinPixels: 2,
     extensions: ROUTE_FILTER, getFilterValue: (d) => d.trip[6], filterRange: [-1, 0],
     capRounded: true, jointRounded: true, pickable: true, autoHighlight: true, highlightColor: [255, 255, 255, 200],
@@ -1804,17 +1805,17 @@ function layers(t, veh) {
     id: "route-sel", data: [SEL_ROUTE], getPath: (d) => d.path, widthUnits: "pixels", getWidth: 6, capRounded: true, jointRounded: true,
     getColor: (d) => (d.fire ? [...RGB.engine, 255] : [...RGB.medic, 255]), parameters: { depthTest: false },
   })));
-  L.push(new deck.TripsLayer({
+  if (show.traffic) L.push(new deck.TripsLayer({
     id: "trails", data: SEGS, getPath: (d) => d.path, getTimestamps: (d) => d.ts, currentTime: t, trailLength: 240,
     fadeTrail: true, widthMinPixels: 2, capRounded: true, jointRounded: true,
     getColor: (d) => (d.fire ? [...RGB.engine, 150] : [...RGB.medic, 150]), parameters: { depthTest: false },
   }));
-  if (show.police && PSEGS.length) L.push(new deck.TripsLayer({
+  if (show.traffic && show.police && PSEGS.length) L.push(new deck.TripsLayer({
     id: "police-trails", data: PSEGS, getPath: (d) => d.path, getTimestamps: (d) => d.ts, currentTime: t, trailLength: 180,
     fadeTrail: true, widthMinPixels: 1.5, capRounded: true, getColor: [90, 140, 255, 130], parameters: { depthTest: false },
   }));
-  const waiting = REPLAY.calls.filter((c) => c[2] <= t && t < c[3] + 90);
-  L.push(new deck.ScatterplotLayer({
+  const waiting = show.traffic ? REPLAY.calls.filter((c) => c[2] <= t && t < c[3] + 90) : [];
+  if (show.traffic) L.push(new deck.ScatterplotLayer({
     id: "calls", data: waiting, pickable: true, getPosition: (c) => at(c[0], c[1]), radiusUnits: "pixels",
     getRadius: (c) => (t < c[3] ? 9 + pulse * 9 : 6), stroked: true, filled: true,
     getFillColor: (c) => (t < c[3] ? [...RGB.call, 60] : [...RGB.ok, 120]),
@@ -1831,11 +1832,11 @@ function layers(t, veh) {
   });
   const groups = { engine: [], truck: [], amb: [] };
   for (const v of veh.list) groups[v.type === "TRUCK" ? "truck" : v.fire ? "engine" : "amb"].push(v);
-  for (const [k, body, bar] of [["engine", MESH.engine, MESH.barEngine], ["truck", MESH.truck, MESH.barTruck], ["amb", MESH.amb, MESH.barAmb]]) {
+  if (show.traffic) for (const [k, body, bar] of [["engine", MESH.engine, MESH.barEngine], ["truck", MESH.truck, MESH.barTruck], ["amb", MESH.amb, MESH.barAmb]]) {
     L.push(mesh(`vehicles-${k}`, groups[k], body, [255, 255, 255], { pickable: true }));
     L.push(mesh(`bar-${k}`, groups[k], bar, lights));
   }
-  if (show.police && veh.police.length) {
+  if (show.traffic && show.police && veh.police.length) {
     L.push(mesh("police", veh.police, MESH.police, [255, 255, 255], { pickable: true }));
     L.push(mesh("bar-police", veh.police, MESH.barPolice, (v) => v.state === 0 ? ((flash ^ v.blink) ? [255, 40, 40] : [60, 120, 255]) : v.state === 1 ? [60, 120, 255] : [70, 74, 80]));
   }
@@ -2467,7 +2468,7 @@ $("#day").onchange = async (e) => {
   if (r.ok) { const d = await r.json(); RESULT = d; loadReplay(d.replay); renderAll(); }
 };
 const bind = (id, k) => ($(id).onchange = (e) => { show[k] = e.target.checked; });
-bind("#l-sat", "sat"); bind("#l-grid", "grid"); bind("#l-hoods", "hoods"); bind("#l-3d", "extrude"); bind("#l-bld", "bld"); bind("#l-g3d", "g3d"); $("#l-g3d").addEventListener("change", () => { if (!useGoogle() && !BUILDINGS) loadBuildings(); if (useGoogle()) loadElevation(); if (REPLAY) loadReplay0(REPLAY); }); bind("#l-pol", "police"); bind("#l-hosp", "hosp");
+bind("#l-sat", "sat"); bind("#l-grid", "grid"); bind("#l-traffic", "traffic"); bind("#l-hoods", "hoods"); bind("#l-3d", "extrude"); bind("#l-bld", "bld"); bind("#l-g3d", "g3d"); $("#l-g3d").addEventListener("change", () => { if (!useGoogle() && !BUILDINGS) loadBuildings(); if (useGoogle()) loadElevation(); if (REPLAY) loadReplay0(REPLAY); }); bind("#l-pol", "police"); bind("#l-hosp", "hosp");
 $("#follow-stop").onclick = stopFollow;
 // what the AI actually set, in plain words, so it's clear it only filled in the controls
 function readAs(sc) {
