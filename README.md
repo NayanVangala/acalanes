@@ -1,6 +1,6 @@
-# LabTwin
+# Runnr
 
-Acalanes Data Fest 2026 project. A "digital twin" that replays a lab protocol step by step and flags the steps most likely to ruin the experiment, before anyone wastes a day at the bench.
+Acalanes Data Fest 2026 project. Spellcheck for lab protocols: Runnr goes through a protocol step by step and flags the amounts most likely to ruin the experiment, before anyone wastes a day at the bench.
 
 ## Question
 
@@ -44,21 +44,23 @@ Takeaways:
 
 ```bash
 git clone --depth 1 https://github.com/bioplanner/bioplanner.git data/raw/bioplanner
-python3 labtwin.py     # self-check
+python3 runner.py      # self-check
 python3 evaluate.py    # prints the table above, writes results.json
+python3 app.py         # demo at http://localhost:8000
 ```
 
 Needs Python 3.10+. No extra packages.
 
 ## Files
 
-- `labtwin.py`: parser, twin model, recipe check, self-check
+- `runner.py`: parser, model, recipe check, self-check
 - `evaluate.py`: cross-validation with inserted errors, recipe audit
+- `app.py` + `index.html`: demo. Paste a protocol, or load a real one with a hidden mistake and an answer key. For that example the model is rebuilt without that protocol, so it can't just remember the original value.
 - `results.json`: latest evaluation output
 
 ## MVP status / next
 
 - [x] Data, model, baselines, validation, recipe audit
-- [ ] Demo app: paste a protocol, see a step-by-step replay with flagged steps and reasons
-- [ ] "Fix it": an LLM suggests a corrected step for each flag (optional; needs an API key)
+- [x] Demo app (works, plain styling)
+- [ ] Make it look good; show typical values in readable units (now "1.8e+03 s" instead of "30 min")
 - [ ] Slides: question, data, build, finding, limits (5 minutes)

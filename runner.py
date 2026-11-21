@@ -1,4 +1,4 @@
-"""LabTwin: replay a lab protocol step by step, flag quantities that look wrong.
+"""Runnr: run through a lab protocol step by step, flag quantities that look wrong.
 
 Data: BioProt (100 public protocols.io protocols, BioPlanner paper, arXiv 2310.10632).
 Model: every quantity (volume, temp, time, speed, ...) is compared with the same kind of
@@ -107,7 +107,7 @@ def robust(xs, kind):
     return med, max(1.4826 * mad, floor)
 
 
-class Twin:
+class Model:
     """mode: 'knn' (context neighbors, main model), 'action' or 'kind' (baselines)."""
 
     def __init__(self, protocols, mode="knn", k=15, min_group=8):
@@ -201,8 +201,8 @@ if __name__ == "__main__":
     assert recipe_check(bad) and "20.8" in recipe_check(bad)[0]["why"]
     assert not recipe_check(bad.replace("7.2", "6.4"))
     ps = load()
-    twin = Twin(ps[1:])
-    z_ok = twin.zscores("Centrifuge at 12,000 x g for 1 min")[0][1]
-    z_bad = twin.zscores("Centrifuge at 12,000,000 x g for 1 min")[0][1]
+    model = Model(ps[1:])
+    z_ok = model.zscores("Centrifuge at 12,000 x g for 1 min")[0][1]
+    z_bad = model.zscores("Centrifuge at 12,000,000 x g for 1 min")[0][1]
     assert z_bad > z_ok, (z_ok, z_bad)
     print(len(ps), "protocols,", sum(len(p["steps"]) for p in ps), "steps, self-check ok")

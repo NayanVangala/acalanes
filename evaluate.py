@@ -1,6 +1,6 @@
 """Validation: inject known errors into held-out protocols, measure catch rate vs false alarms.
 
-5-fold cross-validation by protocol: the twin never learns from the protocol it is checking.
+5-fold cross-validation by protocol: the model never learns from the protocol it is checking.
 Error types mimic real slips: 10x / 0.1x typo, wrong unit (µL vs mL, min vs h), temperature off by 40 °C.
 A slip counts as caught if the edited quantity scores above the threshold.
 False alarm rate = share of untouched, real quantities that score above the threshold.
@@ -10,7 +10,7 @@ import json
 import random
 import re
 
-from labtwin import REACTION, Twin, load, recipe_check
+from runner import REACTION, Model, load, recipe_check
 
 ERRORS = ["x10", "x0.1", "unit", "temp+40"]
 THRESHOLDS = [2.5, 3, 3.5, 4, 5, 6]
@@ -46,17 +46,17 @@ def evaluate(protocols, folds=5, seed=0):
         train = [p for p in protocols if fold_of[p["id"]] != f]
         test = [p for p in protocols if fold_of[p["id"]] == f]
         for mode in MODES:
-            twin = Twin(train, mode=mode)
+            model = Model(train, mode=mode)
             for p in test:
                 for s in p["steps"]:
-                    zs = twin.zscores(s)
+                    zs = model.zscores(s)
                     clean[mode] += [z for _, z, _, _ in zs]
                     for q, *_ in zs:
                         for e in ERRORS:
                             mut = mutate(s, q, e)
                             if mut:
                                 bad, start = mut
-                                hit = [z for q2, z, _, _ in twin.zscores(bad) if q2[2] == start]
+                                hit = [z for q2, z, _, _ in model.zscores(bad) if q2[2] == start]
                                 if hit:
                                     injected[mode][e].append(hit[0])
     table = {}
