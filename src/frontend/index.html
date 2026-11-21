@@ -476,6 +476,9 @@ dialog p b { color: var(--ink); }
 .col.left { left: var(--gap); bottom: var(--gap); width: var(--left-w); border-right: 1px solid rgba(168, 178, 187, 0.9); }
 .col.right { right: var(--gap); width: var(--right-w); max-height: calc(100vh - 2 * var(--gap)); height: auto; overflow-y: auto; border-left: 1px solid rgba(168, 178, 187, 0.9); }
 #panel.hidden { display: none; }
+.col.left { overflow: visible; }  /* let the address suggestions drop past the panel edge */
+.col.left .brand { border-radius: 11px 11px 0 0; }
+.col.left .foot { border-radius: 0 0 11px 11px; }
 .col .brand { padding: 14px 12px 12px 16px; }
 .col.right .foot { position: sticky; bottom: 0; }
 /* map controls float in the space between the panels */
