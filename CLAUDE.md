@@ -8,7 +8,7 @@ Acalanes Data Fest 2026 project: a live 3D replay of San Francisco 911 fire/EMS 
   - `app.py`: HTTP server and API
   - `sim.py`: travel-time model, simulator, validation
   - `routing.py`: street routing over OpenStreetMap
-  - `nl.py`: Claude Haiku what-if parser
+  - `nl.py`: Claude Haiku what-if agent (tool use; tools live in `app.py`)
   - `paths.py`: every file location
 - `src/frontend/index.html`: the whole UI, one file (deck.gl 8.9 from unpkg)
 - `scripts/`: one-off downloads (`fetch_data.py`, `fetch_buildings.py`)

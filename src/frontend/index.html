@@ -696,6 +696,29 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
   .timeline .speed, .timeline .hours { display: none; }
   .scen-chip { display: none; }
 }
+
+/* answer details, question suggestions, "getting around" card */
+.reply-steps { margin: 10px 0 0; padding: 0 0 0 18px; font-size: 13px; color: var(--ink-soft); display: grid; gap: 2px; }
+.reply-steps::before { content: "What was checked"; display: block; margin-left: -18px; font-weight: 600; color: var(--ink); }
+.suggest { position: absolute; right: 60px; bottom: calc(100% + 12px); width: min(460px, 92vw); padding: 12px; border-radius: 16px;
+  background: var(--frost-solid); box-shadow: var(--shadow-soft); color: var(--ink); }
+.suggest[hidden] { display: none; }
+.suggest p { margin: 2px 6px 8px; font-size: 13px; color: var(--ink-faint); }
+.suggest ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
+.suggest button { width: 100%; text-align: left; padding: 9px 10px; border: 0; border-radius: 10px; background: transparent; font-size: 14.5px; color: var(--ink); cursor: pointer; }
+.suggest button:hover, .suggest button:focus-visible { background: var(--hover); }
+.moves { position: fixed; z-index: 20; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(460px, calc(100vw - 32px)); padding: 22px 22px 18px; border-radius: 20px; }
+.moves[hidden] { display: none; }
+.moves h2 { margin: 0 0 14px; font-size: 20px; font-weight: 600; }
+.moves dl { margin: 0 0 16px; display: grid; grid-template-columns: max-content 1fr; gap: 10px 18px; font-size: 14.5px; }
+.moves dt { font-weight: 600; }
+.moves dd { margin: 0; color: var(--ink-soft); display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 10px; }
+.moves dd span { color: var(--ink-faint); }
+.moves kbd { display: inline-block; min-width: 20px; padding: 1px 6px; border-radius: 6px; background: var(--hover); border: 1px solid var(--rule-strong); font: 600 12.5px var(--font); text-align: center; color: var(--ink); }
+@media (max-width: 520px) { .moves dl { grid-template-columns: 1fr; gap: 2px; } .moves dd { margin-bottom: 8px; } }
+
+.reply-facts li { grid-template-columns: 1fr; gap: 1px; }
+.reply-facts li b { text-align: left; font-size: 14.5px; }
 </style>
 </head>
 <body>
@@ -703,7 +726,7 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
 <main class="stage">
   <div id="map" tabindex="0" role="application" aria-label="3D map of San Francisco with fire engines, ambulances and police responding to 911 calls. Arrow keys move, Shift with arrow keys rotates and tilts, plus and minus zoom."></div>
   <div class="map-fade" aria-hidden="true"></div>
-  <div class="hint" id="hint" hidden>Drag or arrow keys to move · Scroll to zoom · Shift + arrows to rotate and tilt</div>
+  <div class="hint" id="hint" hidden></div>
   <div class="follow" id="follow" hidden><span id="follow-text">Following</span><button class="btn" id="follow-stop">Stop (Esc)</button></div>
   <div class="attrib" id="attrib">Imagery © Esri, Maxar, Earthstar Geographics · Streets and data: DataSF</div>
 </main>
@@ -879,11 +902,13 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
     <button class="rb-btn go" type="submit" id="ask-go" aria-label="Ask" title="Ask"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
   </form>
   <button class="fab grid" id="scen-btn" type="button" aria-label="Scenarios" title="Scenarios"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="6" r="2.2" fill="#e8622c"/><circle cx="12" cy="6" r="2.2" fill="#1e88e5"/><circle cx="18" cy="6" r="2.2" fill="#2e8b57"/><circle cx="6" cy="12" r="2.2" fill="#ffb020"/><circle cx="12" cy="12" r="2.2" fill="#e23a46"/><circle cx="18" cy="12" r="2.2" fill="#3f72e8"/><circle cx="6" cy="18" r="2.2" fill="#8e44ad"/><circle cx="12" cy="18" r="2.2" fill="#ff6e32"/><circle cx="18" cy="18" r="2.2" fill="#1a2634"/></svg></button>
+  <div class="suggest" id="ask-suggest" hidden><p>Ask anything about 911 response in San Francisco, for example</p><ul><li><button type="button">What if there’s a big crash near me at 5 PM?</button></li><li><button type="button">Do weekends take longer than weekdays in the Tenderloin?</button></li><li><button type="button">What happens in a heat wave with twice the calls?</button></li><li><button type="button">Which hours are slowest for fires?</button></li><li><button type="button">What if Station 43’s engine is busy from 5 to 7 PM?</button></li><li><button type="button">Close the two stations nearest Bayview</button></li></ul></div>
   <p class="toast" id="ask-out" role="status" hidden></p>
   <p class="toast" id="me-msg" role="status" hidden></p>
 </div>
 
 <div class="fabs" role="group" aria-label="Map view">
+  <button class="fab" id="moves-btn" aria-label="How to move around the map (?)" title="How to move around (?)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg></button>
     <button class="fab" id="n-rl" hidden aria-label="Rotate left (Shift ←)" title="Rotate left (Shift ←)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.6"/><path d="M4 4v4h4"/></svg></button>
     <button class="fab" id="n-up" hidden aria-label="Move north (↑)" title="Move (↑)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg></button>
     <button class="fab" id="n-rr" hidden aria-label="Rotate right (Shift →)" title="Rotate right (Shift →)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v4h-4"/></svg></button>
@@ -898,6 +923,19 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
     <button class="fab" id="z-fit" aria-label="Reset view (R)" title="Reset view (R)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
   </div>
 <button id="panel-open" hidden></button>
+<section class="moves frost" id="moves" role="dialog" aria-labelledby="moves-h" hidden>
+  <h2 id="moves-h">Getting around the map</h2>
+  <dl>
+    <dt>Move</dt><dd>Click and drag the map<span>or the arrow keys</span></dd>
+    <dt>Zoom</dt><dd>Scroll, pinch, or double-click<span><kbd>+</kbd> <kbd>−</kbd></span></dd>
+    <dt>Turn and tilt</dt><dd>Right-click and drag, or hold <kbd>Shift</kbd> and drag<span><kbd>Shift</kbd> + arrow keys</span></dd>
+    <dt>Back to the whole city</dt><dd>The square button on the right<span><kbd>R</kbd></span></dd>
+    <dt>Ride along</dt><dd>Click a moving truck or ambulance<span><kbd>Esc</kbd> to stop</span></dd>
+    <dt>Close a station</dt><dd>Click its marker, click again to reopen</dd>
+    <dt>Pause the replay</dt><dd>The play button at the bottom<span><kbd>Space</kbd></span></dd>
+  </dl>
+  <button class="cta" id="moves-ok" type="button">Got it</button>
+</section>
 </div>
 <dialog id="about">
   <h2>Medio</h2>
@@ -1536,7 +1574,7 @@ function initDeck() {
     parent: $("#map"), viewState: view, controller: { dragRotate: true, touchRotate: true, doubleClickZoom: true, scrollZoom: true, touchZoom: true, inertia: 300, keyboard: false },
     onViewStateChange: ({ viewState, interactionState }) => {
       const user = interactionState && (interactionState.isDragging || interactionState.isPanning || interactionState.isZooming || interactionState.isRotating);
-      if (user) { if (followUnit) stopFollow(); hideHint(); }
+      if (user) { if (followUnit) stopFollow(); }
       // clamp everything except the in-between frames of an animation (fly-tos are clamped at their target by setView).
       // Checking viewState.transitionDuration here let pinch zoom and inertia pans skip the limits entirely.
       view = interactionState && interactionState.inTransition ? viewState : clampView(viewState);
@@ -1548,6 +1586,7 @@ function initDeck() {
       sun: new deck.DirectionalLight({ color: [255, 245, 230], intensity: 1.4, direction: [-2, -4, -6] }),
     })],
     parameters: { clearColor: [0, 0, 0, 0] },  // transparent: the fog sky behind the canvas shows past the edge of the map
+    getCursor: ({ isDragging, isHovering }) => (isDragging ? "grabbing" : isHovering ? "pointer" : "grab"),
     onClick: ({ object, layer }) => {
       if (!object || !layer) return;
       if (layer.id.startsWith("stations")) toggleClosed(object.station);
@@ -1653,7 +1692,7 @@ function renderVerdict() {
   if (scen) {
     if (worst >= 60 || dOver >= 5) { cls = "stop"; word = "Strained"; sub = `One neighborhood waits ${Math.round(worst)} s longer.`; }
     else if (worst >= 15) { cls = "warn"; word = "Slower"; sub = `Some neighborhoods wait up to ${Math.round(worst)} s longer.`; }
-    else if (dMed <= -3 || best <= -15) { cls = "pass"; word = "Faster"; sub = `Up to ${Math.abs(Math.round(best))} s faster where it helps most, and no neighborhood is slower.`; }
+    else if (dMed <= 0 && (dMed <= -3 || best <= -15)) { cls = "pass"; word = "Faster"; sub = `Up to ${Math.abs(Math.round(best))} s faster where it helps most, and no neighborhood is slower.`; }
     else { cls = "pass"; word = "Holds"; sub = "No neighborhood gets meaningfully slower."; }
   }
   $("#verdict").className = `verdict ${cls}`;
@@ -1875,7 +1914,7 @@ function setMe(lng, lat, label) {
   const msg = $("#me-msg");
   const hood = hoodAt(lng, lat);
   if (!hood && !(lng > BBOX[0] && lng < BBOX[2] && lat > BBOX[1] && lat < BBOX[3])) {
-    msg.hidden = false; msg.className = "ask-out err";
+    msg.hidden = false; msg.className = "toast err";
     msg.textContent = "That spot is outside San Francisco. Medio only covers the city’s 911 calls.";
     return;
   }
@@ -1968,24 +2007,24 @@ $("#me-form").onsubmit = async (e) => {
   const q = $("#me-q").value.trim(), msg = $("#me-msg");
   if (!q || !HOODS) return;
   if (suggestions.length && !$("#me-list").hidden) { pick(Math.max(active, 0)); return; }
-  $("#me-go").disabled = true; msg.hidden = false; msg.className = "ask-out"; msg.textContent = "Looking up that address…";
+  $("#me-go").disabled = true; msg.hidden = false; msg.className = "toast"; msg.textContent = "Looking up that address…";
   try {
     const [hit] = await geocode(q, 1);
-    if (!hit) { msg.className = "ask-out err"; msg.textContent = "Couldn’t find that address in San Francisco. Try a street number and name, like 500 Castro St."; return; }
+    if (!hit) { msg.className = "toast err"; msg.textContent = "Couldn’t find that address in San Francisco. Try a street number and name, like 500 Castro St."; return; }
     showList([]);
     setMe(hit.lng, hit.lat, hit.label);
   } catch (err) {
     if (err.name === "AbortError") return;
-    msg.className = "ask-out err"; msg.textContent = "The address lookup didn’t respond. Try again, or use your current location.";
+    msg.className = "toast err"; msg.textContent = "The address lookup didn’t respond. Try again, or use your current location.";
   } finally { $("#me-go").disabled = false; }
 };
 $("#me-geo").onclick = () => {
   const msg = $("#me-msg");
-  if (!navigator.geolocation) { msg.hidden = false; msg.className = "ask-out err"; msg.textContent = "This browser can’t share your location. Type an address instead."; return; }
-  msg.hidden = false; msg.className = "ask-out"; msg.textContent = "Finding you…";
+  if (!navigator.geolocation) { msg.hidden = false; msg.className = "toast err"; msg.textContent = "This browser can’t share your location. Type an address instead."; return; }
+  msg.hidden = false; msg.className = "toast"; msg.textContent = "Finding you…";
   navigator.geolocation.getCurrentPosition(
     (p) => setMe(p.coords.longitude, p.coords.latitude, "Your current location"),
-    () => { msg.className = "ask-out err"; msg.textContent = "Location access was blocked or timed out. Type an address instead."; },
+    () => { msg.className = "toast err"; msg.textContent = "Location access was blocked or timed out. Type an address instead."; },
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
 };
 $("#me-clear").onclick = () => { ME = null; $("#me-q").value = ""; $("#me-msg").hidden = true; $("#me-clear").hidden = true; renderMine(); };
@@ -2053,7 +2092,7 @@ $("#scen-btn").onclick = () => { const p = $("#panel"); p.classList.contains("hi
 $("#layers-btn").onclick = () => { const pop = $("#layer-pop"); pop.hidden = !pop.hidden; $("#layers-btn").setAttribute("aria-expanded", String(!pop.hidden)); };
 addEventListener("click", (e) => { const pop = $("#layer-pop"); if (!pop.hidden && !pop.contains(e.target) && !$("#layers-btn").contains(e.target)) { pop.hidden = true; $("#layers-btn").setAttribute("aria-expanded", "false"); } });
 $("#help").onclick = () => $("#about").showModal();
-function nav(v, ms = 300) { if (followUnit) stopFollow(); hideHint(); setView(v, ms); }
+function nav(v, ms = 300) { if (followUnit) stopFollow(); setView(v, ms); }
 function pan(fx, fy) {
   // move by a fraction of the screen, in screen directions (works at any bearing and tilt)
   let vp; try { vp = deckgl.getViewports()[0]; } catch (e) { vp = null; }
@@ -2069,12 +2108,21 @@ $("#n-up").onclick = () => pan(0, -0.3); $("#n-down").onclick = () => pan(0, 0.3
 $("#n-left").onclick = () => pan(-0.3, 0); $("#n-right").onclick = () => pan(0.3, 0);
 $("#n-rl").onclick = () => rotateBy(-20); $("#n-rr").onclick = () => rotateBy(20);
 $("#n-compass").onclick = () => nav({ bearing: 0 });
-function hideHint() {
-  if ($("#hint").hidden) return;
-  $("#hint").hidden = true;
-  try { localStorage.setItem("runnr-hint-seen", "1"); } catch (e) { /* private mode: hint just shows again next time */ }
+function showMoves(on) {
+  $("#moves").hidden = !on;
+  if (on) $("#moves-ok").focus();
+  else try { localStorage.setItem("medio-moves-seen", "1"); } catch (e) { /* private mode: the card shows again next visit */ }
 }
-try { if (!localStorage.getItem("runnr-hint-seen")) $("#hint").hidden = false; } catch (e) { $("#hint").hidden = false; }
+$("#moves-btn").onclick = () => showMoves($("#moves").hidden);
+$("#moves-ok").onclick = () => { showMoves(false); $("#map").focus(); };
+try { if (!localStorage.getItem("medio-moves-seen")) setTimeout(() => showMoves(true), 2600); } catch (e) { /* storage blocked: skip */ }
+const ask = $("#ask"), sugg = $("#ask-suggest");
+const syncSugg = () => { sugg.hidden = !(document.activeElement === ask && !ask.value.trim()); };
+ask.addEventListener("focus", syncSugg); ask.addEventListener("input", syncSugg);
+ask.addEventListener("blur", () => setTimeout(syncSugg, 150));
+sugg.querySelectorAll("button").forEach((b) => b.addEventListener("mousedown", (e) => {
+  e.preventDefault(); ask.value = b.textContent; sugg.hidden = true; $("#ask-form").requestSubmit();
+}));
 $("#z-tilt").onclick = () => setView(view.pitch > 10 ? { pitch: 0, bearing: 0 } : { pitch: 60, bearing: -24 }, 600);
 $("#z-fit").onclick = () => nav(HOME, 900);
 $("#z-drop").onclick = dropToStreet;
@@ -2114,54 +2162,47 @@ function showReply(question, html) {
 function replyHTML(d) {
   const facts = (d.facts || []).map((f) => `<li class="${f.tone || ""}"><span>${esc(f.k)}</span><b class="num">${esc(f.v)}</b>${f.note ? `<em>${esc(f.note)}</em>` : ""}</li>`).join("");
   const assume = (d.assumptions || []).length ? `<p class="reply-a"><b>Assumed:</b> ${d.assumptions.map(esc).join(" ")}</p>` : "";
-  return `<p class="reply-h">${esc(d.headline || "")}</p>${facts ? `<ul class="reply-facts">${facts}</ul>` : ""}${assume}
-    <p class="ai-note">Read as: ${esc(d.read_as || "")} The AI only read the question; the numbers come from the simulator and October’s records.</p>`;
-}
-function scenarioReply(readAs) {
-  const c = RESULT.city, b = BASE.city, rows = hoodRows().filter((x) => Math.abs(x.d) >= 5).sort((x, y) => Math.abs(y.d) - Math.abs(x.d)).slice(0, 3);
-  const d = c.median - b.median;
-  const head = `${$("#vword").textContent}. ${$("#vsub").textContent}`;
-  const facts = [{ k: "Citywide typical wait", v: `${mmss(b.median)} → ${mmss(c.median)}`, tone: Math.abs(d) < 1 ? "" : d > 0 ? "bad" : "ok" },
-    { k: "Calls over 8 min", v: `${pct(b.over8)} → ${pct(c.over8)}` },
-    ...rows.map((x) => ({ k: x.name, v: `${mmss(x.b.median)} → ${mmss(x.r.median)}`, tone: x.d > 0 ? "bad" : "ok", note: signed(x.d) }))];
-  if (!rows.length) facts.push({ k: "Neighborhoods", v: "none change by more than 5 s", note: "nearby stations cover it" });
-  return replyHTML({ headline: head, facts, read_as: readAs });
+  const steps = (d.steps || []).length ? `<ol class="reply-steps" aria-label="What was checked">${d.steps.map((x) => `<li>${esc(x.label)}</li>`).join("")}</ol>` : "";
+  const check = !d.checked ? "" : (d.unmatched || []).length
+    ? `Couldn’t match ${d.unmatched.map(esc).join(", ")} to the data, so treat ${d.unmatched.length > 1 ? "those" : "that"} with care.`
+    : `All ${d.checked} numbers above match the simulator and records output.`;
+  return `<p class="reply-h">${esc(d.headline || "")}</p>${facts ? `<ul class="reply-facts">${facts}</ul>` : ""}${assume}${steps}
+    <p class="ai-note">${check} Claude Haiku picked which checks to run and wrote the sentences; it never makes up a number.</p>`;
 }
 $("#ask-form").onsubmit = async (e) => {
   e.preventDefault();
   const text = $("#ask").value.trim(), out = $("#ask-out");
   if (!text) return;
-  $("#ask-go").disabled = true; out.hidden = false; out.className = "ask-out"; out.textContent = "Thinking…";
+  $("#ask-go").disabled = true; out.hidden = false; out.className = "toast"; out.textContent = "Checking October’s records and running the simulator… about 10 seconds";
   try {
     const r = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, me: ME ? { lat: ME.lat, lng: ME.lng, label: ME.label } : null }) });
     if (r.status === 503 || r.status === 404) {
-      out.className = "ask-out err"; out.textContent = "Asking in plain words isn’t set up on this server. Use the controls below instead.";
+      out.className = "toast err"; out.textContent = "Asking in plain words isn’t set up on this server. Use the controls below instead.";
       $("#ask-form").hidden = true; return;
     }
     const d = await r.json();
-    if (!r.ok || d.error) { out.className = "ask-out err"; out.textContent = d.error || "That question didn’t work. Try naming a station, a neighborhood or a call volume."; return; }
+    if (!r.ok || d.error) { out.className = "toast err"; out.textContent = d.error || "That question didn’t work. Try naming a station, a neighborhood or a call volume."; return; }
     out.hidden = true;
-    if (d.intent === "scenario") {
-      scenario = { closed: (d.closed || []).map(String), added: d.added || [], volume: d.volume || 1 };
+    showReply(text, replyHTML(d));
+    if (d.focus) setView({ longitude: d.focus.lng, latitude: d.focus.lat, zoom: Math.max(view.zoom, 14), pitch: 60 }, 1400);
+    if (d.scenario) {  // the answer simulated a change to the city: show it on the map too
+      scenario = { closed: d.scenario.closed.map(String), added: d.scenario.added, volume: d.scenario.volume };
       renderScenario();
-      showReply(text, `<p class="reply-h">Running: ${esc(readAs(scenario))}…</p>`);
       await run();
-      showReply(text, scenarioReply(`${readAs(scenario)}. ${d.read_as || ""}`));
-    } else {
-      showReply(text, replyHTML(d));
-      if (d.focus) setView({ longitude: d.focus.lng, latitude: d.focus.lat, zoom: Math.max(view.zoom, 14), pitch: 60 }, 1400);
     }
   } catch (err) {
-    out.className = "ask-out err"; out.textContent = "Couldn’t reach the server. Check your connection and try again.";
+    out.className = "toast err"; out.textContent = "Couldn’t reach the server. Check your connection and try again.";
   } finally { $("#ask-go").disabled = false; }
 };
 addEventListener("keydown", (e) => {
   if (e.key === "Escape" && followUnit) { stopFollow(); return; }
+  if (e.key === "Escape" && !$("#moves").hidden) { showMoves(false); return; }
   if (["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName)) return;
   if (e.code === "Space" && document.activeElement.tagName !== "BUTTON") { e.preventDefault(); setPlaying(!playing); }
   else if (e.key === "+" || e.key === "=") zoomBy(1);
   else if (e.key === "-" || e.key === "_") zoomBy(-1);
+  else if (e.key === "?") showMoves($("#moves").hidden);
   else if (e.metaKey || e.ctrlKey || e.altKey) return;
   else {
     const k = e.key.toLowerCase();

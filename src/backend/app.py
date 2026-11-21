@@ -491,6 +491,134 @@ def answer(q, me=None):
     return out
 
 
+# ---------- tools the question agent can call (nl.agent): every number it says comes from one of these ----------
+RECORD_KIND = {"crash": "Traffic collision", "fire": "Fire", "medical": "Medical", "other": "Other"}
+WEEKDAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+
+def _hour(v, lo=0, hi=23):
+    return int(v) if isinstance(v, (int, float)) and lo <= v <= hi else -1
+
+
+def _pct(x):
+    return f"{x:.0%}"
+
+
+def _stats(xs):
+    s = spread(xs)
+    return s and {"calls": f"{s['n']:,}", "typical wait": mmss(s["median"]), "1 in 10 waits over": mmss(s["p90"]),
+                  "over 8 min": _pct(s["over8"])}
+
+
+def records_tool(a, me, state):
+    kind, hood, st = a.get("kind", "any"), a.get("hood") or "", str(a.get("station") or "")
+    h0, h1 = _hour(a.get("hour_from")), _hour(a.get("hour_to"), 0, 24)
+    if h0 >= 0 and h1 in (-1, h0):
+        h1 = h0 + 1
+    days, group = a.get("days", "any"), a.get("group_by", "none")
+    near = me if a.get("near_me") and me else None
+    if hood in hood_names():
+        lat, lng = hood_centroid(hood)
+        state.setdefault("focus", {"lat": lat, "lng": lng, "label": hood})
+    want, rows = RECORD_KIND.get(kind), []
+    for i in RT["test"]:
+        dt = datetime.fromtimestamp(i["t"], sim.SF)
+        if want and kind_of(i) != want or hood and i["hood"] != hood or st and i.get("area") != st:
+            continue
+        if h0 >= 0 and not (h0 <= dt.hour < h1 if h1 > h0 else dt.hour >= h0 or dt.hour < h1):
+            continue
+        if days != "any" and (dt.weekday() >= 5) != (days == "weekend"):
+            continue
+        if near and sim.km(near["lat"], near["lng"], i["lat"], i["lng"]) > 1.5:
+            continue
+        rows.append((i, dt))
+    label = " · ".join(x for x in [want or ("all calls" if kind != "mass_casualty" else "all calls (no mass-casualty tag in records)"),
+                                   hood, st and f"Station {st}'s area", near and "within 1.5 km of your address",
+                                   h0 >= 0 and f"{hour_label(h0)}–{hour_label(h1)}", days != "any" and days + "s"] if x)
+    out = {"_label": f"Real October records: {label}", "source": "real recorded arrival times, not the simulator", "filter": label,
+           "result": _stats([i["real_response"] for i, _ in rows]) or "no matching calls",
+           "citywide, all calls": _stats([i["real_response"] for i in RT["test"]])}
+    key = {"hour": lambda i, dt: dt.hour, "neighborhood": lambda i, dt: i["hood"], "kind": lambda i, dt: kind_of(i),
+           "weekday": lambda i, dt: dt.weekday(), "priority": lambda i, dt: i.get("group") or "unknown"}.get(group)
+    if key and rows:
+        g = {}
+        for i, dt in rows:
+            g.setdefault(key(i, dt), []).append(i["real_response"])
+        items = [(k, v) for k, v in g.items() if len(v) >= 15]
+        items.sort(key=(lambda kv: kv[0]) if group in ("hour", "weekday") else (lambda kv: -spread(kv[1])["median"]))
+        name = {"hour": hour_label, "weekday": lambda d: WEEKDAY_NAMES[d]}.get(group, str)
+        out["by " + group] = [{"name": name(k), **_stats(v)} for k, v in items[:24]]
+    return out
+
+
+def simulate_tool(a, state):
+    valid = set(sim.load_stations())
+    closed = sorted({str(x) for x in a.get("closed", []) if str(x) in valid})[:20]
+    added = [[str(x.get("station")), x.get("type")] for x in a.get("added", [])
+             if str(x.get("station")) in valid and x.get("type") in ("MEDIC", "ENGINE")][:20]
+    volume = min(max(float(a.get("volume") or 1.0), 0.5), 3.0)
+    (b, _), (r, _) = run(), run(closed, added, volume)
+    state["scenario"] = {"closed": closed, "added": added, "volume": volume}
+    moved = sorted(((n, b["hoods"][n]["median"], r["hoods"][n]["median"]) for n in r["hoods"] if n in b["hoods"]),
+                   key=lambda x: -abs(x[2] - x[1]))
+    desc = ", ".join(x for x in [closed and "close " + ", ".join(closed), added and "add " + ", ".join(f"{t.lower()} at {s}" for s, t in added),
+                                 volume != 1 and f"{volume:g}× calls"] if x) or "no change"
+    return {"_label": f"Simulated all of October: {desc}", "applied": desc,
+            "citywide typical wait": f"{mmss(b['city']['median'])} → {mmss(r['city']['median'])}",
+            "citywide change": signed_s(r["city"]["median"] - b["city"]["median"]),
+            "calls over 8 min": f"{_pct(b['city']['over8'])} → {_pct(r['city']['over8'])}",
+            "neighborhoods that change most": [{"name": n, "wait": f"{mmss(x)} → {mmss(y)}", "change": signed_s(y - x)} for n, x, y in moved[:6]]}
+
+
+def signed_s(d):
+    d = round(d)
+    return "no change" if d == 0 else f"{'+' if d > 0 else '−'}{mmss(abs(d))}"
+
+
+def engine_tool(intent, a, me, state):
+    """Wrap the existing answer() branches as tools."""
+    valid, hoods = set(sim.load_stations()), set(hood_names())
+    if intent == "incident":
+        q = {"incident": {"kind": a.get("kind", "other"), "hood": a.get("hood") if a.get("hood") in hoods else "",
+                          "station": str(a.get("station") or "") if str(a.get("station") or "") in valid else "",
+                          "near_me": bool(a.get("near_me")), "hour": _hour(a.get("hour")),
+                          "duration_min": _hour(a.get("duration_min"), 5, 600), "engines": _hour(a.get("engines"), 0, 6),
+                          "ambulances": _hour(a.get("ambulances"), 0, 6)}}
+    elif intent == "units_busy":
+        q = {"busy": [{"station": str(b.get("station")), "type": b.get("type", "ANY"), "from_hour": _hour(b.get("from_hour")),
+                       "to_hour": _hour(b.get("to_hour"), 0, 24)} for b in a.get("busy", []) if str(b.get("station")) in valid][:6]}
+    else:
+        if a.get("near_me") and me:
+            hr = here(me["lng"], me["lat"])
+            state.setdefault("focus", {"lat": me["lat"], "lng": me["lng"], "label": me.get("label") or "your address"})
+            return {"_label": "Profile of your address", "calls within " + f"{hr['radius_m']} m": hr["calls"],
+                    "typical wait": mmss(hr["overall"]["today"]["median"]), "over 8 min": _pct(hr["overall"]["today"]["over8"]),
+                    "by time of day": {t["label"]: mmss(t["today"]["median"]) for t in hr["by_time"] if t["today"]},
+                    "by kind": {k["kind"]: mmss(k["today"]["median"]) for k in hr["by_kind"]},
+                    "likely first engines": [f"Station {r['station']} ({r['km']} km)" for r in hr["responders"]]}
+        st = str(a.get("station") or "")
+        topic = "neighborhood" if a.get("hood") in hoods else "station" if st in valid else "citywide"
+        q = {"info": {"topic": topic, "kind": "", "hood": a.get("hood") if topic == "neighborhood" else "", "station": st if topic == "station" else ""}}
+    q.update(intent="info" if intent == "place" else intent, explanation="")
+    r = answer(q, me)
+    if r.get("focus"):
+        state.setdefault("focus", r["focus"])  # the first place the answer is about
+    return {"_label": {"incident": "Simulated the incident on every October day", "units_busy": "Simulated the units out of service",
+                       "place": "Profiled the place"}[intent],
+            "summary": r.get("headline", ""), "facts": r.get("facts", []), "assumptions": r.get("assumptions", [])}
+
+
+@lru_cache(1)
+def hood_names():
+    return tuple(f["properties"]["nhood"] for f in json.load(open(SF / "hoods.geojson"))["features"])
+
+
+def tool_handlers(me, state):
+    return {"records": lambda a: records_tool(a, me, state), "simulate_city": lambda a: simulate_tool(a, state),
+            "incident": lambda a: engine_tool("incident", a, me, state), "units_busy": lambda a: engine_tool("units_busy", a, me, state),
+            "place_profile": lambda a: engine_tool("place", a, me, state)}
+
+
 class Handler(BaseHTTPRequestHandler):
     def reply(self, body, ctype="application/json", code=200, gz=None):
         data = body if isinstance(body, bytes) else body.encode()
@@ -569,15 +697,16 @@ class Handler(BaseHTTPRequestHandler):
         except ImportError:
             return self.reply('{"error": "Typed questions are not set up on this server."}', code=503)
         try:
-            # the AI only reads the question; answer() computes everything. nl._context expects {station: {"units": ...}}:
-            # passing fleet() bare listed every station's units as "unknown" in the prompt
-            q = nl.parse_question(text, {st: {"units": units} for st, units in fleet().items()})
-            usage = q.pop("usage", None)
+            state = {}
+            # nl._context expects {station: {"units": ...}} (Arshdeep's audit fix: bare fleet() listed units as "unknown")
+            r = nl.agent(text, {st: {"units": u} for st, u in fleet().items()}, tool_handlers(me, state), (me or {}).get("label"))
+            usage = r.pop("usage", None)
             if usage:
                 print(f"ask: {usage}")
-            if "error" in q:
-                return self.reply(json.dumps(q), code=400)
-            self.reply(json.dumps(answer(q, me)))
+            if "error" in r:
+                return self.reply(json.dumps(r), code=400)
+            r.update(state)  # focus to fly to, scenario for the map
+            self.reply(json.dumps(r))
         except Exception as e:  # model or network failure: tell the page, don't crash the server
             self.reply(json.dumps({"error": f"Couldn't read that question: {e}"}), code=400)
 

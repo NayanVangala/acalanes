@@ -20,7 +20,7 @@ This README is the full project context: what it is, how every piece works, ever
 4. **Validation.** Everything is fit on data before October 2026, then October is replayed and compared with what really happened. By neighborhood the simulation matches reality with **r = 0.94**, a typical error of **16 seconds**, and it beats two simpler baselines.
 5. **What-if.** Change the city (close or add stations and units, scale call volume), replay the same month, and compare every neighborhood with today.
 
-**No AI calculates any number.** Claude Haiku is used only to turn a typed question ("close the two stations nearest Bayview") into control settings. Every number comes from steps 2–4, which are deterministic Python.
+**No AI calculates any number.** Claude Haiku reads a typed question, decides which data checks to run (query the real records, re-simulate the city, simulate an incident or busy units, profile a place), and writes the answer from their output. Every number comes from those deterministic Python tools, and the server checks each number in the answer against the tool output before showing it.
 
 ---
 
@@ -143,7 +143,7 @@ src/backend/
   app.py      HTTP server (stdlib http.server), API, gzip, cache warm-up
   sim.py      travel-time model, simulator, validation, export
   routing.py  street graph (DataSF centerlines), shortest-path trees, route()
-  nl.py       Claude Haiku what-if parser (stdlib urllib, no SDK)
+  nl.py       Claude Haiku what-if agent: picks data tools, writes the answer (stdlib urllib, no SDK)
   paths.py    every file location
 src/frontend/index.html   the whole UI (deck.gl 8.9 from unpkg, no build step)
 scripts/      fetch_data.py · fetch_buildings.py · fetch_hospitals.py · fetch_elevation.py · fetch_police.py
@@ -164,7 +164,7 @@ CLAUDE.md     notes for Claude Code
 | `GET /` | the app |
 | `GET /api/meta` | fleet, period, replay days, baseline results, and a replay of the busiest day (Fri Oct 16). Prebuilt and gzipped at startup. |
 | `POST /api/simulate` `{closed:[station], added:[[station,"MEDIC"\|"ENGINE"\|"TRUCK"]], volume:0.5–3, day:<ordinal>}` | runs the whole held-out month with that scenario (< 1 s) and returns per-neighborhood + citywide results and a replay of the chosen day. Results are cached in a small LRU of 24. |
-| `POST /api/ask` `{text}` | Claude Haiku turns the text into `{closed, added, volume, explanation}`, or `{error}`. 400 on unusable questions, 503 if no key. |
+| `POST /api/ask` `{text, me}` | Haiku answers with tools: `{headline, facts, assumptions, steps, checked, unmatched, focus?, scenario?}`, or `{error}`. 400 on unusable questions, 503 if no key. |
 | `GET /api/config` | `{google_maps_key}` for the browser (a Map Tiles key, restricted by domain in Google Cloud) |
 | `GET /data/<file>` | whitelisted data files, gzipped and cached |
 
@@ -195,16 +195,23 @@ CLAUDE.md     notes for Claude Code
   - timeline with a calls-per-hour chart, a one-line dispatch feed, a floating legend
   - Arshdeep's "How fast would help reach you?" address lookup
 - **Controls:** drag, scroll or pinch; arrow keys move; Shift+arrows rotate and tilt; + and − zoom; R resets; Space plays and pauses. Clicking a vehicle follows it; the "street level" button drops in behind a moving vehicle.
-- **AI transparency:** a note under the Ask box. After a question, "Read as: close Stations 17, 25" shows exactly what the AI set.
+- **AI transparency:** every answer lists "What was checked" (each tool the AI ran) and says whether all its numbers matched the tool output.
 - **Performance:** static layers are memoized; the map draws before the 911 data arrives; buildings are skipped in Google mode. About 55 fps on a laptop.
 
-### 5.4 The AI part (`src/backend/nl.py`)
-- **Model and output:** Claude Haiku (`claude-haiku-5-5`) with low effort and JSON-schema structured output.
-- **Context it gets:** the station list, plus each neighborhood's 4 nearest stations, so "near Bayview" resolves to real station numbers.
-- **Checking what comes back:** unknown stations or types are dropped, volume is clamped to 0.5–3, and closures and additions are capped at 20 each.
-- **Cost and speed:** about $0.0001 per question after the first call caches the prompt; 2–4 s.
+### 5.4 The AI part (`src/backend/nl.py` `agent()`, tools in `app.py`)
+- **Model:** Claude Haiku (`claude-haiku-5-5`) with tool use, at most 6 rounds.
+- **Tools it can call:**
+  - `records`: stats over the 13,417 real October calls, filtered by kind, neighborhood, station area, near your address, hours, weekday/weekend, optionally grouped (by hour, neighborhood, kind, weekday, priority)
+  - `simulate_city`: close stations, add units, scale call volume; the map then shows that scenario
+  - `incident`: one event at a place and hour tying up the nearest units every day of October
+  - `units_busy`: specific units out of service for a window
+  - `place_profile`: a neighborhood, station or your address
+  - `reply`: the final answer (headline, facts, assumptions)
+- **Open-ended questions:** it maps anything to the closest measurable version and says what it assumed (a Giants game becomes 1.4× calls plus an incident at the ballpark; a road closure is named as something the simulator can't model).
+- **Number check:** every time, percentage and large number in the answer is matched against the tool outputs; the page says "All N numbers match" or names the ones that don't.
+- **Cost and speed:** about $0.01 per question; 5–12 s.
 - **Key:** `ANTHROPIC_API_KEY` (env or `.env`), stripped of a trailing newline from dashboard paste.
-- **Role:** it never sees 911 data and never produces a number.
+- **Role:** it never invents a number; it chooses the checks and writes the sentences.
 
 ---
 
@@ -245,7 +252,7 @@ python3 scripts/fetch_hospitals.py       # rebuild hospitals + diversion hours
 ## 8. Questions a mentor or judge will ask
 
 - **"Isn't this just a Google Maps wrapper?"** No. Google only draws the backdrop: turn off "Google 3D city" in the Map tab and it runs on free satellite imagery. The core is the data pipeline, the learned travel model, the simulator and the validation. None of that exists in any Google API.
-- **"Isn't an LLM just predicting the outcomes?"** No. The AI only reads typed questions and fills in the controls ("Read as: …" shows exactly what it set). Every number comes from `sim.py`: same input, same output. Run `python3 src/backend/sim.py` offline, with no key and no internet, and it prints the accuracy table.
+- **"Isn't an LLM just predicting the outcomes?"** No. The AI only chooses which data checks to run and phrases the answer; each answer lists the checks, and the server verifies every number against their output. Every number comes from `sim.py`: same input, same output. Run `python3 src/backend/sim.py` offline, with no key and no internet, and it prints the accuracy table.
 - **"How do you know it's right?"** We held out October 2026 and compared simulated with real arrival times: neighborhood r = 0.94, a 16 s neighborhood error, better than two baselines.
 - **"Why first-due dispatch?"** The data shows 86.5% of first engines come from the call's own station. Adding that rule improved accuracy.
 - **"Why not the whole Bay Area?"** No other Bay Area city publishes unit-level dispatch times with coordinates.
