@@ -702,9 +702,41 @@ def best_spots():
     return rows
 
 
+@lru_cache(1)
+def story():
+    """The numbers behind the Data story tab, all computed from the datasets and the model."""
+    run()
+    base, test, m = RESP[json.dumps([[], [], 1.0])], RT["test"], RT["model"]
+    hours = {}
+    for i in test:
+        hours.setdefault(datetime.fromtimestamp(i["t"], sim.SF).hour, []).append(i["real_response"])
+    hist = Counter(min(int(i["real_response"] // 60), 20) for i in test)
+    hoods = {}
+    for i in test:
+        if i["id"] in base:
+            hoods.setdefault(i["hood"], ([], []))
+            hoods[i["hood"]][0].append(i["real_response"])
+            hoods[i["hood"]][1].append(base[i["id"]])
+    val = [{"hood": h, "real": spread(r)["median"], "sim": spread(p)["median"], "calls": len(r)} for h, (r, p) in hoods.items() if len(r) >= 40]
+    rows = json.load(open(BUILD / "validation.json"))
+    names = {"baseline: city median": "Guess the city median", "baseline: straight-line, one speed": "Straight-line distance",
+             "runnr: learned + calibrated": "Medio"}
+    return {
+        "data": {"incidents": f"{RT['n_incidents']:,}", "test_calls": f"{len(test):,}",
+                 "trips": f"{m.n_trips:,}", "units": len(RT["homes"]), "stations": sum(st.isdigit() for st in STATIONS),
+                 "cells": f"{len(m.exact):,}", "idle_min": sim.IDLE_S // 60},
+        "by_hour": [{"hour": h, "calls": len(hours.get(h, [])), "wait_s": spread(hours[h])["median"] if hours.get(h) else None} for h in range(24)],
+        "wait_hist": [{"min": k, "calls": hist.get(k, 0)} for k in range(21)],
+        "drive": {str(b): [[round(k * sim.BIN_KM, 2), round(m.bins[(b, k)])] for k in range(0, 33) if m.bins.get((b, k))] for b in (0, 2, 3)},
+        "validation": {"points": val, "r": round(corr([v["real"] for v in val], [v["sim"] for v in val]), 2),
+                       "baselines": [{"name": names[k], "call_err": round(rows[k]["median_abs_err_s"]), "hood_err": round(rows[k]["hood_median_abs_err_s"])}
+                                     for k in names if k in rows]},
+    }
+
+
 def findings():
     v = json.load(open(BUILD / "validation.json")).get("runnr: learned + calibrated", {})
-    return {"equity": equity(), "best_spots": json.load(open(BEST_SPOTS))[:8] if BEST_SPOTS.exists() else [],
+    return {"equity": equity(), "story": story(), "best_spots": json.load(open(BEST_SPOTS))[:8] if BEST_SPOTS.exists() else [],
             "datasets": DATASETS, "accuracy": {"r": VALIDATION_R, "hood_err": mmss(v.get("hood_median_abs_err_s", 16)),
                                                "call_err": mmss(v.get("median_abs_err_s", 91)), "calls": f"{v.get('incidents', 13417):,}"}}
 

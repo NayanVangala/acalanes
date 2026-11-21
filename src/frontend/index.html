@@ -792,6 +792,33 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
 .stage.picking #map, .stage.picking canvas { cursor: crosshair !important; }
 
 .drawer .legend, .drawer .feed { position: static; inset: auto; width: auto; box-shadow: none; background: none; }
+
+/* ---------- Data story ---------- */
+.st h2 { display: flex !important; justify-content: flex-start !important; align-items: center; gap: 10px; font-size: 17px !important; }
+.stn { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--ink); color: #fff; font-size: 13.5px; font-weight: 600; }
+.st-big { margin: 8px 0 0; font-size: 16px; line-height: 1.5; color: var(--ink); }
+.st-sub h3, .st h3 { margin: 12px 0 6px; font-size: 14px; font-weight: 600; }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
+.stats div { padding: 10px 12px; border-radius: 12px; background: var(--raised); }
+.stats b { display: block; font-size: 22px; font-weight: 600; }
+.stats span { font-size: 12.5px; color: var(--ink-soft); line-height: 1.35; display: block; }
+.chart { width: 100%; height: auto; display: block; margin: 4px 0 2px; }
+.chart text { font: 10.5px var(--font); fill: var(--ink-faint); }
+.chart .t { fill: var(--ink); font-weight: 600; font-size: 11px; }
+.cap { margin: 0 0 6px; font-size: 12.5px; color: var(--ink-faint); line-height: 1.45; }
+.errbars { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 6px; }
+.errbars li { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; font-size: 13.5px; }
+.errbars li i { grid-column: 1 / -1; height: 8px; border-radius: 4px; background: var(--rule-strong); }
+.errbars li.us i { background: var(--accent); } .errbars li.us b, .errbars li.us span { color: var(--ink); font-weight: 600; }
+.limits { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13.5px; color: var(--ink-soft); line-height: 1.45; }
+.limits b { color: var(--ink); }
+/* one clear place to look: the banner is a sentence, no counters or chips competing */
+.now, .scen-chip { display: none !important; }
+.banner-meta { display: none; }
+.banner { width: min(620px, calc(100vw - 420px)); }
+
+.banner-line { display: block !important; }
+.banner-line .vdot { display: inline-block; margin-right: 6px; vertical-align: 1px; }
 </style>
 </head>
 <body>
@@ -824,7 +851,7 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
   <span class="mark"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#1a2634"/><g fill="none" stroke="#e8622c" stroke-linecap="round" stroke-width="2.6"><path d="M9 16.5a7.5 7.5 0 0 1 7.5 7.5"/><path d="M9 11a13 13 0 0 1 13 13" opacity=".75"/><path d="M9 5.5a18.5 18.5 0 0 1 18.5 18.5" opacity=".5"/></g><circle cx="9" cy="24" r="3.2" fill="#fff"/></svg></span>
   <div class="banner-body">
     <b class="banner-title">Medio</b>
-    <span class="banner-line"><span class="vdot" id="chip-dot"></span><span id="chip-verdict">Loading</span><span class="sep" aria-hidden="true">·</span>help arrives in <b class="num" id="m-med">—</b><i class="num chip" id="m-dmed" hidden></i><span class="sep" aria-hidden="true">·</span><b class="num" id="m-over">—</b><i class="num chip" id="m-dover" hidden></i>&nbsp;over 8 min</span>
+    <span class="banner-line"><span class="vdot" id="chip-dot"></span><span id="chip-verdict">Loading</span>: help reaches a typical 911 caller in <b class="num" id="m-med">—</b><i class="num chip" id="m-dmed" hidden></i>; <b class="num" id="m-over">—</b><i class="num chip" id="m-dover" hidden></i>&nbsp;wait over 8 min</span>
   </div>
   <span class="banner-meta"><b class="num" id="m-calls">—</b> real 911 calls<br>San Francisco · Oct 2026</span>
   <i id="ck-med" hidden></i><i id="ck-over" hidden></i>
@@ -841,12 +868,12 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
   <svg viewBox="0 0 16 44" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     <path d="M6 4v8M10 4v8"/><path class="chev" d="M6.5 17l4 5-4 5"/><path d="M6 32v8M10 32v8"/></svg>
 </button>
-<aside class="drawer frost hidden" id="panel" data-tab="whatif" aria-label="Medio panel">
+<aside class="drawer frost" id="panel" data-tab="findings" aria-label="Medio panel">
   <header class="drawer-head">
     <nav class="tabs" role="tablist" aria-label="Panel sections">
-      <button role="tab" data-tab="whatif" aria-selected="true">What if</button>
+      <button role="tab" data-tab="findings" aria-selected="true">Data story</button>
+      <button role="tab" data-tab="whatif" aria-selected="false">What if</button>
       <button role="tab" data-tab="propose" aria-selected="false">Propose</button>
-      <button role="tab" data-tab="findings" aria-selected="false">Findings</button>
       <button role="tab" data-tab="location" aria-selected="false">You</button>
     </nav>
     <button class="fab sm" id="panel-close" aria-label="Close the panel" title="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
@@ -889,15 +916,15 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
       <ol class="prop-list" id="prop-list"><li class="note">No proposals yet. Be the first.</li></ol>
     </section>
 
-    <section class="block find" data-pane="findings" id="find-equity"><p class="note">Loading findings…</p></section>
-    <section class="block find" data-pane="findings" id="find-spots"></section>
-    <section class="block" data-pane="findings">
-      <h2 id="findings-title">Slowest neighborhoods</h2>
-      <div id="findings"></div>
+
+    <section class="block st" data-pane="findings">
+      <h2><span class="stn">1</span>The question</h2>
+      <p class="st-big">When someone in San Francisco calls 911 for a fire or a medical emergency, how long until help arrives, who waits longest, and what would change it?</p>
     </section>
-    <section class="block find" data-pane="findings" id="find-data"></section>
-    <section class="block" data-pane="findings">
-      <h2>How the numbers are made</h2>
+    <section class="block st" data-pane="findings" id="st-data"><h2><span class="stn">2</span>The data</h2><p class="note">Loading…</p></section>
+    <section class="block st" data-pane="findings" id="st-method"><h2><span class="stn">3</span>The method</h2></section>
+    <section class="block st-sub" data-pane="findings">
+      <h3>How the simulator works</h3>
       <ol class="how">
         <li><b>Real records:</b> <span id="how-n">300,081</span> San Francisco 911 calls, with when each unit was dispatched and when it arrived.</li>
         <li><b>Learned travel times:</b> the typical drive from each station to each 500 m block, by hour, from 333,000 real trips.</li>
@@ -905,13 +932,31 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
         <li><b>Checked against reality:</b> a month the model never saw (October 2026). By neighborhood it matches real arrival times with r = <span id="how-r">0.94</span>.</li>
       </ol>
       <p class="ai-note">No AI calculates or predicts these numbers. Claude Haiku is used only to read questions typed below.</p>
-    </section>    <section class="block" data-pane="findings">
+    </section>
+    <section class="block st" data-pane="findings" id="st-valid"><h2><span class="stn">4</span>Does it work?</h2></section>
+    <section class="block" data-pane="findings">
       <details>
         <summary>How accurate is this?</summary>
         <table class="acc num" id="acc"></table>
         <p class="note">We replayed October 2026, a month the model never saw, and compared it with the real recorded arrival times. "Area r" is how closely neighborhood medians match reality (1.0 is perfect).</p>
       </details>
-    </section>    <section class="block" data-pane="findings" hidden>
+    </section>
+    <section class="block st" data-pane="findings"><h2><span class="stn">5</span>What we found</h2></section>
+    <section class="block find" data-pane="findings" id="find-equity"><p class="note">Loading findings…</p></section>
+    <section class="block find" data-pane="findings" id="find-spots"></section>
+
+    <section class="block st" data-pane="findings">
+      <h2><span class="stn">6</span>Limits</h2>
+      <ul class="limits">
+        <li><b>A correlation, not a cause.</b> The equity gap matches distance from stations; we didn’t test other causes.</li>
+        <li><b>Areas, not single calls.</b> Neighborhood medians are within about 16 s of reality, but one call can be off by about 1.5 min.</li>
+        <li><b>One month of testing.</b> The model was checked on October 2026 only.</li>
+        <li><b>Fire and EMS only.</b> No police response, hospital capacity, traffic data or road closures; slower driving is a scaling factor, not real traffic.</li>
+        <li><b>The AI only reads words.</b> Claude Haiku turns a typed situation into a plan; the simulator produces every number.</li>
+      </ul>
+    </section>
+    <section class="block find" data-pane="findings" id="find-data"></section>
+    <section class="block" data-pane="findings" hidden>
       <div class="verdict" id="verdict">
         <p class="vword" id="vword">…</p>
         <p class="vsub" id="vsub">Loading the simulator</p>
@@ -1832,6 +1877,7 @@ function renderVerdict() {
   }
 }
 function renderFindings() {
+  if (!$("#findings")) return;  // the old "Slowest neighborhoods" list was replaced by the Data story
   const scen = isScenario();
   let rows = hoodRows();
   if (scen) {
@@ -2419,10 +2465,64 @@ async function loadProposals() {
   renderProposals();
 }
 
+
+function renderStory(S) {
+  const D = S.data;
+  $("#st-data").innerHTML = `<h2><span class="stn">2</span>The data</h2>
+    <div class="stats"><div><b class="num">${D.incidents}</b><span>real fire and medical 911 incidents, Nov 2024 – Oct 2026 (DataSF)</span></div>
+    <div><b class="num">${D.trips}</b><span>timed drives from a station to a call, used to learn travel times</span></div>
+    <div><b class="num">${D.stations} / ${D.units}</b><span>fire stations / engines, trucks and ambulances</span></div>
+    <div><b class="num">${D.test_calls}</b><span>calls from October 2026, held back to test the model</span></div></div>
+    <h3>When calls come in, and how long help takes</h3>${hourChart(S.by_hour)}
+    <p class="cap">Bars: real calls per hour in October 2026. Line: typical real wait for help. Night calls are fewer but slower.</p>
+    <p class="cap">Cleaning: a drive only counts if the unit had been idle ${D.idle_min}+ minutes (so it really left from its station) and took under 30 minutes.</p>`;
+  $("#st-method").innerHTML = `<h2><span class="stn">3</span>The method</h2>
+    <p class="wi-lead">From the ${D.trips} real drives, Medio learns how long it takes to reach each 500 m block from each station at each time of day (${D.cells} station-block-time combinations). Hills, one-way streets and traffic are already inside those times, because the drives really happened.</p>
+    ${driveChart(S.drive)}<p class="cap">Learned drive time by distance. Evening rush is slowest; the curve flattens because long drives use faster roads.</p>`;
+  const V = S.validation, pts = V.points;
+  const lo = Math.min(...pts.flatMap((p) => [p.real, p.sim])) - 20, hi = Math.max(...pts.flatMap((p) => [p.real, p.sim])) + 20;
+  const X = (v) => 40 + (v - lo) / (hi - lo) * 260, Y = (v) => 175 - (v - lo) / (hi - lo) * 160;
+  const sc = `<svg class="chart" viewBox="0 0 320 205" role="img" aria-label="Simulated against real typical wait for each neighborhood; dots on the diagonal are perfect. r ${V.r}.">
+    <line x1="${X(lo)}" y1="${Y(lo)}" x2="${X(hi)}" y2="${Y(hi)}" stroke="currentColor" stroke-dasharray="3 3" opacity=".35"/>
+    <line x1="40" y1="175" x2="300" y2="175" stroke="currentColor" opacity=".2"/><line x1="40" y1="15" x2="40" y2="175" stroke="currentColor" opacity=".2"/>
+    ${pts.map((p) => `<circle cx="${X(p.real).toFixed(1)}" cy="${Y(p.sim).toFixed(1)}" r="3.6" fill="#e8622c" opacity=".8"><title>${esc(p.hood)}: real ${mmss(p.real)}, simulated ${mmss(p.sim)}</title></circle>`).join("")}
+    <text x="300" y="194" text-anchor="end">real typical wait →</text><text x="44" y="12">simulated</text>
+    <text x="40" y="194">${mmss(lo)}</text><text x="36" y="${Y(hi) + 4}" text-anchor="end">${mmss(hi)}</text></svg>`;
+  const mx = Math.max(...V.baselines.map((b) => b.call_err));
+  $("#st-valid").innerHTML = `<h2><span class="stn">4</span>Does it work?</h2>
+    <p class="wi-lead">We fit everything on data before October 2026, then replayed October and compared with what really happened. Each dot is a neighborhood: on the dashed line, the simulation matches reality exactly.</p>
+    ${sc}<p class="cap">${pts.length} neighborhoods with 40+ calls: r = ${V.r}.</p>
+    <h3>Typical miss per call, against simpler guesses</h3>
+    <ul class="errbars">${V.baselines.map((b) => `<li class="${b.name === "Medio" ? "us" : ""}"><span>${esc(b.name)}</span><b class="num">${b.call_err} s per call · ${b.hood_err} s per neighborhood</b><i style="width:${b.call_err / mx * 100}%"></i></li>`).join("")}</ul>`;
+}
+function hourChart(H) {
+  const mc = Math.max(...H.map((h) => h.calls)), ws = H.filter((h) => h.wait_s).map((h) => h.wait_s), wl = Math.min(...ws) - 20, wh = Math.max(...ws) + 20;
+  const bw = 260 / 24, Yw = (w) => 150 - (w - wl) / (wh - wl) * 130;
+  const line = H.filter((h) => h.wait_s).map((h) => `${(40 + h.hour * bw + bw / 2).toFixed(1)},${Yw(h.wait_s).toFixed(1)}`).join(" ");
+  return `<svg class="chart" viewBox="0 0 320 175" role="img" aria-label="Calls per hour and typical wait by hour">
+    ${H.map((h) => `<rect x="${(40 + h.hour * bw + 1).toFixed(1)}" y="${(150 - h.calls / mc * 120).toFixed(1)}" width="${(bw - 2).toFixed(1)}" height="${(h.calls / mc * 120).toFixed(1)}" fill="currentColor" opacity=".14"><title>${hourLabel(h.hour)}: ${h.calls} calls, typical wait ${h.wait_s ? mmss(h.wait_s) : "—"}</title></rect>`).join("")}
+    <polyline points="${line}" fill="none" stroke="#e8622c" stroke-width="2.2"/>
+    <line x1="40" y1="150" x2="300" y2="150" stroke="currentColor" opacity=".25"/>
+    ${[0, 6, 12, 18].map((h) => `<text x="${40 + h * bw}" y="166">${hourLabel(h)}</text>`).join("")}
+    <text x="36" y="${Yw(wh - 20) + 4}" text-anchor="end">${mmss(wh - 20)}</text><text x="36" y="${Yw(wl + 20) + 4}" text-anchor="end">${mmss(wl + 20)}</text></svg>`;
+}
+const hourLabel = (h) => (h === 0 ? "12 AM" : h === 12 ? "12 PM" : h < 12 ? `${h} AM` : `${h - 12} PM`);
+function driveChart(D) {
+  const names = { 0: ["Night", "#3f72e8"], 2: ["Midday", "#2e8b57"], 3: ["Evening rush", "#e8622c"] };
+  const all = Object.values(D).flat(), mk = Math.max(...all.map((p) => p[0])), ms = Math.max(...all.map((p) => p[1]));
+  const X = (k) => 40 + k / mk * 260, Y = (t) => 150 - t / ms * 135;
+  return `<svg class="chart" viewBox="0 0 320 180" role="img" aria-label="Learned drive time by distance for night, midday and evening rush">
+    <line x1="40" y1="150" x2="300" y2="150" stroke="currentColor" opacity=".25"/><line x1="40" y1="15" x2="40" y2="150" stroke="currentColor" opacity=".25"/>
+    ${Object.entries(D).map(([b, ps]) => `<polyline points="${ps.map((p) => `${X(p[0]).toFixed(1)},${Y(p[1]).toFixed(1)}`).join(" ")}" fill="none" stroke="${names[b][1]}" stroke-width="2.2"/>`).join("")}
+    ${Object.entries(D).map(([b], i) => `<text class="t" x="${50 + i * 86}" y="12" fill="${names[b][1]}">${names[b][0]}</text>`).join("")}
+    <text x="40" y="166">0 km</text><text x="300" y="166" text-anchor="end">${mk} km</text>
+    <text x="36" y="19" text-anchor="end">${mmss(ms)}</text><text x="36" y="153" text-anchor="end">0:00</text></svg>`;
+}
 // ---------- Findings: computed from the datasets on the server ----------
 async function loadFindings() {
   let F;
   try { F = await fetch("/api/findings").then((r) => r.json()); } catch (e) { $("#find-equity").innerHTML = `<p class="note">Couldn’t load findings.</p>`; return; }
+  renderStory(F.story);
   const e = F.equity, pts = e.points;
   const ws = pts.map((p) => p.wait_s), lo = Math.min(...ws) - 15, hi = Math.max(...ws) + 15;
   const X = (w) => 34 + w * 270, Y = (s) => 172 - (s - lo) / (hi - lo) * 158;
