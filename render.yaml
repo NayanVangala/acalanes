@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: runnr
+    runtime: python
+    plan: free
+    buildCommand: "true"
+    startCommand: python3 app.py
+    healthCheckPath: /api/meta
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7

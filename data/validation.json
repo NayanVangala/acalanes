@@ -2,7 +2,7 @@
  "baseline: city median": {
   "incidents": 13417,
   "median_abs_err_s": 153.0,
-  "hood_corr": NaN,
+  "hood_corr": null,
   "hood_median_abs_err_s": 27.75,
   "pct_over_8min_sim": 0.0,
   "pct_over_8min_real": 0.45569054184989194
@@ -10,7 +10,7 @@
  "baseline: straight-line, one speed": {
   "incidents": 13417,
   "median_abs_err_s": 100.18924522399902,
-  "hood_corr": 0.7194669570590275,
+  "hood_corr": 0.719,
   "hood_median_abs_err_s": 31.525556445121765,
   "pct_over_8min_sim": 0.3921890139375419,
   "pct_over_8min_real": 0.45569054184989194
@@ -18,7 +18,7 @@
  "runnr: learned travel times": {
   "incidents": 13417,
   "median_abs_err_s": 80.0,
-  "hood_corr": 0.9243622237405625,
+  "hood_corr": 0.924,
   "hood_median_abs_err_s": 57.0,
   "pct_over_8min_sim": 0.27509875531042705,
   "pct_over_8min_real": 0.45569054184989194
@@ -26,7 +26,7 @@
  "runnr: learned + calibrated": {
   "incidents": 13417,
   "median_abs_err_s": 90.5,
-  "hood_corr": 0.9243622237405625,
+  "hood_corr": 0.924,
   "hood_median_abs_err_s": 15.5,
   "pct_over_8min_sim": 0.39643735559364984,
   "pct_over_8min_real": 0.45569054184989194

@@ -292,6 +292,8 @@ def validate():
     mean = lambda d: sum(d.values()) / len(d)
     print(f"\nsanity: baseline mean {mean(base):.0f}s | close station {busiest}: {mean(closed):.0f}s | 1.5x calls: {mean(surge):.0f}s")
     assert mean(closed) >= mean(base) - 1 and mean(surge) >= mean(base) - 1, "capacity sanity check failed"
+    for r in results.values():  # NaN isn't valid JSON for browsers
+        r["hood_corr"] = None if math.isnan(r["hood_corr"]) else round(r["hood_corr"], 3)
     json.dump(results, open(DATA / "validation.json", "w"), indent=1)
 
 

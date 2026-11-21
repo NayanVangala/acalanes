@@ -6,3 +6,5 @@ node_modules/
 __pycache__/
 .venv/
 data/raw/
+.playwright-mcp/
+ruvector.db
