@@ -463,15 +463,17 @@ const signed = (x, u = " s") => (x > 0 ? "+" : x < 0 ? "−" : "±") + Math.abs(
 const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const BBOX = [-122.528, 37.700, -122.350, 37.835];
-const BAY = [-123.30, 37.15, -121.60, 38.45];  // imagery around SF so the edges never go black
+const BAY = [-122.75, 37.40, -121.80, 38.10];  // imagery around SF so the edges never go black
 const BAY_MASK = [[[BAY[0], BAY[1]], [BAY[2], BAY[1]], [BAY[2], BAY[3]], [BAY[0], BAY[3]]],
   [[BBOX[0], BBOX[1]], [BBOX[0], BBOX[3]], [BBOX[2], BBOX[3]], [BBOX[2], BBOX[1]]]];  // outer ring with SF cut out
 // keep the camera over the city: center stays near SF, can't zoom out past the Bay
-const LIMIT = { lng: [-122.56, -122.32], lat: [37.69, 37.845], minZoom: 11.2 };
+const LIMIT = { lng: [-122.62, -122.18], lat: [37.62, 37.93], minZoom: 10.8 };
+const maxPitchAt = (z) => (z < 11.5 ? 50 : z < 12.5 ? 60 : z < 14 ? 68 : 80);
 function clampView(v) {
   const longitude = Math.min(LIMIT.lng[1], Math.max(LIMIT.lng[0], v.longitude)), latitude = Math.min(LIMIT.lat[1], Math.max(LIMIT.lat[0], v.latitude));
   // in Google's 3D city the ground is up to ~280 m high: pivot the camera on the ground under it, not on sea level
-  return { ...v, longitude, latitude, zoom: Math.max(LIMIT.minZoom, v.zoom), position: [0, 0, groundAt(longitude, latitude)] };
+  const zoom = Math.max(LIMIT.minZoom, v.zoom);
+  return { ...v, longitude, latitude, zoom, pitch: Math.min(v.pitch, maxPitchAt(zoom)), position: [0, 0, groundAt(longitude, latitude)] };
 }
 const groundAt = (lng, lat) => (typeof groundZ === "function" ? Math.max(0, groundZ(lng, lat)) : 0);
 const CELL = [0.0057, 0.0045];
@@ -561,11 +563,14 @@ function initGoogle(key) {
       const orig = tr.shouldRefine.bind(tr);
       tr.shouldRefine = (tile, frameState, useParentMetric) => {
         const ll = tileLngLat(tile);
-        if (ll && !inBox(ll, SF_PAD)) return tile.depth < (inBox(ll, BAY) ? DETAIL.bay : DETAIL.world) && orig(tile, frameState, useParentMetric);
+        if (ll && !inBox(ll, BAY)) return false;  // never refine (download) anything outside the Bay Area
+        if (ll && !inBox(ll, SF_PAD)) return tile.depth < DETAIL.bay && orig(tile, frameState, useParentMetric);
         return orig(tile, frameState, useParentMetric);
       };
     }
     tileset.options.onTraversalComplete = (selected) => {
+      // draw only tiles over the Bay Area (deep tiles elsewhere are the far horizon nobody needs)
+      selected = selected.filter((t) => { const ll = tileLngLat(t); return !ll || t.depth < 6 || inBox(ll, BAY); });
       G_CREDITS.clear();
       for (const t of selected) {
         const c = t.content && t.content.gltf && t.content.gltf.asset && t.content.gltf.asset.copyright;
