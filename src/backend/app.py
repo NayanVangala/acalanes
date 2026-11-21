@@ -146,15 +146,22 @@ def load_pinned():
     if saved.get("runtime_sha") != runtime_fingerprint():
         print("precomputed scenarios are for an older model: ignoring them (rebuild with --precompute)")
         return {}
-    return saved["runs"]
+    runs, base = saved["runs"], scenario_key()
+    # memory: Render's free plan has 512 MB. Only the baseline keeps its whole month of dispatches; the other presets keep
+    # just the default replay day's (~1/31 of it). Asking a preset for another day re-simulates it like any scenario.
+    t0 = day_start(DEFAULT_DAY)
+    for k, (summary, log, resp) in list(runs.items()):
+        if k != base:
+            runs[k] = (summary, [d for d in log if t0 <= d["call"] < t0 + 86400], resp)
+    return runs
 
 
 PINNED = load_pinned()  # key -> (summary, log, responses); never evicted
 
 
-def run(closed=(), added=(), volume=1.0):
+def run(closed=(), added=(), volume=1.0, day=None):
     key = scenario_key(closed, added, volume)
-    if key in PINNED:
+    if key in PINNED and (day in (None, DEFAULT_DAY) or key == scenario_key()):
         summary, log, resp = PINNED[key]
         RESP[key] = resp
         return summary, log
@@ -1055,7 +1062,7 @@ class Handler(BaseHTTPRequestHandler):
                 kind = req.get("kind") if req.get("kind") in ("fire", "ambulance", "police") else "fire"
                 return self.reply(json.dumps(first_engine_route(lng, lat, closed, kind)))
             return self.reply(json.dumps(here(lng, lat, closed, added, volume)))
-        summary, log = run(closed, added, volume)
+        summary, log = run(closed, added, volume, day)
         self.reply(json.dumps({**summary, "by_band": by_band(scenario_key(closed, added, volume)), "replay": replay(log, day)}))
 
     def body(self, limit=4_000):
