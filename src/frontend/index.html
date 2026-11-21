@@ -443,6 +443,7 @@ dialog p b { color: var(--ink); }
 .me-list { background: var(--raised); border: 1px solid var(--rule); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14); color: var(--ink); }
 
 .reply { gap: 10px; padding: 14px; border: 1px solid var(--rule-strong); border-radius: 8px; background: var(--raised); }
+.reply[hidden], .block[hidden] { display: none; }
 .reply-q { font-size: 13px; color: var(--ink-faint); }
 .reply-h { margin: 0; font-size: 15px; line-height: 1.45; color: var(--ink); font-weight: 500; text-wrap: pretty; }
 .reply-facts { list-style: none; margin: 0; padding: 0; display: grid; }
@@ -464,6 +465,36 @@ dialog p b { color: var(--ink); }
   .stage { height: 62vh; order: -1; }
   .col.left, .col.right { border: 0; border-top: 1px solid var(--rule); }
   .layer-chips { left: 8px; right: 8px; justify-content: flex-start; }
+}
+
+/* ================= Overlay layout: the map fills the screen, panels float on top =================
+   Same fog/navy/orange system as the docked version; panels are solid (no blur) with a soft lift. */
+:root { --gap: 12px; --left-w: 344px; --right-w: 300px; --lift: 0 1px 2px rgba(10, 20, 30, 0.10), 0 12px 32px rgba(10, 20, 30, 0.28); }
+.app { display: block; }
+.stage { position: fixed; inset: 0; overflow: hidden; }
+.col { position: fixed; top: var(--gap); border: 1px solid rgba(168, 178, 187, 0.9); border-radius: 12px; box-shadow: var(--lift); overflow: hidden; }
+.col.left { left: var(--gap); bottom: var(--gap); width: var(--left-w); border-right: 1px solid rgba(168, 178, 187, 0.9); }
+.col.right { right: var(--gap); width: var(--right-w); max-height: calc(100vh - 2 * var(--gap)); height: auto; overflow-y: auto; border-left: 1px solid rgba(168, 178, 187, 0.9); }
+#panel.hidden { display: none; }
+.col .brand { padding: 14px 12px 12px 16px; }
+.col.right .foot { position: sticky; bottom: 0; }
+/* map controls float in the space between the panels */
+.layer-chips { position: fixed; top: var(--gap); left: calc(var(--left-w) + 2 * var(--gap)); right: calc(var(--right-w) + 2 * var(--gap)); justify-content: center; }
+.app:has(#panel.hidden) .layer-chips, .app:has(#panel.hidden) .stage .dock { left: calc(var(--gap) + 48px); }
+.stage .dock { position: fixed; left: calc(var(--left-w) + 2 * var(--gap)); right: calc(var(--right-w) + 2 * var(--gap)); bottom: var(--gap);
+  border: 1px solid rgba(168, 178, 187, 0.9); border-radius: 12px; box-shadow: var(--lift); padding: 10px 14px; }
+.nav { position: fixed; right: calc(var(--right-w) + 2 * var(--gap)); bottom: calc(var(--dock-h) + 2 * var(--gap)); }
+.stage .attrib { position: fixed; right: calc(var(--right-w) + 2 * var(--gap) + 4px); bottom: calc(var(--dock-h) + var(--gap) + 2px); text-align: right; max-width: 40vw; }
+.stage .hint { position: fixed; bottom: calc(var(--dock-h) + 3 * var(--gap)); }
+.stage .follow { position: fixed; top: 56px; }
+#panel-open { position: fixed; top: var(--gap); left: var(--gap); box-shadow: var(--lift); }
+@media (max-width: 1180px) { :root { --left-w: 316px; --right-w: 268px; } }
+@media (max-width: 900px) {
+  html, body { overflow: auto; }
+  .stage { position: relative; height: 62vh; }
+  .col { position: static; width: auto; max-height: none; margin: var(--gap); }
+  .layer-chips, .stage .dock, .nav, .stage .attrib { left: var(--gap); right: var(--gap); }
+  .nav { right: var(--gap); left: auto; }
 }
 </style>
 </head>
