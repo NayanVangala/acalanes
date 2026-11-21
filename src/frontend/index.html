@@ -482,11 +482,37 @@ let G_LOAD = null, G_ONLOAD = null;
 const useGoogle = () => !!GOOGLE_KEY && show.g3d;
 const NO_EXT = [];
 const onTerrain = () => (useGoogle() ? TERRAIN : NO_EXT);
+let G_SSE = 16;
+const DETAIL = { bay: 15, world: 9 };  // max tile depth outside SF (SF itself goes to ~18-19)
+const SF_PAD = [-122.545, 37.69, -122.34, 37.845];
+const inBox = (ll, b) => ll[0] >= b[0] && ll[0] <= b[2] && ll[1] >= b[1] && ll[1] <= b[3];
+function tileLngLat(tile) {  // ECEF bounding-volume center -> [lng, lat], cached on the tile
+  if (tile._ll !== undefined) return tile._ll;
+  const c = tile.boundingVolume && tile.boundingVolume.center;
+  if (!c) return (tile._ll = null);
+  const a = 6378137, e2 = 6.69437999014e-3, b = a * Math.sqrt(1 - e2), ep2 = (a * a - b * b) / (b * b);
+  const p = Math.hypot(c[0], c[1]), th = Math.atan2(c[2] * a, p * b);
+  const lat = Math.atan2(c[2] + ep2 * b * Math.sin(th) ** 3, p - e2 * a * Math.cos(th) ** 3);
+  return (tile._ll = [Math.atan2(c[1], c[0]) * 180 / Math.PI, lat * 180 / Math.PI]);
+}
 function initGoogle(key) {
   GOOGLE_KEY = key;
   $("#t-g3d").hidden = false;
   G_LOAD = { fetch: { headers: { "X-GOOG-API-KEY": key } } };
   G_ONLOAD = (tileset) => {
+    window.G_TILESET = tileset;  // handy for debugging tile loads in the console
+    tileset.options.maximumScreenSpaceError = G_SSE;  // 8 = loaders.gl default; higher loads fewer, slightly softer tiles
+    // Full detail only over San Francisco: elsewhere stop refining early (rest of the Bay coarse, beyond it coarser).
+    // Refinement is what triggers downloads, so this cuts requests, not just what's drawn.
+    const tr = tileset._traverser;
+    if (tr && typeof tr.shouldRefine === "function") {
+      const orig = tr.shouldRefine.bind(tr);
+      tr.shouldRefine = (tile, frameState, useParentMetric) => {
+        const ll = tileLngLat(tile);
+        if (ll && !inBox(ll, SF_PAD)) return tile.depth < (inBox(ll, BAY) ? DETAIL.bay : DETAIL.world) && orig(tile, frameState, useParentMetric);
+        return orig(tile, frameState, useParentMetric);
+      };
+    }
     tileset.options.onTraversalComplete = (selected) => {
       G_CREDITS.clear();
       for (const t of selected) {
@@ -792,9 +818,9 @@ function memo(id, deps, make) {
   MEMO.set(id, { deps, layer });
   return layer;
 }
-function layers(t, veh) {
-  const pulse = (Math.sin(performance.now() / 260) + 1) / 2;
-  const L = [], g = useGoogle(), ext = onTerrain();
+// the ground: Google 3D city, or satellite with the dimmed Bay. Drawn on its own while the 911 data loads.
+function baseLayers() {
+  const L = [], g = useGoogle();
   if (g) L.push(memo("google3d", [G_LOAD], () => new deck.Tile3DLayer({
     id: "google3d", data: "https://tile.googleapis.com/v1/3dtiles/root.json", loadOptions: G_LOAD,
     onTilesetLoad: G_ONLOAD, operation: "terrain+draw",
@@ -816,6 +842,11 @@ function layers(t, veh) {
       getFillColor: [11, 20, 27, 150], parameters: { depthTest: false } })));
   }
   else if (!g) L.push(memo("plate", [], () => new deck.SolidPolygonLayer({ id: "plate", data: SLAB, getPolygon: (d) => d.map(([x, y]) => [x, y, 0]), getFillColor: [28, 44, 56] })));
+  return L;
+}
+function layers(t, veh) {
+  const pulse = (Math.sin(performance.now() / 260) + 1) / 2;
+  const L = baseLayers(), g = useGoogle(), ext = onTerrain();
   if (show.grid) L.push(memo("grid", [ext], () => new deck.PathLayer({ id: "grid", data: GRID, getPath: (d) => d.path, getColor: [255, 255, 255, 38],
     widthUnits: "pixels", getWidth: 1, parameters: { depthTest: false }, extensions: ext })));
   if (show.bld && BUILDINGS && !g) L.push(memo("buildings", [BUILDINGS], () => new deck.SolidPolygonLayer({
@@ -1339,7 +1370,7 @@ $("#day").onchange = async (e) => {
   if (r.ok) { const d = await r.json(); RESULT = d; loadReplay(d.replay); renderAll(); }
 };
 const bind = (id, k) => ($(id).onchange = (e) => { show[k] = e.target.checked; });
-bind("#l-sat", "sat"); bind("#l-grid", "grid"); bind("#l-hoods", "hoods"); bind("#l-3d", "extrude"); bind("#l-bld", "bld"); bind("#l-g3d", "g3d"); bind("#l-pol", "police"); bind("#l-hosp", "hosp");
+bind("#l-sat", "sat"); bind("#l-grid", "grid"); bind("#l-hoods", "hoods"); bind("#l-3d", "extrude"); bind("#l-bld", "bld"); bind("#l-g3d", "g3d"); $("#l-g3d").addEventListener("change", () => { if (!useGoogle() && !BUILDINGS) loadBuildings(); }); bind("#l-pol", "police"); bind("#l-hosp", "hosp");
 $("#follow-stop").onclick = stopFollow;
 $("#ask-form").onsubmit = async (e) => {
   e.preventDefault();
@@ -1380,7 +1411,13 @@ addEventListener("keydown", (e) => {
 // ---------- boot ----------
 (async () => {
   const get = (u) => fetch(u).then((r) => r.json());
-  [META, HOODS, STATIONS, PEOPLE, VALID] = await Promise.all([get("/api/meta"), get("/data/hoods.geojson"), get("/data/stations.json"), get("/data/people.json"), get("/data/validation.json")]);
+  // start every download at once, but show the city as soon as we know which map to draw
+  const data = Promise.all([get("/api/meta"), get("/data/hoods.geojson"), get("/data/stations.json"), get("/data/people.json"), get("/data/validation.json")]);
+  try { const c = await get("/api/config"); if (c.google_maps_key) initGoogle(c.google_maps_key); } catch (e) { /* no key: satellite mode */ }
+  initDeck();
+  deckgl.setProps({ layers: baseLayers() });
+  $("#chip-verdict").textContent = "Loading 911 data…";
+  [META, HOODS, STATIONS, PEOPLE, VALID] = await data;
   STATIONS = STATIONS.filter((s) => /^\d+$/.test(s.station) && META.fleet[s.station]);
   BASE = RESULT = META.baseline;
   loadReplay(META.replay);
@@ -1389,10 +1426,8 @@ addEventListener("keydown", (e) => {
   renderAccuracy();
   renderAll();
   setPlaying(playing);
-  try { const c = await get("/api/config"); if (c.google_maps_key) initGoogle(c.google_maps_key); } catch (e) { /* no key: satellite mode */ }
-  initDeck();
   requestAnimationFrame(frame);
-  loadBuildings();
+  if (!useGoogle()) loadBuildings();  // Google's tiles already include buildings; skip our 2.8 MB file
   loadPoliceStations();
   loadHospitals();
 })();

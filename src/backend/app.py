@@ -156,9 +156,24 @@ def meta():
             "days": days, "replay": replay(log, DEFAULT_DAY)}
 
 
-@lru_cache(maxsize=8)
+@lru_cache(maxsize=16)
 def data_file_gz(name):
     return gzip.compress(data_file(name).read_bytes(), 6)
+
+
+@lru_cache(maxsize=1)
+def meta_payload():
+    """The first-load payload never changes between deploys: build it (and its gzip) once."""
+    body = json.dumps(meta()).encode()
+    return body, gzip.compress(body, 6)
+
+
+def warm():
+    run()
+    meta_payload()
+    for name in DATA_FILES:
+        if data_file(name).exists():
+            data_file_gz(name)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -180,7 +195,8 @@ class Handler(BaseHTTPRequestHandler):
         if path in ("/", "/index.html"):
             self.reply((FRONTEND / "index.html").read_bytes(), "text/html; charset=utf-8")
         elif path == "/api/meta":
-            self.reply(json.dumps(meta()))
+            body, gz = meta_payload()
+            self.reply(body, gz=gz if "gzip" in self.headers.get("Accept-Encoding", "") else None)
         elif path == "/api/config":
             # Browser map key (Google Map Tiles API). It's public by design; restrict it to this site's domain in Google Cloud.
             key = os.environ.get("GOOGLE_MAPS_API_KEY", "").strip().strip('"').strip("'") or env_key("GOOGLE_MAPS_API_KEY")
@@ -237,6 +253,6 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
-    run()  # warm the baseline before taking traffic
+    warm()  # build the model run, page payload and gzipped data files before taking traffic
     print(f"Runnr on http://localhost:{port}")
     ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()

@@ -71,9 +71,43 @@ def stations():
     print(f"stations: {len(out)}")
 
 
+def simplify_ring(ring, tol=0.00004):
+    """Douglas-Peucker in degrees (~4 m): city-scale outlines don't need survey-grade detail."""
+    if len(ring) < 5:
+        return ring
+    def rec(pts):
+        (x1, y1), (x2, y2) = pts[0], pts[-1]
+        dx, dy = x2 - x1, y2 - y1
+        n = (dx * dx + dy * dy) ** 0.5 or 1e-12
+        far, idx = 0.0, 0
+        for i in range(1, len(pts) - 1):
+            d = abs(dy * pts[i][0] - dx * pts[i][1] + x2 * y1 - y2 * x1) / n
+            if d > far:
+                far, idx = d, i
+        if far <= tol:
+            return [pts[0], pts[-1]]
+        return rec(pts[:idx + 1])[:-1] + rec(pts[idx:])
+    # closed ring: split at the point farthest from the start, simplify each half
+    far = max(range(len(ring)), key=lambda i: (ring[i][0] - ring[0][0]) ** 2 + (ring[i][1] - ring[0][1]) ** 2)
+    out = rec(ring[:far + 1])[:-1] + rec(ring[far:])
+    return out if len(out) >= 4 else ring
+
+
+def simplify_geojson(gj):
+    for f in gj["features"]:
+        g = f["geometry"]
+        polys = [g["coordinates"]] if g["type"] == "Polygon" else g["coordinates"]
+        for poly in polys:
+            for k, ring in enumerate(poly):
+                poly[k] = [[round(x, 5), round(y, 5)] for x, y in simplify_ring(ring)]
+        f["properties"] = {"nhood": f["properties"]["nhood"]}
+    return gj
+
+
 def hoods():
-    (OUT / "hoods.geojson").write_text(get("j2bu-swwd", "geojson", **{"$limit": 100}))
-    print("hoods:", len(json.loads((OUT / "hoods.geojson").read_text())["features"]))
+    gj = simplify_geojson(json.loads(get("j2bu-swwd", "geojson", **{"$limit": 100})))
+    (OUT / "hoods.geojson").write_text(json.dumps(gj, separators=(",", ":")))
+    print("hoods:", len(gj["features"]))
 
 
 def people():
