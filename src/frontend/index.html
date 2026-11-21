@@ -734,6 +734,7 @@ const BAY_ECEF = (() => {
   return [n * Math.cos(lat) * Math.cos(lng), n * Math.cos(lat) * Math.sin(lng), n * (1 - e2) * Math.sin(lat)];
 })();
 const BAY_RADIUS = 48000;  // meters from the Bay's center that we care about
+const MIN_DRAW_DEPTH = 10;  // coarser Google tiles span hundreds of km: drawing them shows the globe
 function nearBay(tile) {
   if (tile._nearBay !== undefined) return tile._nearBay;
   const bv = tile.boundingVolume;
@@ -778,8 +779,10 @@ function initGoogle(key) {
       };
     }
     tileset.options.onTraversalComplete = (selected) => {
-      // draw only tiles over the Bay Area (deep tiles elsewhere are the far horizon nobody needs)
-      selected = selected.filter(nearBay);
+      // draw only tiles over the Bay Area (deep tiles elsewhere are the far horizon nobody needs).
+      // Shallow tiles (depth < 10, hundreds of km across) also pass nearBay because they contain the Bay; while
+      // finer tiles load they'd be drawn as placeholders and paint the whole planet to the horizon. Never draw them.
+      selected = selected.filter((t) => t.depth >= MIN_DRAW_DEPTH && nearBay(t));
       G_CREDITS.clear();
       for (const t of selected) {
         const c = t.content && t.content.gltf && t.content.gltf.asset && t.content.gltf.asset.copyright;
