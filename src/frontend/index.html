@@ -2282,6 +2282,7 @@ async function run() {
     RESULT_ALL = d; loadReplay(d.replay); TOD = null; applyTOD(true);
     CUSTOM = null; MARKERS = [];
     lastRun = JSON.stringify(scenario);
+    loadRoute();  // after lastRun: a closed station can change which engine comes first
     const ex = Object.keys(EXAMPLES).find((k) => JSON.stringify(EXAMPLES[k]) === lastRun);
     if (ex) { const d = RESULT.city.median - BASE.city.median, el = document.querySelector(`[data-meta="${ex}"]`);
       if (el) el.textContent = ex === "today" ? mmss(RESULT.city.median) : `${mmss(RESULT.city.median)} · ${signed(d)}`; }
@@ -2371,6 +2372,22 @@ async function loadHere() {
     renderHere(d);
   } catch (e) { if ($("#here")) $("#here").innerHTML = `<p class="note">Couldn’t reach the server for the breakdown.</p>`; }
 }
+// the map route has its own fast request (/api/route: no simulation), made whenever a spot is set or the closed stations change
+let ROUTE_KEY = null;
+async function loadRoute() {
+  if (!ME) return;
+  const closed = (JSON.parse(lastRun).closed || []).slice().sort(), key = JSON.stringify([ME.lng, ME.lat, closed]);
+  if (ME_ROUTE && ME_ROUTE.key === key) return;
+  ROUTE_KEY = key;
+  try {
+    const r = await fetch("/api/route", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lng: ME.lng, lat: ME.lat, closed }) });
+    const d = await r.json();
+    if (key !== ROUTE_KEY || !ME || !r.ok || !d.path) return;  // moved on, or no street path
+    const fresh = !ME_ROUTE;
+    ME_ROUTE = { key, path: d.path, g: geom(d.path), station: d.station, drive: d.drive_s, t0: performance.now() };
+    if (fresh) fitRoute(d.path);
+  } catch (e) { /* offline: the pin still shows */ }
+}
 function fitRoute(path) {  // frame the whole station-to-door route
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const [x, y] of path) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
@@ -2388,11 +2405,6 @@ function renderHere(d) {
   const resp = d.responders.map((r) => `Station ${esc(r.station)} (${mmss(r.drive_s["Midday (10–16)"])} drive)`).join(", ");
   el.dataset.ready = "1";
   const first = d.responders[0];
-  if (first && first.path) {
-    const fresh = !ME_ROUTE || ME_ROUTE.key !== HERE_KEY;
-    ME_ROUTE = { key: HERE_KEY, path: first.path, g: geom(first.path), station: first.station, t0: fresh ? performance.now() : ME_ROUTE.t0 };
-    if (fresh) fitRoute(first.path);
-  }
   const routeKm = first && first.path ? (geom(first.path).total / 1000).toFixed(1) : null;
   el.innerHTML = `<h3>When you call matters</h3>
     <table><tr><th>Time of day</th><th>Typical wait</th><th>Over 8 min</th><th>Calls</th></tr>${rows(d.by_time, "label")}</table>
@@ -2451,7 +2463,8 @@ function setMe(lng, lat, label) {
     return;
   }
   ME = { lng, lat, label, hood };
-  ME_ROUTE = null;
+  ME_ROUTE = null; ROUTE_KEY = null;
+  loadRoute();
   openPanel("location");
   msg.hidden = true;
   $("#me-clear").hidden = false;
