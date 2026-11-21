@@ -35,8 +35,9 @@ SCHEMA = {
 
 
 def _key():
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        return os.environ["ANTHROPIC_API_KEY"]
+    # strip: a key pasted into a dashboard often carries a trailing newline, which breaks the HTTP header
+    if os.environ.get("ANTHROPIC_API_KEY", "").strip():
+        return os.environ["ANTHROPIC_API_KEY"].strip().strip('"').strip("'")
     env = ROOT / ".env"
     if env.exists():
         for line in env.read_text().splitlines():
