@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Runnr</title>
-<meta name="description" content="Live replay of San Francisco 911 fire and EMS response, built from real dispatch records.">
+<meta name="description" content="Live replay of San Francisco 911 response: fire engines, ambulances and police, built from real dispatch records.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -143,8 +143,11 @@ table.acc tr.ours td { color: var(--ok); font-weight: 600; }
 .feed .empty { color: var(--ink-faint); font-size: 12.5px; padding: 8px 4px; }
 
 /* zoom */
-.zoom { position: fixed; z-index: 9; right: 16px; bottom: 132px; display: grid; padding: 4px; gap: 2px; }
-.zoom .icon-btn { width: 38px; height: 38px; font-size: 18px; font-weight: 600; }
+.zoom { position: fixed; z-index: 9; right: 16px; bottom: 132px; display: grid; grid-template-columns: repeat(3, 36px); padding: 4px; gap: 2px; }
+.zoom .icon-btn { width: 36px; height: 36px; font-size: 15px; font-weight: 600; }
+#compass-svg { width: 20px; height: 20px; transition: transform .15s linear; }
+.hint { position: fixed; z-index: 9; left: 50%; transform: translateX(-50%); bottom: 120px; padding: 8px 14px; font-size: 13px; color: var(--ink-soft); pointer-events: none; }
+.hint[hidden] { display: none; }
 
 /* playback dock */
 .dock { position: fixed; z-index: 10; left: 50%; transform: translateX(-50%); bottom: 16px; width: min(980px, calc(100vw - 32px)); padding: 12px 16px; display: grid; grid-template-columns: auto auto 1fr auto; gap: 16px; align-items: center; }
@@ -157,7 +160,7 @@ table.acc tr.ours td { color: var(--ok); font-weight: 600; }
 .track input { width: 100%; }
 .counters { display: flex; gap: 18px; font-size: 12.5px; color: var(--ink-soft); }
 .counters b { color: var(--ink); font-size: 15px; font-weight: 500; margin-right: 4px; }
-.counters .c-move b { color: var(--medic); } .counters .c-wait b { color: var(--call); }
+.counters .c-move b { color: var(--medic); } .counters .c-pol b { color: #8fb0ff; } .counters [hidden] { display: none; } .counters .c-wait b { color: var(--call); }
 .speed { display: grid; gap: 4px; justify-items: end; }
 .speed .label { font-size: 12px; }
 
@@ -189,7 +192,7 @@ dialog p b { color: var(--ink); }
 </style>
 </head>
 <body>
-<div id="map" role="img" aria-label="Satellite map of San Francisco with live fire engines and ambulances responding to 911 calls"></div>
+<div id="map" tabindex="0" role="application" aria-label="3D map of San Francisco with fire engines, ambulances and police responding to 911 calls. Arrow keys or WASD move, Q and E rotate, plus and minus zoom."></div>
 
 <header class="glass brand">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6"/></svg>
@@ -256,13 +259,21 @@ dialog p b { color: var(--ink); }
         <label class="toggle"><input type="checkbox" id="l-hoods" checked>Response map</label>
         <label class="toggle"><input type="checkbox" id="l-3d">Response in 3D</label>
         <label class="toggle" id="t-bld" hidden><input type="checkbox" id="l-bld" checked>Buildings</label>
+        <label class="toggle" id="t-pol" hidden><input type="checkbox" id="l-pol" checked>Police</label>
+        <label class="toggle" id="t-hosp" hidden><input type="checkbox" id="l-hosp" checked>Hospitals</label>
       </div>
       <div class="ramp" aria-hidden="true"></div>
       <div class="ramp-labels num"><span>6:00</span><span>8:00</span><span>10:00+</span></div>
       <div class="legend-row">
         <span><i class="dot" style="background:var(--engine)"></i>Engine or truck</span>
         <span><i class="dot" style="background:var(--medic)"></i>Ambulance</span>
+        <span><i class="dot" style="background:#5a8cff"></i>Police car</span>
         <span><i class="dot" style="background:var(--call)"></i>Waiting for help</span>
+      </div>
+      <div class="legend-row">
+        <span><i class="dot" style="background:#ff6e32;box-shadow:0 0 6px #ff6e32"></i>Fire station</span>
+        <span><i class="dot" style="background:#508cff;box-shadow:0 0 6px #508cff"></i>Police station</span>
+        <span><i class="dot" style="background:#ff3c46;box-shadow:0 0 6px #fff"></i>Hospital</span>
       </div>
     </section>
 
@@ -282,13 +293,21 @@ dialog p b { color: var(--ink); }
   <ol id="feed"></ol>
 </section>
 
-<div class="glass zoom" role="group" aria-label="Map view">
-  <button class="icon-btn" id="z-in" aria-label="Zoom in">+</button>
-  <button class="icon-btn" id="z-out" aria-label="Zoom out">−</button>
+<div class="glass zoom" role="group" aria-label="Move the map">
+  <button class="icon-btn" id="n-rl" aria-label="Rotate left (Q)" title="Rotate left (Q)">↺</button>
+  <button class="icon-btn" id="n-up" aria-label="Move north (W or ↑)" title="Move (W or ↑)">▲</button>
+  <button class="icon-btn" id="n-rr" aria-label="Rotate right (E)" title="Rotate right (E)">↻</button>
+  <button class="icon-btn" id="n-left" aria-label="Move west (A or ←)" title="Move (A or ←)">◀</button>
+  <button class="icon-btn" id="n-compass" aria-label="Face north" title="Face north"><svg viewBox="0 0 24 24" id="compass-svg"><path d="M12 3l4 9h-8z" fill="#ff5a45"/><path d="M12 21l-4-9h8z" fill="currentColor"/></svg></button>
+  <button class="icon-btn" id="n-right" aria-label="Move east (D or →)" title="Move (D or →)">▶</button>
+  <button class="icon-btn" id="z-in" aria-label="Zoom in (+)" title="Zoom in (+)">+</button>
+  <button class="icon-btn" id="n-down" aria-label="Move south (S or ↓)" title="Move (S or ↓)">▼</button>
+  <button class="icon-btn" id="z-out" aria-label="Zoom out (−)" title="Zoom out (−)">−</button>
   <button class="icon-btn" id="z-tilt" aria-label="Toggle 3D tilt" title="Tilt">3D</button>
   <button class="icon-btn" id="z-drop" aria-label="Drop to street level behind a moving vehicle" title="Street level"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12M7 10l5 5 5-5M5 20h14"/></svg></button>
-  <button class="icon-btn" id="z-fit" aria-label="Fit the city" title="Fit the city"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+  <button class="icon-btn" id="z-fit" aria-label="Reset view (R)" title="Reset view (R)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
 </div>
+<div class="glass hint" id="hint" hidden>Drag to move · Scroll or pinch to zoom · Right-drag or Q/E to rotate</div>
 
 <div class="glass dock">
   <button class="play" id="play" aria-label="Pause replay"><svg viewBox="0 0 24 24" fill="currentColor" id="play-icon"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg></button>
@@ -298,6 +317,7 @@ dialog p b { color: var(--ink); }
     <div class="counters">
       <span class="c-move"><b class="num" id="n-move">0</b>driving</span>
       <span><b class="num" id="n-scene">0</b>on scene</span>
+      <span class="c-pol" id="c-pol" hidden><b class="num" id="n-pol">0</b>police on calls</span>
       <span class="c-wait"><b class="num" id="n-wait">0</b>waiting for help</span>
       <span><b class="num" id="n-med">—</b>median wait today</span>
     </div>
@@ -311,8 +331,8 @@ dialog p b { color: var(--ink); }
 
 <dialog id="about">
   <h2>Runnr</h2>
-  <p>When you call 911, the minutes until help arrives matter. <b>Runnr replays a real day of San Francisco 911 calls.</b> Each call goes to the engine or ambulance that can get there soonest. Travel times are learned from 333,000 real trips, so hills and traffic are already in them.</p>
-  <p>Vehicles follow San Francisco’s street centerlines (DataSF); how long each trip takes comes from the model. Click a vehicle to follow it. Change the city on the left, then run it again.</p>
+  <p>When you call 911, the minutes until help arrives matter. <b>Runnr replays a real day of San Francisco 911 calls</b>: fire engines, ambulances and police. Each fire or medical call goes to the engine or ambulance that can get there soonest. Travel times are learned from 333,000 real trips, so hills and traffic are already in them.</p>
+  <p>Vehicles follow San Francisco’s street centerlines (DataSF); how long each trip takes comes from the model. Police cars are replayed from real SFPD dispatch records, not simulated. Hospitals show how many hours each spent on ambulance diversion (not accepting ambulances) in the last 12 months. Click an engine or ambulance to follow it. Change the city on the left, then run it again.</p>
   <p><b>Limits:</b> no crew staffing changes, no help from nearby cities, no hospital wait times. Use it to compare neighborhoods and options, not to close a real station on its own.</p>
   <form method="dialog"><button class="btn">Close</button></form>
 </dialog>
@@ -341,19 +361,21 @@ const KIND = { ENGINE: "Engine", TRUCK: "Truck", MEDIC: "Ambulance", PRIVATE: "P
 const RGB = { engine: [255, 90, 69], medic: [76, 201, 255], call: [255, 176, 32], ok: [61, 220, 151] };
 
 let META, HOODS, STATIONS, PEOPLE, VALID, BASE, RESULT, REPLAY, SEGS = [], DEPARTS = [], BUILDINGS = null, followUnit = null;
+let POLICE_ST = null, POL = [], PSEGS = [], HOSP = null;
 let scenario = { closed: [], added: [], volume: 1 };
 let lastRun = JSON.stringify(scenario);
 let addType = "MEDIC";
 let view = { maxPitch: 80, ...HOME, zoom: 10.6, pitch: 0, bearing: 0 };
 let deckgl, simT = 8 * 3600, speed = 300, playing = !reduced, lastFrame = performance.now();
-const show = { sat: true, grid: true, hoods: true, extrude: false, bld: true, g3d: true };
+const show = { sat: true, grid: true, hoods: true, extrude: false, bld: true, g3d: true, police: true, hosp: true };
 // ---------- Google Photorealistic 3D Tiles (only when the server has a key) ----------
 let GOOGLE_KEY = null, dropIn = false;
 const TERRAIN = deck._TerrainExtension ? [new deck._TerrainExtension()] : [];
 const G_CREDITS = new Set();
 let G_LOAD = null, G_ONLOAD = null;
 const useGoogle = () => !!GOOGLE_KEY && show.g3d;
-const onTerrain = () => (useGoogle() ? TERRAIN : []);
+const NO_EXT = [];
+const onTerrain = () => (useGoogle() ? TERRAIN : NO_EXT);
 function initGoogle(key) {
   GOOGLE_KEY = key;
   $("#t-g3d").hidden = false;
@@ -426,6 +448,40 @@ function loadReplay(r) {
     SEGS.push({ path: path.slice().reverse(), ts: g.cum.slice().reverse().map((c) => free + (ret * (g.total - c)) / g.total), fire });
   }
   DEPARTS = r.trips.map((t) => t[6]);
+  // police: replayed from real SFPD records [district, fx, fy, tx, ty, dispatch, onscene, clear, call_type, priority, path]
+  POL = []; PSEGS = [];
+  for (const [district, fx, fy, tx, ty, disp, on, clear, type, prio, path] of r.police || []) {
+    if ([fx, fy, tx, ty, disp, on].some((x) => x == null)) continue;
+    const pts = Array.isArray(path) && path.length >= 2 ? path : [[fx, fy], [tx, ty]];
+    const g = geom(pts), out = Math.max(on - disp, 1), end = Math.max(clear || on, on);
+    POL.push({ district, g, disp, on, clear: end, back: end + out, type, prio, blink: POL.length % 2 });
+    PSEGS.push({ path: pts, ts: g.cum.map((c) => disp + (out * c) / g.total) });
+    PSEGS.push({ path: pts.slice().reverse(), ts: g.cum.slice().reverse().map((c) => end + (out * (g.total - c)) / g.total) });
+  }
+  if (POL.length) { $("#t-pol").hidden = false; $("#c-pol").hidden = false; }
+}
+function policeAt(t) {
+  const out = [];
+  let on = 0;
+  for (const c of POL) {
+    if (t < c.disp || t > c.back) continue;
+    let p, h, state;
+    if (t < c.on) { [p, h] = along(c.g, (t - c.disp) / Math.max(1, c.on - c.disp)); state = 0; }
+    else if (t < c.clear) { [p, h] = along(c.g, 1); state = 1; }
+    else { [p, h] = along(c.g, 1 - (t - c.clear) / Math.max(1, c.back - c.clear)); h += 180; state = 2; }
+    if (state < 2) on++;
+    out.push({ p, h, state, district: c.district, type: c.type, blink: c.blink });
+  }
+  return { list: out, on };
+}
+let ST_SPLIT = { key: null, open: [], shut: [] };
+function stationSplit() {
+  const key = scenario.closed.join();
+  if (ST_SPLIT.key !== key) {
+    const c = new Set(scenario.closed);
+    ST_SPLIT = { key, open: STATIONS.filter((s) => !c.has(s.station)), shut: STATIONS.filter((s) => c.has(s.station)) };
+  }
+  return ST_SPLIT;
 }
 function vehiclesAt(t) {
   const out = [];
@@ -439,14 +495,16 @@ function vehiclesAt(t) {
     else { [p, h] = along(tr.g, 1 - (t - free) / Math.max(1, back - free)); h += 180; state = 2; moving++; }
     out.push({ p, h, state, fire: FIRE.has(type), unit, type, hood, blink: unit.charCodeAt(unit.length - 1) % 2 });
   }
-  return { list: out, moving, scene };
+  const pol = policeAt(t);
+  return { list: out, moving, scene, police: pol.list, policeOn: pol.on };
 }
 
 // ---------- 3D vehicle meshes (meters, x = right, y = forward, z = up) ----------
 function boxMesh(boxes) {
-  const P = [], N = [], I = [];
+  // boxes: [x0, y0, z0, x1, y1, z1, rgb?]; rgb (0–1) becomes a vertex color that deck multiplies with getColor
+  const P = [], N = [], I = [], C = [];
   const faces = [[0, 0, 1], [0, 0, -1], [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0]];
-  for (const [x0, y0, z0, x1, y1, z1] of boxes) {
+  for (const [x0, y0, z0, x1, y1, z1, rgb = [1, 1, 1]] of boxes) {
     for (const [nx, ny, nz] of faces) {
       const base = P.length / 3;
       // four corners of this face, wound counter-clockwise seen from outside
@@ -454,22 +512,125 @@ function boxMesh(boxes) {
         : nx ? [[y0, z0], [y1, z0], [y1, z1], [y0, z1]].map(([y, z]) => [nx > 0 ? x1 : x0, y, z])
         : [[x0, z0], [x1, z0], [x1, z1], [x0, z1]].map(([x, z]) => [x, ny > 0 ? y1 : y0, z]);
       const flip = nx < 0 || ny > 0 || nz < 0;
-      for (const v of c) { P.push(...v); N.push(nx, ny, nz); }
+      for (const v of c) { P.push(...v); N.push(nx, ny, nz); C.push(...rgb); }
       I.push(...(flip ? [base, base + 2, base + 1, base, base + 3, base + 2] : [base, base + 1, base + 2, base, base + 2, base + 3]));
     }
   }
-  return { positions: new Float32Array(P), normals: new Float32Array(N), indices: new Uint16Array(I) };
+  return { positions: new Float32Array(P), normals: new Float32Array(N), colors: { size: 3, value: new Float32Array(C) }, indices: new Uint16Array(I) };
 }
-const MESH = {
-  body: boxMesh([[-1.25, -4.5, 0.35, 1.25, 2.4, 2.7]]),
-  cab: boxMesh([[-1.2, 2.4, 0.35, 1.2, 4.5, 2.35], [-1.25, 4.3, 0.2, 1.25, 4.6, 0.9]]),
-  stripe: boxMesh([[-1.29, -4.4, 1.05, 1.29, 4.4, 1.4]]),
-  bar: boxMesh([[-0.95, 3.0, 2.35, 0.95, 3.6, 2.7]]),
-  wheels: boxMesh([[-1.3, -3.6, 0, 1.3, -2.4, 0.55], [-1.3, 2.9, 0, 1.3, 3.9, 0.55]]),
+const COL = {
+  red: [0.80, 0.12, 0.09], darkRed: [0.62, 0.08, 0.06], white: [0.95, 0.95, 0.94], cream: [0.93, 0.89, 0.78],
+  glass: [0.16, 0.22, 0.30], tire: [0.09, 0.09, 0.10], steel: [0.72, 0.74, 0.77], gray: [0.36, 0.37, 0.40],
+  brick: [0.60, 0.22, 0.16], brickDark: [0.50, 0.17, 0.13], roof: [0.18, 0.19, 0.21], concrete: [0.55, 0.56, 0.58],
+  door: [0.82, 0.84, 0.86], black: [0.07, 0.07, 0.08], navy: [0.13, 0.28, 0.62], police: [0.66, 0.69, 0.74],
 };
+const rungs = (y0, y1) => { const out = []; for (let y = y0; y < y1; y += 0.8) out.push([-0.75, y, 2.66, 0.75, y + 0.12, 2.8, COL.steel]); return out; };
+const MESH = {
+  // fire engine: long red body, white stripe, hose bed, chrome bumper
+  engine: boxMesh([
+    [-1.25, -5, 0.5, 1.25, 2.6, 2.9, COL.red], [-1.25, 2.6, 0.5, 1.25, 5, 2.8, COL.red],
+    [-1.1, 4.95, 1.7, 1.1, 5.05, 2.6, COL.glass], [-1.28, 3.0, 1.7, 1.28, 4.6, 2.5, COL.glass],
+    [-1.28, -4.9, 1.2, 1.28, 4.9, 1.45, COL.white], [-1.3, 4.95, 0.4, 1.3, 5.25, 0.8, COL.steel],
+    [-1.1, -4.8, 2.9, 1.1, 1.5, 3.15, COL.gray], [-1.27, -4.4, 0.75, 1.27, 2.0, 1.05, COL.steel],
+    [-1.32, 3.2, 0, 1.32, 4.3, 0.9, COL.tire], [-1.32, -3.9, 0, 1.32, -2.0, 0.9, COL.tire],
+  ]),
+  // aerial ladder truck: longer, ladder rails and rungs on top, turntable at the back
+  truck: boxMesh([
+    [-1.25, -6, 0.5, 1.25, 3.4, 2.6, COL.red], [-1.25, 3.4, 0.5, 1.25, 6, 2.9, COL.red],
+    [-1.1, 5.95, 1.8, 1.1, 6.05, 2.7, COL.glass], [-1.28, 3.8, 1.8, 1.28, 5.6, 2.6, COL.glass],
+    [-1.28, -5.9, 1.1, 1.28, 5.9, 1.35, COL.white], [-1.3, 5.95, 0.4, 1.3, 6.25, 0.8, COL.steel],
+    [-0.9, -5.6, 2.6, 0.9, -3.8, 3.0, COL.gray],
+    [-1.0, -6.8, 2.6, -0.75, 3.2, 2.9, COL.steel], [0.75, -6.8, 2.6, 1.0, 3.2, 2.9, COL.steel], ...rungs(-6.6, 3.0),
+    [-1.32, 4.2, 0, 1.32, 5.2, 0.9, COL.tire], [-1.32, -4.9, 0, 1.32, -2.9, 0.9, COL.tire], [-1.32, -1.2, 0, 1.32, -0.2, 0.9, COL.tire],
+  ]),
+  // ambulance: tall boxy patient module behind a lower cab, red stripe
+  amb: boxMesh([
+    [-1.15, -3.5, 0.45, 1.15, 1.2, 3.0, COL.white], [-1.05, 1.2, 0.45, 1.05, 3.5, 2.3, COL.white],
+    [-0.95, 3.45, 1.4, 0.95, 3.55, 2.2, COL.glass], [-1.08, 1.6, 1.4, 1.08, 3.0, 2.1, COL.glass],
+    [-1.18, -3.45, 1.1, 1.18, 3.45, 1.4, COL.red], [-1.17, -3.45, 2.55, 1.17, 1.15, 2.72, COL.red],
+    [-0.6, -3.55, 1.6, 0.6, -3.45, 2.4, COL.glass], [-1.1, 3.45, 0.35, 1.1, 3.7, 0.75, COL.gray],
+    [-1.2, 2.0, 0, 1.2, 2.9, 0.75, COL.tire], [-1.2, -2.6, 0, 1.2, -1.7, 0.75, COL.tire],
+  ]),
+  // black-and-white patrol car
+  police: boxMesh([
+    [-0.95, -2.45, 0.3, 0.95, 2.45, 1.0, COL.black], [-0.97, -1.0, 0.35, 0.97, 1.0, 0.95, COL.white],
+    [-0.86, -1.0, 1.0, 0.86, 1.1, 1.4, COL.glass], [-0.85, -1.05, 1.4, 0.85, 1.15, 1.5, COL.black],
+    [-0.6, 2.45, 0.35, 0.6, 2.6, 0.9, COL.gray],
+    [-1.0, 1.3, 0, 1.0, 1.95, 0.55, COL.tire], [-1.0, -1.95, 0, 1.0, -1.3, 0.55, COL.tire],
+  ]),
+  barEngine: boxMesh([[-0.9, 3.3, 2.8, 0.9, 3.9, 3.15]]),
+  barTruck: boxMesh([[-0.9, 4.0, 2.9, 0.9, 4.6, 3.25]]),
+  barAmb: boxMesh([[-1.0, 0.6, 3.0, 1.0, 1.1, 3.3]]),
+  barPolice: boxMesh([[-0.7, -0.15, 1.5, 0.7, 0.25, 1.68]]),
+};
+function firehouse(closed) {
+  // ~30 x 25 m two-storey firehouse; the bay doors face south (-y)
+  const body = closed ? [0.42, 0.42, 0.44] : COL.brick, tower = closed ? [0.38, 0.38, 0.40] : COL.brickDark;
+  const door = closed ? [0.22, 0.23, 0.25] : COL.door, trim = closed ? [0.62, 0.62, 0.62] : COL.cream;
+  const b = [
+    [-15.3, -12.8, 0, 15.3, 12.8, 0.6, COL.concrete], [-15, -12.5, 0.6, 15, 12.5, 9, body],
+    [-15.2, -12.7, 4.6, 15.2, 12.7, 5.2, trim], [-15.3, -12.8, 9, 15.3, 12.8, 9.6, trim],
+    [-14.6, -12.1, 9.6, 14.6, 12.1, 9.9, COL.roof],
+    [9, 6.5, 0.6, 14, 11.5, 17, tower], [8.8, 6.3, 17, 14.2, 11.7, 17.6, trim], [10.8, 6.38, 11, 12.2, 6.5, 15.5, COL.glass],
+    [-13.1, -11.1, 9.9, -12.9, -10.9, 15.2, COL.steel], [-12.9, -11.05, 13.6, -10.6, -10.95, 15, [0.78, 0.1, 0.12]],
+    [-12.9, -11.07, 14.3, -11.9, -10.93, 15, [0.12, 0.2, 0.5]],
+  ];
+  for (const x of [-9.5, -0.5, 8.5]) {  // three apparatus bays
+    b.push([x - 3, -12.65, 0.6, x + 3, -12.45, 4.4, door], [x - 2.8, -12.7, 3.2, x + 2.8, -12.62, 3.7, COL.glass]);
+  }
+  for (let x = -12.5; x <= 12.5; x += 4) b.push([x - 1, -12.6, 6.0, x + 1, -12.5, 7.8, COL.glass]);  // upstairs windows
+  if (closed) b.push([-8, -1, 9.9, 8, 1, 10.4, [0.9, 0.12, 0.12]], [-1, -8, 9.9, 1, 8, 10.4, [0.9, 0.12, 0.12]]);  // red cross on the roof
+  return boxMesh(b);
+}
+MESH.firehouse = firehouse(false);
+MESH.firehouseClosed = firehouse(true);
+MESH.policeStation = boxMesh([
+  [-13.3, -10.3, 0, 13.3, 10.3, 0.6, COL.concrete], [-13, -10, 0.6, 13, 10, 11, COL.police],
+  [-13.2, -10.2, 3.8, 13.2, 10.2, 4.6, COL.navy], [-12.6, -9.6, 11, 12.6, 9.6, 11.3, COL.roof],
+  ...[-10.5, -7, -3.5, 3.5, 7, 10.5].flatMap((x) => [[x - 1.2, -10.1, 5.5, x + 1.2, -9.98, 7.2, COL.glass], [x - 1.2, -10.1, 8.2, x + 1.2, -9.98, 9.9, COL.glass]]),
+  [-4, -12, 3.4, 4, -10, 3.8, COL.gray], [-2, -10.1, 0.6, 2, -9.95, 3.2, [0.12, 0.2, 0.38]],
+  [-3, -10.3, 3.0, -2.4, -10.1, 3.5, [0.2, 0.45, 1.0]],
+  [8, 4, 11.3, 8.4, 4.4, 22, COL.steel], [7.2, 4.1, 19, 9.2, 4.3, 19.3, COL.steel],
+]);
+function hospital(big) {
+  // ~40 x 30 m, six storeys, white with glass bands; big ones get a rooftop helipad, small ones a red cross on the roof
+  const W = [0.90, 0.91, 0.92], red = [0.85, 0.08, 0.10], b = [
+    [-20.3, -15.3, 0, 20.3, 15.3, 0.6, COL.concrete], [-20, -15, 0.6, 20, 15, 24, W], [-19.5, -14.5, 24, 19.5, 14.5, 24.4, COL.gray],
+    [-6, -18, 4, 6, -15, 4.5, W], [-6, -18.1, 4.5, 6, -17.9, 5.3, red],  // emergency entrance canopy
+    [-1, -15.3, 16, 1, -15.05, 22.5, red], [-3.25, -15.3, 18.25, 3.25, -15.05, 20.25, red],  // red cross on the facade
+  ];
+  for (let z = 3.5; z < 22; z += 4) b.push([-19, -15.1, z, 19, -14.95, z + 1.6, COL.glass], [-20.1, -14, z, -19.95, 14, z + 1.6, COL.glass], [19.95, -14, z, 20.1, 14, z + 1.6, COL.glass]);
+  if (big) b.push([-8, -8, 24.4, 8, 8, 24.7, [0.30, 0.32, 0.35]], [-4, -4, 24.7, -2.6, 4, 24.8, W], [2.6, -4, 24.7, 4, 4, 24.8, W], [-2.6, -0.6, 24.7, 2.6, 0.6, 24.8, W]);
+  else b.push([-6, -1.5, 24.4, 6, 1.5, 24.8, red], [-1.5, -6, 24.4, 1.5, 6, 24.8, red]);
+  return boxMesh(b);
+}
+MESH.hospital = hospital(true);
+MESH.hospitalSmall = hospital(false);
+const buildingScale = () => Math.max(1, Math.pow(2, (16.5 - view.zoom) * 0.65));  // legible at city zoom (~6x), life size from zoom 16.5
 const vehicleScale = () => Math.max(1, Math.pow(2, (17.5 - view.zoom) * 0.75));  // ~150 m long at zoom 12, ~20 m at 16, life size from 17.5
 
-const stationScale = () => Math.min(1, Math.max(0.08, Math.pow(2, 12.6 - view.zoom)));  // markers shrink as you zoom in
+
+// ---------- police stations ----------
+async function loadPoliceStations() {
+  try {
+    const r = await fetch("/data/police_stations.json");
+    if (!r.ok) return;
+    const d = await r.json();
+    if (Array.isArray(d) && d.length) { POLICE_ST = d.filter((x) => x.lat && x.lng); $("#t-pol").hidden = false; }
+  } catch (e) { POLICE_ST = null; }
+}
+
+async function loadHospitals() {
+  try {
+    const r = await fetch("/data/hospitals.json");
+    if (!r.ok) return;
+    const d = await r.json();
+    if (Array.isArray(d) && d.length) {
+      HOSP = d.filter((x) => x.lat && x.lng).map((h) => ({ ...h, big: /General|UCSF|Van Ness/i.test(h.name) }));
+      $("#t-hosp").hidden = false;
+    }
+  } catch (e) { HOSP = null; }
+}
 
 // ---------- buildings ----------
 async function loadBuildings() {
@@ -483,18 +644,26 @@ async function loadBuildings() {
 }
 
 // ---------- layers ----------
+// Static layers are cached and only rebuilt when their inputs change; moving layers are rebuilt every frame.
+const MEMO = new Map(), USED = new Set();
+function memo(id, deps, make) {
+  USED.add(id);
+  const m = MEMO.get(id);
+  if (m && m.deps.length === deps.length && m.deps.every((d, i) => d === deps[i])) return m.layer;
+  const layer = make();
+  MEMO.set(id, { deps, layer });
+  return layer;
+}
 function layers(t, veh) {
-  const closed = new Set(scenario.closed);
   const pulse = (Math.sin(performance.now() / 260) + 1) / 2;
-  const L = [];
-  if (useGoogle()) L.push(new deck.Tile3DLayer({
+  const L = [], g = useGoogle(), ext = onTerrain();
+  if (g) L.push(memo("google3d", [G_LOAD], () => new deck.Tile3DLayer({
     id: "google3d", data: "https://tile.googleapis.com/v1/3dtiles/root.json", loadOptions: G_LOAD,
     onTilesetLoad: G_ONLOAD, operation: "terrain+draw",
-  }));
-  else L.push(new deck.SolidPolygonLayer({ id: "slab", data: SLAB, getPolygon: (d) => d, extruded: true, getElevation: 895,
-      getFillColor: [22, 34, 44], material: { ambient: 0.5, diffuse: 0.5 } }));
-  if (useGoogle()) { /* Google's tiles are the ground, the buildings and the imagery */ }
-  else if (show.sat) L.push(new deck.TileLayer({
+  })));
+  else L.push(memo("slab", [], () => new deck.SolidPolygonLayer({ id: "slab", data: SLAB, getPolygon: (d) => d, extruded: true, getElevation: 895,
+    getFillColor: [22, 34, 44], material: { ambient: 0.5, diffuse: 0.5 } })));
+  if (!g && show.sat) L.push(memo("sat", [], () => new deck.TileLayer({
     id: "sat", data: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     minZoom: 10, maxZoom: 18, tileSize: 256, extent: BBOX,
     renderSubLayers: (props) => {
@@ -502,38 +671,66 @@ function layers(t, veh) {
       return new deck.BitmapLayer(props, { data: null, image: props.data, bounds: [b.west, b.south, b.east, b.north],
         extensions: clipExt, clipBounds: BBOX, desaturate: 0.15, tintColor: [235, 240, 245] });
     },
-  }));
-  else if (!useGoogle()) L.push(new deck.SolidPolygonLayer({ id: "plate", data: SLAB, getPolygon: (d) => d.map(([x, y]) => [x, y, 0]), getFillColor: [28, 44, 56] }));
-  if (show.grid) L.push(new deck.PathLayer({ id: "grid", data: GRID, getPath: (d) => d.path, getColor: [255, 255, 255, 38],
-    widthUnits: "pixels", getWidth: 1, parameters: { depthTest: false }, extensions: onTerrain() }));
-  if (show.bld && BUILDINGS && !useGoogle()) L.push(new deck.SolidPolygonLayer({
+  })));
+  else if (!g) L.push(memo("plate", [], () => new deck.SolidPolygonLayer({ id: "plate", data: SLAB, getPolygon: (d) => d.map(([x, y]) => [x, y, 0]), getFillColor: [28, 44, 56] })));
+  if (show.grid) L.push(memo("grid", [ext], () => new deck.PathLayer({ id: "grid", data: GRID, getPath: (d) => d.path, getColor: [255, 255, 255, 38],
+    widthUnits: "pixels", getWidth: 1, parameters: { depthTest: false }, extensions: ext })));
+  if (show.bld && BUILDINGS && !g) L.push(memo("buildings", [BUILDINGS], () => new deck.SolidPolygonLayer({
     id: "buildings", data: BUILDINGS, getPolygon: (b) => b[1], positionFormat: "XY", extruded: true,
     getElevation: (b) => b[0], getFillColor: [205, 212, 220, 235],
     material: { ambient: 0.42, diffuse: 0.62, shininess: 24, specularColor: [40, 44, 50] },
-  }));
-  if (show.hoods) L.push(new deck.GeoJsonLayer({
+  })));
+  if (show.hoods) L.push(memo("hoods", [RESULT, show.extrude, ext], () => new deck.GeoJsonLayer({
     id: "hoods", data: HOODS, pickable: true, stroked: true, filled: true, extruded: show.extrude,
     getElevation: (f) => Math.max(40, (((RESULT.hoods[f.properties.nhood] || {}).median || 400) - 330) * 4),
     getFillColor: (f) => [...ramp((RESULT.hoods[f.properties.nhood] || {}).median || 400), show.extrude ? 150 : 58],
     getLineColor: (f) => [...ramp((RESULT.hoods[f.properties.nhood] || {}).median || 400), 210],
     getLineWidth: 2, lineWidthUnits: "pixels",
     material: { ambient: 0.55, diffuse: 0.5 },
-    parameters: { depthTest: show.extrude }, extensions: show.extrude ? [] : onTerrain(),
+    parameters: { depthTest: show.extrude }, extensions: show.extrude ? NO_EXT : ext,
     transitions: { getElevation: 500 },
     updateTriggers: { getElevation: RESULT, getFillColor: [RESULT, show.extrude], getLineColor: RESULT },
+  })));
+  const bscale = Math.round(buildingScale() * 20) / 20;  // quantized so zooming rebuilds stations rarely
+  const bld = (id, data, m, extra = {}) => new deck.SimpleMeshLayer({
+    id, data, mesh: m, getPosition: (b) => [b.lng, b.lat], getOrientation: [0, 0, 0], sizeScale: bscale, getColor: [255, 255, 255], _useMeshColors: true,
+    material: { ambient: 0.5, diffuse: 0.65, shininess: 16, specularColor: [40, 40, 40] }, extensions: ext, ...extra,
+  });
+  const sp = stationSplit();
+  L.push(memo("stations", [sp, bscale, ext], () => bld("stations", sp.open, MESH.firehouse, { pickable: true })));
+  if (sp.shut.length) L.push(memo("stations-closed", [sp, bscale, ext], () => bld("stations-closed", sp.shut, MESH.firehouseClosed, { pickable: true })));
+  if (show.police && POLICE_ST) L.push(memo("police-stations", [POLICE_ST, bscale, ext], () => bld("police-stations", POLICE_ST, MESH.policeStation, { pickable: true })));
+  if (show.hosp && HOSP) {
+    L.push(memo("hospitals", [HOSP, bscale, ext], () => bld("hospitals", HOSP.filter((h) => h.big), MESH.hospital, { pickable: true })));
+    L.push(memo("hospitals-small", [HOSP, bscale, ext], () => bld("hospitals-small", HOSP.filter((h) => !h.big), MESH.hospitalSmall, { pickable: true })));
+  }
+  const beaconH = 70 * bscale;  // light column height in meters: tall at city zoom, modest up close
+  const beacons = memo("beacon-data", [sp, show.police, POLICE_ST, show.hosp, HOSP], () => [
+    ...sp.open.map((b) => ({ lng: b.lng, lat: b.lat, col: [255, 110, 50], on: true })),
+    ...sp.shut.map((b) => ({ lng: b.lng, lat: b.lat, col: [120, 124, 130], on: false })),
+    ...(show.police && POLICE_ST ? POLICE_ST.map((b) => ({ lng: b.lng, lat: b.lat, col: [80, 140, 255], on: true })) : []),
+    ...(show.hosp && HOSP ? HOSP.map((b) => ({ lng: b.lng, lat: b.lat, col: [255, 60, 70], halo: [255, 235, 235], on: true })) : []),
+  ]);
+  const GLOW = { depthMask: false, blendFunc: [770, 1] };  // SRC_ALPHA, ONE: additive glow
+  L.push(memo("beacon-cols", [beacons, bscale, ext], () => new deck.ColumnLayer({
+    id: "beacon-cols", data: beacons, diskResolution: 12, radius: 2.2 * bscale, extruded: true, getPosition: (b) => [b.lng, b.lat],
+    getElevation: beaconH, getFillColor: (b) => [...b.col, b.on ? 95 : 40], material: false, parameters: GLOW, extensions: ext,
+  })));
+  const ph = reduced ? 0.5 : (Math.sin((performance.now() / 1500) * 2 * Math.PI) + 1) / 2;  // slow 1.5 s pulse
+  const halo = memo("beacon-halo", [beacons, bscale, ext], () => new deck.ScatterplotLayer({
+    id: "beacon-halo", data: beacons.filter((b) => b.on), getPosition: (b) => [b.lng, b.lat, beaconH], billboard: true,
+    radiusUnits: "pixels", getRadius: 7, stroked: true, lineWidthUnits: "pixels", getLineWidth: 2,
+    getFillColor: (b) => [...b.col, 70], getLineColor: (b) => [...(b.halo || b.col), 200], parameters: GLOW, extensions: ext,
   }));
-  L.push(new deck.ColumnLayer({
-    id: "stations", data: STATIONS, pickable: true, diskResolution: 4, radius: 70 * stationScale(), angle: 45, extruded: true,
-    elevationScale: stationScale(),
-    getPosition: (s) => [s.lng, s.lat], getElevation: (s) => (closed.has(s.station) ? 30 : 260),
-    getFillColor: (s) => (closed.has(s.station) ? [110, 118, 128] : [243, 154, 43]),
-    material: { ambient: 0.7, diffuse: 0.5 }, extensions: onTerrain(),
-    updateTriggers: { getElevation: scenario.closed.join(), getFillColor: scenario.closed.join() },
-  }));
+  L.push(halo.clone({ radiusScale: 1 + 0.6 * ph, opacity: 0.55 + 0.45 * (1 - ph) }));
   L.push(new deck.TripsLayer({
     id: "trails", data: SEGS, getPath: (d) => d.path, getTimestamps: (d) => d.ts, currentTime: t, trailLength: 240,
     fadeTrail: true, widthMinPixels: 2, capRounded: true, jointRounded: true,
-    getColor: (d) => (d.fire ? [...RGB.engine, 150] : [...RGB.medic, 150]), parameters: { depthTest: false }, extensions: onTerrain(),
+    getColor: (d) => (d.fire ? [...RGB.engine, 150] : [...RGB.medic, 150]), parameters: { depthTest: false }, extensions: ext,
+  }));
+  if (show.police && PSEGS.length) L.push(new deck.TripsLayer({
+    id: "police-trails", data: PSEGS, getPath: (d) => d.path, getTimestamps: (d) => d.ts, currentTime: t, trailLength: 180,
+    fadeTrail: true, widthMinPixels: 1.5, capRounded: true, getColor: [90, 140, 255, 130], parameters: { depthTest: false }, extensions: ext,
   }));
   const waiting = REPLAY.calls.filter((c) => c[2] <= t && t < c[3] + 90);
   L.push(new deck.ScatterplotLayer({
@@ -541,31 +738,44 @@ function layers(t, veh) {
     getRadius: (c) => (t < c[3] ? 9 + pulse * 9 : 6), stroked: true, filled: true,
     getFillColor: (c) => (t < c[3] ? [...RGB.call, 60] : [...RGB.ok, 120]),
     getLineColor: (c) => (t < c[3] ? [...RGB.call, 255] : [...RGB.ok, 200]), lineWidthMinPixels: 2,
-    parameters: { depthTest: false }, extensions: onTerrain(), updateTriggers: { getRadius: [t, pulse], getFillColor: t, getLineColor: t },
+    parameters: { depthTest: false }, extensions: ext, updateTriggers: { getRadius: [t, pulse], getFillColor: t, getLineColor: t },
   }));
   const flash = Math.floor(performance.now() / 260) % 2;
-  const mesh = (id, m, getColor, extra = {}) => new deck.SimpleMeshLayer({
-    id, data: veh.list, mesh: m, getPosition: (v) => v.p, getOrientation: (v) => [0, -v.h, 0],
-    getScale: (v) => (v.fire ? [1, 1.3, 1.05] : [1, 1, 1]), sizeScale: vehicleScale(), getColor,
+  const vs = vehicleScale();
+  const lights = (v) => v.state === 2 ? [70, 74, 80] : v.state === 1 ? [255, 70, 60] : (flash ^ v.blink) ? [255, 40, 40] : [60, 120, 255];
+  const mesh = (id, data, m, getColor, extra = {}) => new deck.SimpleMeshLayer({
+    id, data, mesh: m, getPosition: (v) => v.p, getOrientation: (v) => [0, -v.h, 0], sizeScale: vs, getColor, _useMeshColors: true,
     material: { ambient: 0.55, diffuse: 0.6, shininess: 40, specularColor: [80, 80, 80] },
-    updateTriggers: { getColor: [flash] }, extensions: onTerrain(), ...extra,
+    updateTriggers: { getColor: [flash] }, extensions: ext, ...extra,
   });
-  L.push(mesh("vehicles", MESH.body, (v) => (v.fire ? [228, 52, 40] : [238, 241, 245]), { pickable: true }));
-  L.push(mesh("v-cab", MESH.cab, (v) => (v.fire ? [190, 34, 26] : [226, 230, 236])));
-  L.push(mesh("v-stripe", MESH.stripe, (v) => (v.fire ? [245, 238, 225] : [220, 40, 40])));
-  L.push(mesh("v-wheels", MESH.wheels, [28, 30, 34]));
-  L.push(mesh("v-bar", MESH.bar, (v) => v.state === 2 ? [70, 74, 80]
-    : v.state === 1 ? [255, 70, 60]
-    : (flash ^ v.blink) ? [255, 40, 40] : [60, 120, 255]));
+  const groups = { engine: [], truck: [], amb: [] };
+  for (const v of veh.list) groups[v.type === "TRUCK" ? "truck" : v.fire ? "engine" : "amb"].push(v);
+  for (const [k, body, bar] of [["engine", MESH.engine, MESH.barEngine], ["truck", MESH.truck, MESH.barTruck], ["amb", MESH.amb, MESH.barAmb]]) {
+    L.push(mesh(`vehicles-${k}`, groups[k], body, [255, 255, 255], { pickable: true }));
+    L.push(mesh(`bar-${k}`, groups[k], bar, lights));
+  }
+  if (show.police && veh.police.length) {
+    L.push(mesh("police", veh.police, MESH.police, [255, 255, 255], { pickable: true }));
+    L.push(mesh("bar-police", veh.police, MESH.barPolice, (v) => v.state === 0 ? ((flash ^ v.blink) ? [255, 40, 40] : [60, 120, 255]) : v.state === 1 ? [60, 120, 255] : [70, 74, 80]));
+  }
+  for (const k of MEMO.keys()) if (!USED.has(k)) MEMO.delete(k);  // a layer that left the map is finalized by deck
+  USED.clear();
   return L;
 }
 
 function tooltip({ object, layer }) {
   if (!object || !layer) return null;
   const box = (h) => ({ html: `<div class="tooltip">${h}</div>`, style: { background: "rgba(13,23,31,.94)", color: "#e9eef2", borderRadius: "10px", padding: "8px 10px", border: "1px solid rgba(255,255,255,.12)" } });
-  if (layer.id === "vehicles") return box(`<b>${esc(object.unit)}</b> · ${esc(KIND[object.type] || object.type)}<br>${["Driving to a call in", "On scene in", "Returning from"][object.state]} ${esc(object.hood)}`);
+  if (layer.id === "police") return box(`<b>SFPD patrol car</b> · ${esc(object.district)}<br>${["Driving to", "On scene:", "Returning from"][object.state]} ${esc(object.type || "a call")}<br><i>Replayed from SFPD records</i>`);
+  if (layer.id.startsWith("hospitals")) {
+    const hrs = object.diversion_hours_12mo;
+    const div = hrs != null ? `<br>On ambulance diversion ${fmtN(Math.round(hrs))} h in the last 12 months (${Math.round((hrs / 8760) * 100)}% of the time)` : "";
+    return box(`<b>${esc(object.short || object.name)}</b><br>${esc(String(object.address || "").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()))}${div}${object.approx_location ? "<br><i>Location approximate</i>" : ""}`);
+  }
+  if (layer.id === "police-stations") return box(`<b>${esc(object.name)}</b><br>${esc(object.address)}<br>SFPD district station`);
+  if (layer.id.startsWith("vehicles")) return box(`<b>${esc(object.unit)}</b> · ${esc(KIND[object.type] || object.type)}<br>${["Driving to a call in", "On scene in", "Returning from"][object.state]} ${esc(object.hood)}`);
   if (layer.id === "calls") return box(`<b>${esc(object[5])}</b><br>${esc(object[4])}<br>Called ${hhmm(object[2])} · help in ${mmss(object[3] - object[2])}`);
-  if (layer.id === "stations") {
+  if (layer.id.startsWith("stations")) {
     const units = Object.entries(META.fleet[object.station] || {}).map(([k, n]) => `${n} ${(KIND[k] || k).toLowerCase()}`).join(", ");
     return box(`<b>${esc(object.name)}</b><br>${esc(units || "no assigned units")}<br><i>Click to ${scenario.closed.includes(object.station) ? "reopen" : "close"}</i>`);
   }
@@ -581,9 +791,10 @@ function setView(v, ms = 700) {
 
 function initDeck() {
   deckgl = new deck.Deck({
-    parent: $("#map"), viewState: view, controller: { dragRotate: true, touchRotate: true, doubleClickZoom: true, scrollZoom: { smooth: true, speed: 0.02 } },
+    parent: $("#map"), viewState: view, controller: { dragRotate: true, touchRotate: true, doubleClickZoom: true, scrollZoom: true, touchZoom: true, inertia: 300, keyboard: false },
     onViewStateChange: ({ viewState, interactionState }) => {
-      if (followUnit && interactionState && (interactionState.isDragging || interactionState.isPanning)) stopFollow();
+      const user = interactionState && (interactionState.isDragging || interactionState.isPanning || interactionState.isZooming || interactionState.isRotating);
+      if (user) { if (followUnit) stopFollow(); hideHint(); }
       view = viewState; deckgl.setProps({ viewState });
     },
     layers: [], getTooltip: tooltip,
@@ -594,8 +805,8 @@ function initDeck() {
     parameters: { clearColor: [11 / 255, 20 / 255, 27 / 255, 1] },
     onClick: ({ object, layer }) => {
       if (!object || !layer) return;
-      if (layer.id === "stations") toggleClosed(object.station);
-      else if (layer.id === "vehicles") startFollow(object.unit);
+      if (layer.id.startsWith("stations")) toggleClosed(object.station);
+      else if (layer.id.startsWith("vehicles")) startFollow(object.unit);
       else if (layer.id === "hoods") focusHood(object.properties.nhood);
     },
   });
@@ -653,10 +864,12 @@ function attribution() {
   if (el.textContent !== txt) el.textContent = txt;
 }
 function hud(veh) {
+  $("#compass-svg").style.transform = `rotate(${-view.bearing}deg)`;
   $("#clock").textContent = hhmm(simT);
   if (document.activeElement !== $("#scrub")) $("#scrub").value = Math.floor(simT / 60) * 60;
   $("#n-move").textContent = veh.moving;
   $("#n-scene").textContent = veh.scene;
+  $("#n-pol").textContent = veh.policeOn;
   const calls = REPLAY.calls;
   $("#n-wait").textContent = calls.filter((c) => c[2] <= simT && simT < c[3]).length;
   const done = calls.filter((c) => c[3] <= simT).map((c) => c[3] - c[2]).sort((a, b) => a - b);
@@ -794,10 +1007,30 @@ document.querySelectorAll("[data-ex]").forEach((b) => (b.onclick = () => { scena
 $("#run").onclick = run;
 $("#panel-toggle").onclick = () => $("#panel").classList.toggle("hidden");
 $("#help").onclick = () => $("#about").showModal();
-$("#z-in").onclick = () => setView({ zoom: Math.min(18, view.zoom + 1) }, 400);
-$("#z-out").onclick = () => setView({ zoom: Math.max(9, view.zoom - 1) }, 400);
+function nav(v, ms = 300) { if (followUnit) stopFollow(); hideHint(); setView(v, ms); }
+function pan(fx, fy) {
+  // move by a fraction of the screen, in screen directions (works at any bearing and tilt)
+  let vp; try { vp = deckgl.getViewports()[0]; } catch (e) { vp = null; }
+  if (!vp) return;
+  const [longitude, latitude] = vp.unproject([vp.width / 2 + fx * vp.width, vp.height / 2 + fy * vp.height]);
+  nav({ longitude, latitude });
+}
+const zoomBy = (d) => nav({ zoom: Math.min(20, Math.max(9, view.zoom + d)) });
+const rotateBy = (d) => nav({ bearing: view.bearing + d });
+$("#z-in").onclick = () => zoomBy(1);
+$("#z-out").onclick = () => zoomBy(-1);
+$("#n-up").onclick = () => pan(0, -0.3); $("#n-down").onclick = () => pan(0, 0.3);
+$("#n-left").onclick = () => pan(-0.3, 0); $("#n-right").onclick = () => pan(0.3, 0);
+$("#n-rl").onclick = () => rotateBy(-20); $("#n-rr").onclick = () => rotateBy(20);
+$("#n-compass").onclick = () => nav({ bearing: 0 });
+function hideHint() {
+  if ($("#hint").hidden) return;
+  $("#hint").hidden = true;
+  try { localStorage.setItem("runnr-hint-seen", "1"); } catch (e) { /* private mode: hint just shows again next time */ }
+}
+try { if (!localStorage.getItem("runnr-hint-seen")) $("#hint").hidden = false; } catch (e) { $("#hint").hidden = false; }
 $("#z-tilt").onclick = () => setView(view.pitch > 10 ? { pitch: 0, bearing: 0 } : { pitch: 60, bearing: -24 }, 600);
-$("#z-fit").onclick = () => { stopFollow(); setView(HOME, 900); };
+$("#z-fit").onclick = () => nav(HOME, 900);
 $("#z-drop").onclick = dropToStreet;
 function setPlaying(p) {
   playing = p;
@@ -812,7 +1045,7 @@ $("#day").onchange = async (e) => {
   if (r.ok) { const d = await r.json(); RESULT = d; loadReplay(d.replay); renderAll(); }
 };
 const bind = (id, k) => ($(id).onchange = (e) => { show[k] = e.target.checked; });
-bind("#l-sat", "sat"); bind("#l-grid", "grid"); bind("#l-hoods", "hoods"); bind("#l-3d", "extrude"); bind("#l-bld", "bld"); bind("#l-g3d", "g3d");
+bind("#l-sat", "sat"); bind("#l-grid", "grid"); bind("#l-hoods", "hoods"); bind("#l-3d", "extrude"); bind("#l-bld", "bld"); bind("#l-g3d", "g3d"); bind("#l-pol", "police"); bind("#l-hosp", "hosp");
 $("#follow-stop").onclick = stopFollow;
 $("#ask-form").onsubmit = async (e) => {
   e.preventDefault();
@@ -838,8 +1071,16 @@ addEventListener("keydown", (e) => {
   if (e.key === "Escape" && followUnit) { stopFollow(); return; }
   if (["INPUT", "SELECT", "TEXTAREA"].includes(document.activeElement.tagName)) return;
   if (e.code === "Space" && document.activeElement.tagName !== "BUTTON") { e.preventDefault(); setPlaying(!playing); }
-  else if (e.key === "+" || e.key === "=") setView({ zoom: Math.min(18, view.zoom + 1) }, 300);
-  else if (e.key === "-" || e.key === "_") setView({ zoom: Math.max(9, view.zoom - 1) }, 300);
+  else if (e.key === "+" || e.key === "=") zoomBy(1);
+  else if (e.key === "-" || e.key === "_") zoomBy(-1);
+  else if (e.metaKey || e.ctrlKey || e.altKey) return;
+  else {
+    const k = e.key.toLowerCase();
+    const act = { arrowup: () => pan(0, -0.2), w: () => pan(0, -0.2), arrowdown: () => pan(0, 0.2), s: () => pan(0, 0.2),
+      arrowleft: () => pan(-0.2, 0), a: () => pan(-0.2, 0), arrowright: () => pan(0.2, 0), d: () => pan(0.2, 0),
+      q: () => rotateBy(-15), e: () => rotateBy(15), r: () => nav(HOME, 900) }[k];
+    if (act) { e.preventDefault(); act(); }
+  }
 });
 
 // ---------- boot ----------
@@ -858,6 +1099,8 @@ addEventListener("keydown", (e) => {
   initDeck();
   requestAnimationFrame(frame);
   loadBuildings();
+  loadPoliceStations();
+  loadHospitals();
 })();
 </script>
 </body>
