@@ -197,7 +197,7 @@ FIRST_DUE = {"ENGINE", "TRUCK"}  # SF sends the call's own station first: 86.5% 
 
 
 def simulate(incidents, homes, travel, closed=(), added=(), volume=1.0, seed=0, offset=0.0, log=None, positions=True,
-             first_due=True, blocked=None):
+             first_due=True, blocked=None, new_homes=(), volume_area=None, extra_delay=0):
     """Returns {incident id: simulated response seconds}. closed: station numbers; added: [(station, type)].
     Units are only available on days they really worked (added units: every day).
     offset: calibration seconds added to every simulated response (number, or {band: seconds}).
@@ -207,13 +207,19 @@ def simulate(incidents, homes, travel, closed=(), added=(), volume=1.0, seed=0, 
     unit tied up), applied on every day of the month so the effect is averaged over real days.
     first_due: engines and trucks go to the call's own first-due station's unit when it's free (how SF dispatches),
     else the unit that can arrive soonest. Ambulances always go to the soonest (they rove, no home area).
-    log: optional list; each dispatch appends a dict (unit, type, from, to, call, depart, arrive, free, travel, incident)."""
+    log: optional list; each dispatch appends a dict (unit, type, from, to, call, depart, arrive, free, travel, incident).
+    new_homes: [(lat, lng, type)] units based anywhere (a proposed station); drive times come from the distance model.
+    volume_area: (lat, lng, km): extra calls (volume > 1) are copies of real calls from inside that circle only.
+    extra_delay: seconds added between the 911 call and dispatch (a slower dispatch center)."""
     on_duty = duty_days(incidents)
     stations = load_stations()
     fleet = {uid: h for uid, h in homes.items() if h[0][1:] not in set(map(str, closed)) or h[0][0] != "S"}
     for n, (st, typ) in enumerate(added):
         fleet[f"NEW{n}"] = ("S" + str(st), *stations[str(st)], typ)
         on_duty[f"NEW{n}"] = None  # always on duty
+    for n, (la, ln, typ) in enumerate(new_homes):
+        fleet[f"PROP{n}"] = (f"X{la:.4f},{ln:.4f}", la, ln, typ)  # unknown home key: travel falls back to distance
+        on_duty[f"PROP{n}"] = None
     by_type = defaultdict(list)
     for uid, h in fleet.items():
         by_type[h[3]].append(uid)
@@ -221,16 +227,17 @@ def simulate(incidents, homes, travel, closed=(), added=(), volume=1.0, seed=0, 
     if volume != 1.0:  # resample: extra calls are copies of real calls shifted to a random time in the window
         rng = random.Random(seed)
         lo, hi = incs[0]["t"], incs[-1]["t"]
-        extra = int(len(incs) * (volume - 1))
-        if extra > 0:
+        pool = [i for i in incs if km(volume_area[0], volume_area[1], i["lat"], i["lng"]) <= volume_area[2]] if volume_area else incs
+        extra = int(len(pool) * (volume - 1))
+        if extra > 0 and pool:
             for k in range(extra):
-                c = dict(rng.choice(incs))
+                c = dict(rng.choice(pool))
                 shift = rng.randint(lo, hi) - c["t"]
                 c["id"], c["t"] = f"{c['id']}+{k}", c["t"] + shift
                 c["units"] = [{**u, **{f: u[f] + shift if u[f] else None for f in ("dispatch", "enroute", "onscene", "available")}}
                               for u in c["units"]]
                 incs.append(c)
-        else:
+        elif extra < 0:
             incs = rng.sample(incs, int(len(incs) * volume))
         incs.sort(key=lambda i: i["t"])
     free = defaultdict(lambda: -10**12)
@@ -240,7 +247,7 @@ def simulate(incidents, homes, travel, closed=(), added=(), volume=1.0, seed=0, 
     blocked = blocked or {}
     day0 = {}
     for i in incs:
-        t0 = i["t"] + i["delay"]
+        t0 = i["t"] + i["delay"] + extra_delay
         b = band(t0)
         if blocked:
             d = i["day"]

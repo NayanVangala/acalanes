@@ -13,6 +13,7 @@ import ssl
 import subprocess
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -36,115 +37,171 @@ SCHEMA = {
 
 
 KINDS = ["crash", "fire", "medical", "mass_casualty", "other"]
-INT = {"type": "integer"}
-AGENT_SYSTEM = """You answer open-ended questions about San Francisco 911 fire/EMS response for Medio, a simulator built from 300,081 real 911 incidents (held-out month: October 2026, 13,417 calls).
-How you work:
-- Get every number from a tool. Never estimate, round differently, or invent a number; copy values exactly as the tool wrote them (7:24, 40%, 1,234).
-- Pick the closest measurable version of the question and say what you assumed. A parade, a game or a storm: more calls (simulate_city volume) or units tied up (incident). A blocked road or bridge: say the simulator has no road closures, then measure the nearest proxy (for example the affected station's units busy). Weather, traffic or hospitals you can't see: say so plainly, then give what the records do show.
-- Always run the proxy instead of only describing it: a game, concert or parade = simulate_city with volume 1.3 to 1.5 (and an incident at the venue if one is mentioned); a storm or disaster = volume 2 or more.
-- Use the user's address only when the question is about them ("near me", "my place", "here", "me").
-- Combine tools when the question has parts (for example a neighborhood profile and a scenario). Two or three tool calls is usually enough; never more than five.
-- If the question isn't about emergencies, response times, stations, ambulances or this city, call reply and say what you can answer.
-- Finish by calling reply exactly once: headline = one or two plain sentences that answer the question directly; facts = 2 to 6 rows, each a short label and a value copied from a tool; assumptions = what you assumed, in plain words.
-Stations and neighborhoods must come from these lists."""
-
-KIND_ANY = KINDS + ["any"]
-STR, BOOL = {"type": "string"}, {"type": "boolean"}
-TOOLS = [
-    {"name": "records", "description": "Statistics over the 13,417 real October 2026 calls (wait = call received to first unit on scene). Filter by kind, neighborhood, first-due station, near the user's address, hours and weekday/weekend; optionally group the result.",
-     "input_schema": {"type": "object", "required": ["kind"], "properties": {
-         "kind": {"type": "string", "enum": KIND_ANY}, "hood": STR, "station": STR, "near_me": BOOL,
-         "hour_from": INT, "hour_to": INT, "days": {"type": "string", "enum": ["any", "weekday", "weekend"]},
-         "group_by": {"type": "string", "enum": ["none", "hour", "neighborhood", "kind", "weekday", "priority"]}}}},
-    {"name": "simulate_city", "description": "Re-run all of October with lasting changes: close stations, add ambulances (MEDIC) or engines (ENGINE) at stations, or scale 911 call volume (0.5 to 3.0). Returns citywide and neighborhood waits before and after. The map will show this scenario.",
-     "input_schema": {"type": "object", "required": ["closed", "added", "volume"], "properties": {
-         "closed": {"type": "array", "items": STR},
-         "added": {"type": "array", "items": {"type": "object", "required": ["station", "type"], "properties": {
-             "station": STR, "type": {"type": "string", "enum": ["MEDIC", "ENGINE"]}}}},
-         "volume": {"type": "number"}}}},
-    {"name": "incident", "description": "Simulate one event (crash, fire, medical, mass casualty) at a place and hour that ties up the nearest units every day of October: how fast the first engine arrives, and how much longer other nearby calls wait. Use -1 for unknown numbers.",
-     "input_schema": {"type": "object", "required": ["kind"], "properties": {
-         "kind": {"type": "string", "enum": KINDS}, "hood": STR, "station": STR, "near_me": BOOL, "hour": INT,
-         "duration_min": INT, "engines": INT, "ambulances": INT}}},
-    {"name": "units_busy", "description": "Take specific units out of service for a window of hours (an engine at a station, the ambulance nearest a station, or ANY) and measure the effect on calls in that station's area.",
-     "input_schema": {"type": "object", "required": ["busy"], "properties": {"busy": {"type": "array", "items": {
-         "type": "object", "required": ["station", "type"], "properties": {
-             "station": STR, "type": {"type": "string", "enum": ["MEDIC", "ENGINE", "ANY"]}, "from_hour": INT, "to_hour": INT}}}}}},
-    {"name": "place_profile", "description": "Profile one place: a neighborhood, a station, or the user's looked-up address. Typical wait, rank, time-of-day pattern, likely first responders.",
-     "input_schema": {"type": "object", "properties": {"hood": STR, "station": STR, "near_me": BOOL}}},
-    {"name": "reply", "description": "Give the final answer. Call exactly once, last.",
-     "input_schema": {"type": "object", "required": ["headline", "facts", "assumptions"], "properties": {
-         "headline": STR,
-         "facts": {"type": "array", "items": {"type": "object", "required": ["k", "v"], "properties": {"k": STR, "v": STR, "note": STR}}},
-         "assumptions": {"type": "array", "items": STR}}}},
-]
-NUM = re.compile(r"\d+:\d\d|\d[\d,]*(?:\.\d+)?%|\b\d{1,3}(?:,\d{3})+\b|\b\d{3,}\b")
+INT, STR, BOOL, NUMBER = {"type": "integer"}, {"type": "string"}, {"type": "boolean"}, {"type": "number"}
 
 
-def agent(text, stations_meta, handlers, me_label=None, max_rounds=6):
-    """Open-ended question -> tool calls on real data -> {headline, facts, assumptions, steps, checked, unmatched}.
-    handlers: {tool name: fn(input dict) -> dict}. Every number in the answer is checked against tool outputs."""
+def _obj(**props):
+    return {"type": "object", "additionalProperties": False, "required": list(props), "properties": props}
+
+
+PLACE = _obj(hood=STR, station=STR, near_me=BOOL, text=STR)
+PLAN_SCHEMA = _obj(
+    mode={"type": "string", "enum": ["simulate", "lookup", "off_topic"]},
+    title=STR,
+    close_stations={"type": "array", "items": STR},
+    add_units={"type": "array", "items": _obj(station=STR, type={"type": "string", "enum": ["MEDIC", "ENGINE"]}, count=INT)},
+    new_stations={"type": "array", "items": _obj(place=PLACE, kind={"type": "string", "enum": ["fire", "ambulance"]})},
+    call_volume=NUMBER,
+    volume_place=PLACE,
+    slowdown=NUMBER,
+    slow_from_hour=INT,
+    slow_to_hour=INT,
+    dispatch_delay_s=INT,
+    units_busy={"type": "array", "items": _obj(station=STR, type={"type": "string", "enum": ["MEDIC", "ENGINE", "ANY"]},
+                                               from_hour=INT, to_hour=INT)},
+    incidents={"type": "array", "items": _obj(kind={"type": "string", "enum": KINDS}, place=PLACE, hour=INT,
+                                              duration_min=INT, engines=INT, ambulances=INT)},
+    focus=_obj(place=PLACE, from_hour=INT, to_hour=INT),
+    lookup=_obj(kind={"type": "string", "enum": KINDS + ["any"]}, place=PLACE, hour_from=INT, hour_to=INT,
+                days={"type": "string", "enum": ["any", "weekday", "weekend"]},
+                group_by={"type": "string", "enum": ["none", "hour", "neighborhood", "kind", "weekday", "priority"]}),
+    assumptions={"type": "array", "items": STR},
+    not_modeled={"type": "array", "items": STR},
+)
+
+PLAN_SYSTEM = """You turn anything a person types about emergencies in San Francisco into a plan for Medio's simulator. The simulator replays all 13,417 real fire/EMS 911 calls from October 2026 with your changes and measures how long help takes. You never produce result numbers; the simulator does.
+
+Levers (leave a lever at its neutral value when unused):
+- close_stations: station numbers taken out of service (budget cuts, a station flooded, staffing shortage).
+- add_units: extra ambulances (MEDIC) or engines (ENGINE) based at an existing station, with a count.
+- new_stations: a brand-new station at a place ("fire" = an engine plus an ambulance, "ambulance" = an ambulance post).
+- call_volume (1.0 = normal, 0.5 to 3.0) and volume_place (empty place = citywide): more 911 calls. Game, concert, parade, festival, protest = 1.3 to 1.6 at that place. Heat wave, flu season = 1.4 to 1.8 citywide. Earthquake or big disaster = 2.5 citywide.
+- slowdown (1.0 = normal, up to 2.0) for the hours slow_from_hour to slow_to_hour (-1 and -1 = all day): slower driving from rain, fog, traffic, rush hour, construction, a closed bridge or road nearby. Rain about 1.15, heavy traffic about 1.25, earthquake about 1.5.
+- dispatch_delay_s: extra seconds before units are sent (911 center outage, phone system down, fewer dispatchers). Usually 30 to 120.
+- units_busy: specific units out of service for hours (station number, MEDIC/ENGINE/ANY, from_hour, to_hour; -1 if not given).
+- incidents: one event at a place that ties up units (crash, fire, medical, mass_casualty) with hour, duration_min, engines, ambulances; -1 for anything not given.
+- focus: where and when the person cares. A named place, or the incident's place, or near_me if they talk about themselves; empty place = citywide. Hours -1 = all day; if they give a time, use a window around it.
+
+Places: hood = an exact neighborhood name from the list, station = a station number, near_me = the person's looked-up address ("near me", "my house", "here"), text = anything else to look up on a map (a street, intersection, landmark, address), for example "6th St and Market St" or "Oracle Park". Fill at most one; leave the others empty/false.
+
+Be generous: every situation maps to some lever. Vague is fine; pick sensible amounts and say so in assumptions (plain words, one short sentence each). Put parts that the simulator truly can't represent (police, hospitals' capacity, a specific road closure's exact detour, injuries) in not_modeled, still simulating the closest lever.
+mode: simulate for any situation or change; lookup only for a plain factual question with nothing changing ("which hours are slowest for fires") and then fill lookup; off_topic if it isn't about emergencies, safety, response or the city.
+title: 3 to 7 words naming the scenario, like "Giants game at Oracle Park" or "Rainy evening rush"."""
+
+
+def _place_ok(p, valid, hoods):
+    p = dict(p or {})
+    return {"hood": p.get("hood") if p.get("hood") in hoods else "",
+            "station": str(p.get("station") or "") if str(p.get("station") or "") in valid else "",
+            "near_me": bool(p.get("near_me")), "text": str(p.get("text") or "")[:120]}
+
+
+def plan_scenario(text, stations_meta, me_label=None):
+    """Free text -> a validated simulation plan, or {error}."""
     text = (text or "").strip()[:500]
     if not text:
-        return {"error": "Type a question first, for example: what if there's a crash near me at 5 pm?"}
+        return {"error": "Describe a situation first, for example: a Giants game with a crash outside the ballpark."}
     key = _key()
     if not key:
         return {"error": "The question box isn't set up: the server has no ANTHROPIC_API_KEY."}
-    ctx, _ = _context(stations_meta)
-    hoods = sorted({f["properties"]["nhood"] for f in json.load(open(SF / "hoods.geojson"))["features"]})
-    system = [{"type": "text", "text": AGENT_SYSTEM + "\n\n" + ctx + "\n\nNeighborhood names: " + "; ".join(hoods),
-               "cache_control": {"type": "ephemeral"}}]
-    where = f"The user has looked up this address: {me_label}." if me_label else "The user has not looked up an address."
-    msgs = [{"role": "user", "content": f"{where}\n\nQuestion: {text}"}]
-    steps, seen, usage = [], [], {}
-    for _ in range(max_rounds):
+    ctx, valid = _context(stations_meta)
+    hoods = {f["properties"]["nhood"] for f in json.load(open(SF / "hoods.geojson"))["features"]}
+    where = f"The person has looked up their address: {me_label}." if me_label else "The person has not looked up an address."
+    body = {"model": MODEL, "max_tokens": 2048,
+            "system": [{"type": "text", "text": PLAN_SYSTEM + "\n\n" + ctx, "cache_control": {"type": "ephemeral"}}],
+            "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": PLAN_SCHEMA}},
+            "messages": [{"role": "user", "content": f"{where}\n\n{text}"}]}
+    try:
+        resp = _post(body, key, timeout=30)
+    except Exception as e:
+        return {"error": f"Couldn't reach the AI service ({type(e).__name__}). Try again."}
+    if resp.get("type") == "error":
+        return {"error": f"The AI service returned an error: {resp.get('error', {}).get('message', 'unknown')[:200]}"}
+    if resp.get("stop_reason") == "refusal":
+        return {"error": "That one was declined. Describe a situation in San Francisco."}
+    raw = next((b.get("text", "") for b in resp.get("content", []) if b.get("type") == "text"), "")
+    try:
+        p = json.loads(raw)
+        hour = lambda v, lo=0, hi=23: int(v) if isinstance(v, (int, float)) and lo <= v <= hi else -1
+        num = lambda v, lo, hi, d: min(max(float(v), lo), hi) if isinstance(v, (int, float)) and math.isfinite(v) else d
+        plan = {
+            "mode": p["mode"], "title": str(p["title"])[:80],
+            "close_stations": list(dict.fromkeys(str(s) for s in p["close_stations"] if str(s) in valid))[:20],
+            "add_units": [{"station": str(a["station"]), "type": a["type"], "count": max(1, min(int(a.get("count") or 1), 5))}
+                          for a in p["add_units"] if str(a["station"]) in valid and a["type"] in TYPES][:10],
+            "new_stations": [{"place": _place_ok(n["place"], valid, hoods), "kind": n["kind"]} for n in p["new_stations"]][:3],
+            "call_volume": num(p["call_volume"], 0.5, 3.0, 1.0), "volume_place": _place_ok(p["volume_place"], valid, hoods),
+            "slowdown": num(p["slowdown"], 1.0, 2.0, 1.0),
+            "slow_from_hour": hour(p["slow_from_hour"]), "slow_to_hour": hour(p["slow_to_hour"], 0, 24),
+            "dispatch_delay_s": int(num(p["dispatch_delay_s"], 0, 600, 0)),
+            "units_busy": [{"station": str(b["station"]), "type": b["type"], "from_hour": hour(b["from_hour"]),
+                            "to_hour": hour(b["to_hour"], 0, 24)} for b in p["units_busy"] if str(b["station"]) in valid][:6],
+            "incidents": [{"kind": i["kind"], "place": _place_ok(i["place"], valid, hoods), "hour": hour(i["hour"]),
+                           "duration_min": hour(i["duration_min"], 5, 600), "engines": hour(i["engines"], 0, 8),
+                           "ambulances": hour(i["ambulances"], 0, 8)} for i in p["incidents"]][:3],
+            "focus": {"place": _place_ok(p["focus"]["place"], valid, hoods), "from_hour": hour(p["focus"]["from_hour"]),
+                      "to_hour": hour(p["focus"]["to_hour"], 0, 24)},
+            "lookup": {**p["lookup"], "place": _place_ok(p["lookup"]["place"], valid, hoods)},
+            "assumptions": [str(a)[:240] for a in p["assumptions"]][:6],
+            "not_modeled": [str(a)[:240] for a in p["not_modeled"]][:4],
+            "usage": resp.get("usage", {}),
+        }
+    except (ValueError, KeyError, TypeError):
+        return {"error": "Couldn't turn that into a scenario. Try describing what happens and where."}
+    return plan
+
+
+NUM = re.compile(r"\d+:\d\d|\d[\d,]*(?:\.\d+)?%|\b\d{1,3}(?:,\d{3})+\b|\b\d{3,}\b")
+NARRATE = """Write the answer to the person's what-if from the simulator's measured outcome below.
+headline: one or two plain sentences that directly answer their question, using only numbers that appear in the outcome, copied exactly (7:24, +0:18, 40%). Lead with what matters to them: for an incident, how fast the first engine gets there (from facts); for a change, how their place or time is affected; then the citywide picture if it differs. Waits are medians: say "typical", never "average". If nothing changes, say why in plain words (nearby stations cover it). No hype."""
+
+
+def narrate(question, outcome):
+    """One or two sentences from the measured outcome; every number checked against it. None if unusable."""
+    key = _key()
+    if not key:
+        return None
+    data = json.dumps(outcome, ensure_ascii=False)
+    body = {"model": MODEL, "max_tokens": 400,
+            "system": NARRATE,
+            "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": _obj(headline=STR)}},
+            "messages": [{"role": "user", "content": f"Question: {question}\n\nOutcome: {data}"}]}
+    try:
+        resp = _post(body, key, timeout=20)
+        raw = next((b.get("text", "") for b in resp.get("content", []) if b.get("type") == "text"), "")
+        head = str(json.loads(raw)["headline"])[:500]
+    except Exception:
+        return None
+    bad = [n for n in NUM.findall(head) if n not in data]
+    return None if bad else head
+
+
+def geocode(text):
+    """A street, intersection or landmark in San Francisco -> (lat, lng, label), via Photon (OpenStreetMap). None if not found."""
+    url = ("https://photon.komoot.io/api/?limit=8&bbox=-122.52,37.70,-122.35,37.83&q="
+           + urllib.parse.quote(f"{text}, San Francisco"))
+    try:
         try:
-            resp = _post({"model": MODEL, "max_tokens": 1500, "system": system, "tools": TOOLS, "messages": msgs}, key, timeout=30)
-        except Exception as e:
-            return {"error": f"Couldn't reach the AI service ({type(e).__name__}). Try again or use the controls."}
-        if resp.get("type") == "error":
-            return {"error": f"The AI service returned an error: {resp.get('error', {}).get('message', 'unknown')[:200]}"}
-        for k, v in (resp.get("usage") or {}).items():
-            if isinstance(v, int):
-                usage[k] = usage.get(k, 0) + v
-        content = resp.get("content", [])
-        calls = [b for b in content if b.get("type") == "tool_use"]
-        final = next((b for b in calls if b["name"] == "reply"), None)
-        if final or not calls:
-            if final:
-                fin = final["input"]
-                def listify(v):  # the model sometimes sends a list as a JSON string
-                    if isinstance(v, str) and v.strip().startswith("["):
-                        try:
-                            v = json.loads(v)
-                        except ValueError:
-                            pass
-                    return v if isinstance(v, list) else [v] if v else []
-                out = {"headline": str(fin.get("headline", ""))[:600],
-                       "facts": [{k: str(f.get(k, ""))[:200] for k in ("k", "v", "note") if f.get(k)} if isinstance(f, dict) else {"k": str(f)[:200]}
-                                 for f in listify(fin.get("facts"))][:8],
-                       "assumptions": [str(a)[:300] for a in listify(fin.get("assumptions"))][:5]}
-            else:
-                out = {"headline": " ".join(b.get("text", "") for b in content if b.get("type") == "text").strip()[:600], "facts": [], "assumptions": []}
-            data = "\n".join(seen)
-            nums = NUM.findall(" ".join([out["headline"]] + [f.get("v", "") + " " + f.get("note", "") for f in out["facts"]]))
-            out.update({"steps": steps, "checked": len(nums), "unmatched": sorted({n for n in nums if n not in data}), "usage": usage})
-            return out
-        msgs.append({"role": "assistant", "content": content})
-        results = []
-        for c in calls:
-            fn = handlers.get(c["name"])
-            try:
-                res = fn(c["input"]) if fn else {"error": "unknown tool"}
-            except Exception as e:  # a bad station number etc.: let the model see it and recover
-                res = {"error": f"{type(e).__name__}: {e}"[:200]}
-            label = res.pop("_label", c["name"]) if isinstance(res, dict) else c["name"]
-            body = json.dumps(res, default=str)
-            seen.append(body)
-            steps.append({"tool": c["name"], "label": label})
-            results.append({"type": "tool_result", "tool_use_id": c["id"], "content": body[:6000]})
-        msgs.append({"role": "user", "content": results})
-    return {"error": "That question needed too many steps. Try asking one thing at a time."}
+            with urllib.request.urlopen(urllib.request.Request(url, headers={"User-Agent": "medio-sim"}), timeout=8) as r:
+                d = json.loads(r.read())
+        except urllib.error.URLError as e:
+            if not isinstance(e.reason, ssl.SSLError):
+                raise
+            out = subprocess.run(["curl", "-sS", "--max-time", "8", "-A", "medio-sim", url], capture_output=True, text=True, timeout=12)
+            d = json.loads(out.stdout)
+        norm = lambda t: re.sub(r"\b(street)\b", "st", re.sub(r"\b(avenue)\b", "ave", t.lower()))
+        want = set(re.findall(r"[a-z0-9]+", norm(text)))
+        def score(f):  # "6th street" must not land on 6th Avenue: prefer results sharing the query's words
+            p = f["properties"]
+            have = set(re.findall(r"[a-z0-9]+", norm(" ".join(str(p.get(k, "")) for k in ("name", "street")))))
+            return len(want & have) - 2 * bool({"st", "ave"} & want and ({"st", "ave"} & have) - want)
+        f = max(d["features"], key=score)
+        lng, lat = f["geometry"]["coordinates"]
+        pr = f["properties"]
+        label = text[:1].upper() + text[1:]  # the place as they named it; the POI name can be a corner shop
+        return (lat, lng, label) if 37.70 < lat < 37.83 and -122.52 < lng < -122.35 else None
+    except Exception:
+        return None
 
 
 def _key():

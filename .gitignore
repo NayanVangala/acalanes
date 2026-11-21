@@ -9,3 +9,4 @@ data/raw/
 .playwright-mcp/
 ruvector.db
 agentdb.rvf*
+data/proposals.json

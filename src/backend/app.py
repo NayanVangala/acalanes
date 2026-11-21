@@ -322,252 +322,17 @@ def typical_delays():
     return TYPICAL
 
 
-BLOCK_CACHE = OrderedDict()
+# ---------- the what-if engine: plan (typed by a person, or a proposed station) -> October re-simulated -> outcome ----------
+try:
+    import nl
+except ImportError:  # no nl.py: typed questions are off, proposals still work
+    nl = None
+
+FOCUS_KM = 1.5
 
 
-def blocked_run(block):
-    key = json.dumps(sorted(block.items()))
-    if key not in BLOCK_CACHE:
-        with LOCK:
-            BLOCK_CACHE[key] = sim.simulate(RT["test"], RT["homes"], RT["model"], offset=RT["offset"], blocked=block)
-        if len(BLOCK_CACHE) > 16:
-            BLOCK_CACHE.popitem(last=False)
-    return BLOCK_CACHE[key]
-
-
-def window_effect(block, lat, lng, h0, h1, radius_km=2.5, area=None):
-    """Calls near (lat, lng) (or in a station's first-due area) during [h0, h1) local: wait today vs with the block."""
-    run()
-    base, alt = RESP[json.dumps([[], [], 1.0])], blocked_run(block)
-    near = []
-    for i in RT["test"]:
-        hr = datetime.fromtimestamp(i["t"], sim.SF).hour
-        if not (h0 <= hr < h1) or i["id"] not in base:
-            continue
-        if (area and i.get("area") == area) or sim.km(lat, lng, i["lat"], i["lng"]) <= radius_km:
-            near.append(i["id"])
-    if not near:
-        return None
-    b, a = sorted(base[x] for x in near), sorted(alt[x] for x in near)
-    deltas = sorted(alt[x] - base[x] for x in near)
-    hit = sum(d > 15 for d in deltas)
-    return {"n": len(near), "base": b[len(b) // 2], "alt": a[len(a) // 2], "worst": deltas[-1],
-            "hit": hit, "over8_base": sum(x > 480 for x in b) / len(b), "over8_alt": sum(x > 480 for x in a) / len(a)}
-
-
-def answer(q, me=None):
-    """Turn a parsed question into an answer made of simulator/record numbers. The AI only wrote q."""
-    intent, facts, assume = q["intent"], [], []
-    out = {"intent": intent, "read_as": q["explanation"]}
-    if intent == "scenario":
-        out.update({k: q[k] for k in ("closed", "added", "volume")})
-        return out
-    if intent == "incident":
-        inc = q["incident"]
-        ks = kind_stats(inc["kind"]) or kind_stats("other")
-        if inc["near_me"] and me:
-            lat, lng, place = me["lat"], me["lng"], me.get("label") or "your address"
-        elif inc["hood"]:
-            (lat, lng), place = hood_centroid(inc["hood"]), inc["hood"]
-        elif inc["station"]:
-            lat, lng = sim.load_stations()[inc["station"]]
-            place = f"Station {inc['station']}"
-        elif me:
-            lat, lng, place = me["lat"], me["lng"], me.get("label") or "your address"
-            assume.append("No place was named, so I used the address you looked up.")
-        else:
-            out["headline"] = (f"{ks['label'].capitalize()} calls: help typically arrives in {mmss(ks['median'])} "
-                               f"(1 in 10 waits over {mmss(ks['p90'])}). Tell me where, or look up an address, and I'll simulate it.")
-            out["facts"] = [{"k": f"{ks['label']} calls in October", "v": f"{ks['n']:,}"},
-                            {"k": "Typical wait for help", "v": mmss(ks["median"])},
-                            {"k": "Units usually sent", "v": f"{ks['engines']} engine, {ks['ambulances']} ambulance"},
-                            {"k": "Typical time on scene", "v": f"{ks['scene_min']} min"}]
-            return out
-        hour = inc["hour"] if inc["hour"] >= 0 else 17
-        if inc["hour"] < 0:
-            assume.append("No time was given, so I used 5 PM, the evening rush.")
-        dur = inc["duration_min"] if inc["duration_min"] > 0 else max(20, ks["scene_min"] + (30 if inc["kind"] == "mass_casualty" else 0))
-        if inc["duration_min"] < 0:
-            assume.append(f"Scene time {dur} min: the typical time units spend at {ks['label'].lower()} calls in the data.")
-        ne = inc["engines"] if inc["engines"] >= 0 else max(1, ks["engines"] + (2 if inc["kind"] in ("fire", "mass_casualty") else 0))
-        na = inc["ambulances"] if inc["ambulances"] >= 0 else max(1, ks["ambulances"] + (2 if inc["kind"] == "mass_casualty" else 0))
-        if inc["engines"] < 0 or inc["ambulances"] < 0:
-            assume.append(f"{ne} engine{'s' * (ne != 1)} and {na} ambulance{'s' * (na != 1)} tied up, as SF usually sends to this kind of call.")
-        eng, amb, first, first_amb = nearest_units(lat, lng, hour, ne, na)
-        delay, turnout = typical_delays()
-        block = {u: (hour * 3600, hour * 3600 + dur * 60) for _, u, _ in eng + amb}
-        eff = window_effect(block, lat, lng, hour, min(24, hour + (dur + 59) // 60))
-        arrive = delay + turnout + (first or 0) + sim.offset_for(RT["offset"], sf_ts(hour))
-        out["focus"] = {"lat": lat, "lng": lng, "label": place}
-        facts.append({"k": "First engine reaches the scene", "v": f"~{mmss(arrive)}", "note": "dispatch + turnout + learned drive time"})
-        facts.append({"k": "Units tied up", "v": ", ".join(u for _, u, _ in eng + amb)})
-        if eff:
-            d = eff["alt"] - eff["base"]
-            tone = "bad" if d >= 60 else "warn" if d >= 15 else "ok"
-            facts.append({"k": f"Other calls within 2.5 km, {hour_label(hour)}–{hour_label(hour + (dur + 59) // 60)}",
-                          "v": f"{mmss(eff['base'])} → {mmss(eff['alt'])}", "tone": tone,
-                          "note": f"{eff['n']} real calls over October; {eff['hit']} wait 15+ s longer, worst +{mmss(max(0, eff['worst']))}"})
-            facts.append({"k": "Those calls over 8 min", "v": f"{eff['over8_base']:.0%} → {eff['over8_alt']:.0%}"})
-            out["headline"] = (f"A {inc['kind'].replace('_', '-')} near {place} at {hour_label(hour)}: the first engine arrives in about "
-                               f"{mmss(arrive)}. While {len(block)} units are tied up for {dur} min, other calls nearby wait "
-                               f"{'about the same' if abs(d) < 15 else f'{mmss(abs(d))} longer' if d > 0 else f'{mmss(-d)} less'} "
-                               f"(typical {mmss(eff['base'])} → {mmss(eff['alt'])}).")
-        else:
-            out["headline"] = f"A {inc['kind']} near {place} at {hour_label(hour)}: the first engine arrives in about {mmss(arrive)}."
-    elif intent == "units_busy":
-        block, places = {}, []
-        h0 = next((b["from_hour"] for b in q["busy"] if b["from_hour"] >= 0), 17)
-        h1 = next((b["to_hour"] for b in q["busy"] if b["to_hour"] > h0), h0 + 2)
-        if all(b["from_hour"] < 0 for b in q["busy"]):
-            assume.append(f"No time was given, so I used {hour_label(h0)}–{hour_label(h1)}.")
-        stations = sim.load_stations()
-        for b in q["busy"] or []:
-            st = b["station"]
-            slat, slng = stations[st]
-            for uid, h in RT["homes"].items():
-                if h[0] == "S" + st and b["type"] in ("ENGINE", "ANY") and h[3] in ("ENGINE", "TRUCK"):
-                    block[uid] = (h0 * 3600, h1 * 3600)
-            if b["type"] in ("MEDIC", "ANY"):  # ambulances rove: take the one based nearest this station
-                med = min(((sim.km(slat, slng, h[1], h[2]), uid) for uid, h in RT["homes"].items() if h[3] == "MEDIC"))
-                block[med[1]] = (h0 * 3600, h1 * 3600)
-                assume.append(f"Ambulances aren't tied to stations, so I took {med[1]}, the one based nearest Station {st}.")
-            places.append((st, slat, slng))
-        if not block:
-            out["headline"] = "I couldn't tell which units you mean. Name a station, like: the engine at Station 43 is busy from 5 to 7 PM."
-            return out
-        st, lat, lng = places[0]
-        eff = window_effect(block, lat, lng, h0, h1, radius_km=2.0, area=st)
-        out["focus"] = {"lat": lat, "lng": lng, "label": f"Station {st}"}
-        facts.append({"k": "Out of service", "v": ", ".join(block), "note": f"{hour_label(h0)}–{hour_label(h1)}, every day of October"})
-        if eff:
-            d = eff["alt"] - eff["base"]
-            tone = "bad" if d >= 60 else "warn" if d >= 15 else "ok"
-            facts.append({"k": f"Calls in Station {st}'s area, {hour_label(h0)}–{hour_label(h1)}", "v": f"{mmss(eff['base'])} → {mmss(eff['alt'])}",
-                          "tone": tone, "note": f"{eff['n']} real calls; {eff['hit']} wait 15+ s longer, worst +{mmss(max(0, eff['worst']))}"})
-            facts.append({"k": "Those calls over 8 min", "v": f"{eff['over8_base']:.0%} → {eff['over8_alt']:.0%}"})
-            out["headline"] = (f"With {', '.join(block)} out from {hour_label(h0)} to {hour_label(h1)}, calls in Station {st}'s area wait "
-                               f"{'about the same' if abs(d) < 15 else f'{mmss(abs(d))} longer' if d > 0 else f'{mmss(-d)} less'} "
-                               f"({mmss(eff['base'])} → {mmss(eff['alt'])}); neighbors cover the rest.")
-        else:
-            out["headline"] = f"No calls in that window near Station {st} in October, so there's nothing to measure."
-    elif intent == "info":
-        info, (summary, _) = q["info"], run()
-        if info["topic"] == "call_kind":
-            ks = kind_stats(info["kind"]) or kind_stats("other")
-            out["headline"] = f"{ks['label'].capitalize()} calls: help typically arrives in {mmss(ks['median'])}; 1 in 10 waits over {mmss(ks['p90'])}."
-            facts += [{"k": "Calls in October", "v": f"{ks['n']:,}"}, {"k": "Units usually sent", "v": f"{ks['engines']} engine, {ks['ambulances']} ambulance"},
-                      {"k": "Typical time on scene", "v": f"{ks['scene_min']} min"}]
-        elif info["topic"] == "neighborhood" and info["hood"] in summary["hoods"]:
-            h = summary["hoods"][info["hood"]]
-            rank = sorted(summary["hoods"], key=lambda n: -summary["hoods"][n]["median"]).index(info["hood"]) + 1
-            lat, lng = hood_centroid(info["hood"])
-            hr = here(lng, lat)
-            slow = max((b for b in hr["by_time"] if b["today"]), key=lambda b: b["today"]["median"])
-            out["focus"] = {"lat": lat, "lng": lng, "label": info["hood"]}
-            out["headline"] = (f"{info['hood']}: help typically arrives in {mmss(h['median'])} ({'slower' if h['median'] > summary['city']['median'] else 'faster'} "
-                               f"than the city's {mmss(summary['city']['median'])}); #{rank} slowest of {len(summary['hoods'])}.")
-            facts += [{"k": "Calls over 8 min", "v": f"{h['over8']:.0%}"}, {"k": "Slowest time of day", "v": f"{slow['label']}: {mmss(slow['today']['median'])}"},
-                      {"k": "Likely first engine", "v": f"Station {hr['responders'][0]['station']}"}]
-        elif info["topic"] == "station" and info["station"]:
-            st = info["station"]
-            rows = [i for i in RT["test"] if i.get("area") == st]
-            units = [u for u, h in RT["homes"].items() if h[0] == "S" + st]
-            if rows:
-                r = sorted(i["real_response"] for i in rows)
-                busiest = max(range(24), key=lambda hh: sum(datetime.fromtimestamp(i["t"], sim.SF).hour == hh for i in rows))
-                out["headline"] = f"Station {st} is first-due for {len(rows):,} calls in October; help there typically arrives in {mmss(r[len(r) // 2])}."
-                facts += [{"k": "Units based here", "v": ", ".join(units) or "none"}, {"k": "Busiest hour", "v": hour_label(busiest)}]
-                lat, lng = sim.load_stations()[st]
-                out["focus"] = {"lat": lat, "lng": lng, "label": f"Station {st}"}
-            else:
-                out["headline"] = f"Station {st} has no first-due calls in October's records."
-        else:
-            c = summary["city"]
-            out["headline"] = f"Citywide, help typically arrives in {mmss(c['median'])}; {c['over8']:.0%} of calls wait over 8 minutes."
-    else:
-        out["headline"] = ("I can only answer questions about 911 response in San Francisco. Try: what if there's a crash near me at 5 PM, "
-                           "what if Station 43's engine is busy, or how fast do fires get help.")
-    out["facts"], out["assumptions"] = facts, assume
-    return out
-
-
-# ---------- tools the question agent can call (nl.agent): every number it says comes from one of these ----------
-RECORD_KIND = {"crash": "Traffic collision", "fire": "Fire", "medical": "Medical", "other": "Other"}
-WEEKDAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-
-
-def _hour(v, lo=0, hi=23):
-    return int(v) if isinstance(v, (int, float)) and lo <= v <= hi else -1
-
-
-def _pct(x):
-    return f"{x:.0%}"
-
-
-def _stats(xs):
-    s = spread(xs)
-    return s and {"calls": f"{s['n']:,}", "typical wait": mmss(s["median"]), "1 in 10 waits over": mmss(s["p90"]),
-                  "over 8 min": _pct(s["over8"])}
-
-
-def records_tool(a, me, state):
-    kind, hood, st = a.get("kind", "any"), a.get("hood") or "", str(a.get("station") or "")
-    h0, h1 = _hour(a.get("hour_from")), _hour(a.get("hour_to"), 0, 24)
-    if h0 >= 0 and h1 in (-1, h0):
-        h1 = h0 + 1
-    days, group = a.get("days", "any"), a.get("group_by", "none")
-    near = me if a.get("near_me") and me else None
-    if hood in hood_names():
-        lat, lng = hood_centroid(hood)
-        state.setdefault("focus", {"lat": lat, "lng": lng, "label": hood})
-    want, rows = RECORD_KIND.get(kind), []
-    for i in RT["test"]:
-        dt = datetime.fromtimestamp(i["t"], sim.SF)
-        if want and kind_of(i) != want or hood and i["hood"] != hood or st and i.get("area") != st:
-            continue
-        if h0 >= 0 and not (h0 <= dt.hour < h1 if h1 > h0 else dt.hour >= h0 or dt.hour < h1):
-            continue
-        if days != "any" and (dt.weekday() >= 5) != (days == "weekend"):
-            continue
-        if near and sim.km(near["lat"], near["lng"], i["lat"], i["lng"]) > 1.5:
-            continue
-        rows.append((i, dt))
-    label = " · ".join(x for x in [want or ("all calls" if kind != "mass_casualty" else "all calls (no mass-casualty tag in records)"),
-                                   hood, st and f"Station {st}'s area", near and "within 1.5 km of your address",
-                                   h0 >= 0 and f"{hour_label(h0)}–{hour_label(h1)}", days != "any" and days + "s"] if x)
-    out = {"_label": f"Real October records: {label}", "source": "real recorded arrival times, not the simulator", "filter": label,
-           "result": _stats([i["real_response"] for i, _ in rows]) or "no matching calls",
-           "citywide, all calls": _stats([i["real_response"] for i in RT["test"]])}
-    key = {"hour": lambda i, dt: dt.hour, "neighborhood": lambda i, dt: i["hood"], "kind": lambda i, dt: kind_of(i),
-           "weekday": lambda i, dt: dt.weekday(), "priority": lambda i, dt: i.get("group") or "unknown"}.get(group)
-    if key and rows:
-        g = {}
-        for i, dt in rows:
-            g.setdefault(key(i, dt), []).append(i["real_response"])
-        items = [(k, v) for k, v in g.items() if len(v) >= 15]
-        items.sort(key=(lambda kv: kv[0]) if group in ("hour", "weekday") else (lambda kv: -spread(kv[1])["median"]))
-        name = {"hour": hour_label, "weekday": lambda d: WEEKDAY_NAMES[d]}.get(group, str)
-        out["by " + group] = [{"name": name(k), **_stats(v)} for k, v in items[:24]]
-    return out
-
-
-def simulate_tool(a, state):
-    valid = set(sim.load_stations())
-    closed = sorted({str(x) for x in a.get("closed", []) if str(x) in valid})[:20]
-    added = [[str(x.get("station")), x.get("type")] for x in a.get("added", [])
-             if str(x.get("station")) in valid and x.get("type") in ("MEDIC", "ENGINE")][:20]
-    volume = min(max(float(a.get("volume") or 1.0), 0.5), 3.0)
-    (b, _), (r, _) = run(), run(closed, added, volume)
-    state["scenario"] = {"closed": closed, "added": added, "volume": volume}
-    moved = sorted(((n, b["hoods"][n]["median"], r["hoods"][n]["median"]) for n in r["hoods"] if n in b["hoods"]),
-                   key=lambda x: -abs(x[2] - x[1]))
-    desc = ", ".join(x for x in [closed and "close " + ", ".join(closed), added and "add " + ", ".join(f"{t.lower()} at {s}" for s, t in added),
-                                 volume != 1 and f"{volume:g}× calls"] if x) or "no change"
-    return {"_label": f"Simulated all of October: {desc}", "applied": desc,
-            "citywide typical wait": f"{mmss(b['city']['median'])} → {mmss(r['city']['median'])}",
-            "citywide change": signed_s(r["city"]["median"] - b["city"]["median"]),
-            "calls over 8 min": f"{_pct(b['city']['over8'])} → {_pct(r['city']['over8'])}",
-            "neighborhoods that change most": [{"name": n, "wait": f"{mmss(x)} → {mmss(y)}", "change": signed_s(y - x)} for n, x, y in moved[:6]]}
+def band_of_hour(h):
+    return 0 if h < 6 else 1 if h < 10 else 2 if h < 16 else 3 if h < 20 else 4
 
 
 def signed_s(d):
@@ -575,37 +340,22 @@ def signed_s(d):
     return "no change" if d == 0 else f"{'+' if d > 0 else '−'}{mmss(abs(d))}"
 
 
-def engine_tool(intent, a, me, state):
-    """Wrap the existing answer() branches as tools."""
-    valid, hoods = set(sim.load_stations()), set(hood_names())
-    if intent == "incident":
-        q = {"incident": {"kind": a.get("kind", "other"), "hood": a.get("hood") if a.get("hood") in hoods else "",
-                          "station": str(a.get("station") or "") if str(a.get("station") or "") in valid else "",
-                          "near_me": bool(a.get("near_me")), "hour": _hour(a.get("hour")),
-                          "duration_min": _hour(a.get("duration_min"), 5, 600), "engines": _hour(a.get("engines"), 0, 6),
-                          "ambulances": _hour(a.get("ambulances"), 0, 6)}}
-    elif intent == "units_busy":
-        q = {"busy": [{"station": str(b.get("station")), "type": b.get("type", "ANY"), "from_hour": _hour(b.get("from_hour")),
-                       "to_hour": _hour(b.get("to_hour"), 0, 24)} for b in a.get("busy", []) if str(b.get("station")) in valid][:6]}
-    else:
-        if a.get("near_me") and me:
-            hr = here(me["lng"], me["lat"])
-            state.setdefault("focus", {"lat": me["lat"], "lng": me["lng"], "label": me.get("label") or "your address"})
-            return {"_label": "Profile of your address", "calls within " + f"{hr['radius_m']} m": hr["calls"],
-                    "typical wait": mmss(hr["overall"]["today"]["median"]), "over 8 min": _pct(hr["overall"]["today"]["over8"]),
-                    "by time of day": {t["label"]: mmss(t["today"]["median"]) for t in hr["by_time"] if t["today"]},
-                    "by kind": {k["kind"]: mmss(k["today"]["median"]) for k in hr["by_kind"]},
-                    "likely first engines": [f"Station {r['station']} ({r['km']} km)" for r in hr["responders"]]}
-        st = str(a.get("station") or "")
-        topic = "neighborhood" if a.get("hood") in hoods else "station" if st in valid else "citywide"
-        q = {"info": {"topic": topic, "kind": "", "hood": a.get("hood") if topic == "neighborhood" else "", "station": st if topic == "station" else ""}}
-    q.update(intent="info" if intent == "place" else intent, explanation="")
-    r = answer(q, me)
-    if r.get("focus"):
-        state.setdefault("focus", r["focus"])  # the first place the answer is about
-    return {"_label": {"incident": "Simulated the incident on every October day", "units_busy": "Simulated the units out of service",
-                       "place": "Profiled the place"}[intent],
-            "summary": r.get("headline", ""), "facts": r.get("facts", []), "assumptions": r.get("assumptions", [])}
+def pct(x):
+    return f"{x:.0%}"
+
+
+class Slowed:
+    """Travel model with drive times scaled by `factor` in some hour bands (rain, traffic, an earthquake)."""
+    def __init__(self, model, factor, bands):
+        self.m, self.f, self.bands = model, factor, bands
+
+    def __call__(self, home, c, lat, lng, b):
+        t = self.m(home, c, lat, lng, b)
+        return t * self.f if b in self.bands else t
+
+    def from_point(self, la, ln, tla, tln, b):
+        t = self.m.from_point(la, ln, tla, tln, b)
+        return t * self.f if b in self.bands else t
 
 
 @lru_cache(1)
@@ -613,10 +363,349 @@ def hood_names():
     return tuple(f["properties"]["nhood"] for f in json.load(open(SF / "hoods.geojson"))["features"])
 
 
-def tool_handlers(me, state):
-    return {"records": lambda a: records_tool(a, me, state), "simulate_city": lambda a: simulate_tool(a, state),
-            "incident": lambda a: engine_tool("incident", a, me, state), "units_busy": lambda a: engine_tool("units_busy", a, me, state),
-            "place_profile": lambda a: engine_tool("place", a, me, state)}
+def resolve_place(p, me):
+    """A plan place -> (lat, lng, label, hood or None), or None."""
+    p = p or {}
+    if p.get("near_me") and me:
+        return me["lat"], me["lng"], me.get("label") or "your address", None
+    if p.get("station") and p["station"] in STATIONS:
+        lat, lng = sim.load_stations()[p["station"]]
+        return lat, lng, f"Station {p['station']}", None
+    if p.get("hood") in hood_names():
+        lat, lng = hood_centroid(p["hood"])
+        return lat, lng, p["hood"], p["hood"]
+    if p.get("text") and nl:
+        g = nl.geocode(p["text"])
+        if g:
+            return g[0], g[1], g[2], None
+    if p.get("lat") is not None and p.get("lng") is not None:  # a clicked point (proposals)
+        return float(p["lat"]), float(p["lng"]), p.get("label") or "the chosen spot", None
+    return None
+
+
+def window(h0, h1):
+    if h0 < 0:
+        return None
+    return h0, h1 if h1 > h0 else min(24, h0 + 2)
+
+
+def build_run(plan, me):
+    """Turn a plan into simulator arguments plus a plain list of what was simulated and map markers."""
+    did, marks, notes, extra = [], [], [], []
+    stations = sim.load_stations()
+    closed = list(plan.get("close_stations", []))
+    if closed:
+        did.append(f"Closed Station{'s' * (len(closed) > 1)} {', '.join(closed)}")
+        marks += [{"kind": "closed", "lat": stations[s][0], "lng": stations[s][1], "label": f"Station {s} closed"} for s in closed]
+    added = [(a["station"], a["type"]) for a in plan.get("add_units", []) for _ in range(a["count"])]
+    for a in plan.get("add_units", []):
+        did.append(f"Added {a['count']} {'ambulance' if a['type'] == 'MEDIC' else 'engine'}{'s' * (a['count'] > 1)} at Station {a['station']}")
+    new_homes = []
+    for n in plan.get("new_stations", []):
+        r = resolve_place(n["place"], me)
+        if not r:
+            notes.append("Couldn't find the new station's location on the map, so it was left out.")
+            continue
+        types = ["ENGINE", "MEDIC"] if n["kind"] == "fire" else ["MEDIC"]
+        new_homes += [(r[0], r[1], t) for t in types]
+        did.append(f"New {'fire station (an engine and an ambulance)' if n['kind'] == 'fire' else 'ambulance post'} at {r[2]}")
+        marks.append({"kind": "new", "lat": r[0], "lng": r[1], "label": f"Proposed {'fire station' if n['kind'] == 'fire' else 'ambulance post'}"})
+    volume, area = plan.get("call_volume", 1.0), None
+    if abs(volume - 1) > 0.01:
+        r = resolve_place(plan.get("volume_place"), me)
+        if r:
+            area = (r[0], r[1], FOCUS_KM)
+            marks.append({"kind": "crowd", "lat": r[0], "lng": r[1], "label": f"{volume:g}× calls"})
+        did.append(f"{volume:g}× the usual 911 calls" + (f" within {FOCUS_KM:g} km of {r[2]}" if r else " citywide"))
+    slow, bands = plan.get("slowdown", 1.0), set(range(5))
+    if slow > 1.01:
+        w = window(plan.get("slow_from_hour", -1), plan.get("slow_to_hour", -1))
+        if w:
+            bands = {band_of_hour(h) for h in range(w[0], w[1])}
+        did.append(f"Driving {round((slow - 1) * 100)}% slower" + (f", {hour_label(w[0])}–{hour_label(w[1])}" if w else ", all day"))
+    delay = plan.get("dispatch_delay_s", 0)
+    if delay:
+        did.append(f"Units sent {delay} s later than usual")
+    blocked = {}
+    for b in plan.get("units_busy", []):
+        w = window(b["from_hour"], b["to_hour"]) or (17, 19)
+        st, (slat, slng) = b["station"], stations[b["station"]]
+        units = []
+        if b["type"] in ("ENGINE", "ANY"):
+            units += [uid for uid, h in RT["homes"].items() if h[0] == "S" + st and h[3] in ("ENGINE", "TRUCK")]
+        if b["type"] in ("MEDIC", "ANY"):  # ambulances rove: take the one based nearest the station
+            units.append(min((sim.km(slat, slng, h[1], h[2]), uid) for uid, h in RT["homes"].items() if h[3] == "MEDIC")[1])
+        for u in units:
+            blocked[u] = (w[0] * 3600, w[1] * 3600)
+        if units:
+            did.append(f"{', '.join(units)} out of service, {hour_label(w[0])}–{hour_label(w[1])}")
+    first_focus = None
+    for inc in plan.get("incidents", []):
+        r = resolve_place(inc["place"], me) or resolve_place(plan.get("focus", {}).get("place"), me)
+        if not r:
+            notes.append("Couldn't place the incident on the map, so it was left out. Name a street, landmark or neighborhood.")
+            continue
+        ks = kind_stats(inc["kind"]) or kind_stats("other")
+        hour = inc["hour"] if inc["hour"] >= 0 else 17
+        dur = inc["duration_min"] if inc["duration_min"] > 0 else max(20, ks["scene_min"] + (30 if inc["kind"] == "mass_casualty" else 0))
+        ne = inc["engines"] if inc["engines"] >= 0 else max(1, ks["engines"] + (2 if inc["kind"] in ("fire", "mass_casualty") else 0))
+        na = inc["ambulances"] if inc["ambulances"] >= 0 else max(1, ks["ambulances"] + (2 if inc["kind"] == "mass_casualty" else 0))
+        eng, amb, first, _ = nearest_units(r[0], r[1], hour, ne, na, closed)
+        for _, u, _ in eng + amb:
+            blocked[u] = (hour * 3600, min(24 * 3600, hour * 3600 + dur * 60))
+        d0, turn = typical_delays()
+        arrive = d0 + turn + (first or 0) + sim.offset_for(RT["offset"], sf_ts(hour))
+        label = inc["kind"].replace("_", "-")
+        did.append(f"A {label} at {r[2]}, {hour_label(hour)}, holding {', '.join(u for _, u, _ in eng + amb)} for {dur} min")
+        extra.append({"k": f"First engine reaches the {label}", "v": f"~{mmss(arrive)}", "note": "typical dispatch + turnout + learned drive time"})
+        marks.append({"kind": "incident", "lat": r[0], "lng": r[1], "label": f"{label.capitalize()}, {hour_label(hour)}"})
+        first_focus = first_focus or (r, (hour, min(24, hour + max(1, (dur + 59) // 60))))
+    kw = {"closed": closed, "added": added, "volume": volume, "new_homes": new_homes, "volume_area": area,
+          "slow": slow, "bands": sorted(bands), "delay": delay, "blocked": blocked}
+    return kw, did, marks, notes, extra, first_focus
+
+
+PLAN_CACHE = OrderedDict()
+
+
+def run_plan(kw):
+    key = json.dumps(kw, sort_keys=True)
+    if key not in PLAN_CACHE:
+        travel = Slowed(RT["model"], kw["slow"], set(kw["bands"])) if kw["slow"] > 1.01 else RT["model"]
+        log = []
+        with LOCK:
+            out = sim.simulate(RT["test"], RT["homes"], travel, closed=kw["closed"], added=kw["added"], volume=kw["volume"],
+                               offset=RT["offset"], log=log, blocked=kw["blocked"] or None, new_homes=kw["new_homes"],
+                               volume_area=kw["volume_area"], extra_delay=kw["delay"])
+        PLAN_CACHE[key] = (out, log)
+        if len(PLAN_CACHE) > 8:  # ponytail: tiny LRU, each entry holds a month of dispatches
+            PLAN_CACHE.popitem(last=False)
+    PLAN_CACHE.move_to_end(key)
+    return PLAN_CACHE[key]
+
+
+def measure(alt, focus, hours):
+    """Today vs the scenario, for the real October calls: at the focus place/time, citywide, and by neighborhood."""
+    run()
+    base = RESP[json.dumps([[], [], 1.0])]
+    rows = [i for i in RT["test"] if i["id"] in base and i["id"] in alt]
+    pair = lambda rs: ([base[i["id"]] for i in rs], [alt[i["id"]] for i in rs])
+    city_b, city_a = pair(rows)
+    sel = rows
+    if focus:
+        lat, lng, _, hood = focus
+        sel = [i for i in sel if (hood and i["hood"] == hood) or (not hood and sim.km(lat, lng, i["lat"], i["lng"]) <= FOCUS_KM)]
+    if hours:
+        sel = [i for i in sel if hours[0] <= datetime.fromtimestamp(i["t"], sim.SF).hour < hours[1]]
+    fb, fa = pair(sel)
+    by = {}
+    for i in rows:
+        by.setdefault(i["hood"], []).append(i)
+    hoods = []
+    for h, rs in by.items():
+        if len(rs) >= 30:
+            b, a = pair(rs)
+            hoods.append((spread(a)["median"] - spread(b)["median"], h, spread(b)["median"], spread(a)["median"]))
+    movers = sorted((x for x in hoods if abs(x[0]) >= 3), key=lambda x: -abs(x[0]))[:5]
+    slow5 = sorted(hoods, key=lambda x: -x[2])[:5]
+    deltas = [a - b for b, a in zip(fb, fa)]
+    sb, sa, cb, ca = spread(fb), spread(fa), spread(city_b), spread(city_a)
+    return {
+        "where": focus[2] if focus else "Citywide",
+        "when": f"{hour_label(hours[0])}–{hour_label(hours[1])}" if hours else "all day",
+        "calls": f"{len(sel):,}",
+        "before": mmss(sb["median"]) if sb else "—", "after": mmss(sa["median"]) if sa else "—",
+        "change": signed_s(sa["median"] - sb["median"]) if sb else "no change",
+        "change_s": (sa["median"] - sb["median"]) if sb else 0,
+        "over8_before": pct(sb["over8"]) if sb else "—", "over8_after": pct(sa["over8"]) if sa else "—",
+        "slower_30s": f"{sum(d >= 30 for d in deltas):,}", "faster_30s": f"{sum(d <= -30 for d in deltas):,}",
+        "citywide": {"before": mmss(cb["median"]), "after": mmss(ca["median"]), "change": signed_s(ca["median"] - cb["median"]),
+                     "over8_before": pct(cb["over8"]), "over8_after": pct(ca["over8"])},
+        "neighborhoods": [{"name": h, "before": mmss(b), "after": mmss(a), "change": signed_s(d), "change_s": round(d)} for d, h, b, a in movers],
+        "slowest_five": {"before": mmss(sum(x[2] for x in slow5) / 5), "after": mmss(sum(x[3] for x in slow5) / 5),
+                         "names": [x[1] for x in slow5]},
+    }
+
+
+def template_headline(o, extra=()):
+    lead = "".join(f"{f['k']}: {f['v']}. " for f in extra)
+    where = o["where"] + ("" if o["when"] == "all day" else f", {o['when']}")
+    if o["change"] == "no change":
+        s = f"{where}: help still arrives in about {o['after']}; nearby stations absorb the change."
+    else:
+        s = f"{where}: help arrives in {o['after']} instead of {o['before']} ({o['change']}); {o['slower_30s']} of {o['calls']} real calls wait 30+ s longer."
+    if o["where"] != "Citywide" and o["citywide"]["change"] != "no change":
+        s += f" Citywide: {o['citywide']['before']} → {o['citywide']['after']}."
+    return lead + s
+
+
+def simulate_plan(plan, me, question=None, day=None):
+    """The full what-if: plan -> simulation -> outcome card + everything the map needs."""
+    kw, did, marks, notes, extra, inc_focus = build_run(plan, me)
+    if not did:
+        return {"error": "Nothing in that changes how help gets around. Try naming what happens: a crash, a closed station, more calls, slower traffic."}
+    out, log = run_plan(kw)
+    focus = resolve_place(plan.get("focus", {}).get("place"), me)
+    hours = window(plan.get("focus", {}).get("from_hour", -1), plan.get("focus", {}).get("to_hour", -1))
+    if not focus and inc_focus:
+        focus, hours = inc_focus[0], hours or inc_focus[1]
+    o = measure(out, focus, hours)
+    told = {**{k: v for k, v in o.items() if not k.endswith("_s")}, "simulated": did, "facts": extra}
+    head = (nl.narrate(question, told) if question and nl else None) or template_headline(o, extra)
+    tone = "bad" if o["change_s"] >= 30 else "warn" if o["change_s"] >= 10 else "good" if o["change_s"] <= -10 else "flat"
+    summary = sim.summarize(RT["test"], out)
+    return {"mode": "simulate", "title": plan.get("title") or "Your scenario", "headline": head, "tone": tone,
+            "simulated": did, "assumptions": plan.get("assumptions", []) + notes, "not_modeled": plan.get("not_modeled", []),
+            "outcome": o, "facts": extra, "markers": marks,
+            "focus": {"lat": focus[0], "lng": focus[1], "label": focus[2]} if focus else None,
+            "result": {**summary, "replay": replay(log, day if day in DAYS else DEFAULT_DAY)},
+            "basis": f"Re-ran all {len(RT['test']):,} real 911 calls from October 2026 through the simulator (validated against reality: neighborhood r = {VALIDATION_R})."}
+
+
+RECORD_KIND = {"crash": "Traffic collision", "fire": "Fire", "medical": "Medical", "other": "Other"}
+WEEKDAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+
+def lookup(q, me, title):
+    """A plain factual question: statistics straight from the real October records (no simulation)."""
+    kind, place = q.get("kind", "any"), q.get("place") or {}
+    r = resolve_place(place, me)
+    h0, h1 = q.get("hour_from", -1), q.get("hour_to", -1)
+    if h0 >= 0 and h1 in (-1, h0):
+        h1 = h0 + 1
+    want, rows = RECORD_KIND.get(kind), []
+    for i in RT["test"]:
+        dt = datetime.fromtimestamp(i["t"], sim.SF)
+        if want and kind_of(i) != want:
+            continue
+        if r and ((r[3] and i["hood"] != r[3]) or (not r[3] and sim.km(r[0], r[1], i["lat"], i["lng"]) > FOCUS_KM)):
+            continue
+        if h0 >= 0 and not (h0 <= dt.hour < h1 if h1 > h0 else dt.hour >= h0 or dt.hour < h1):
+            continue
+        if q.get("days", "any") != "any" and (dt.weekday() >= 5) != (q["days"] == "weekend"):
+            continue
+        rows.append((i, dt))
+    s, c = spread([i["real_response"] for i, _ in rows]), spread([i["real_response"] for i in RT["test"]])
+    what = " ".join(x for x in [(want or "All").lower() + " calls" if want else "All calls", r and f"near {r[2]}",
+                                h0 >= 0 and f"{hour_label(h0)}–{hour_label(h1)}", q.get("days") != "any" and f"on {q['days']}s"] if x)
+    if not s:
+        return {"mode": "lookup", "title": title, "headline": f"No real October calls match: {what}.", "facts": [], "groups": []}
+    facts = [{"k": "Real calls", "v": f"{s['n']:,}"}, {"k": "Typical wait for help", "v": mmss(s["median"])},
+             {"k": "1 in 10 waits over", "v": mmss(s["p90"])}, {"k": "Over 8 minutes", "v": pct(s["over8"])},
+             {"k": "Citywide, all calls", "v": mmss(c["median"])}]
+    key = {"hour": lambda i, dt: dt.hour, "neighborhood": lambda i, dt: i["hood"], "kind": lambda i, dt: kind_of(i),
+           "weekday": lambda i, dt: dt.weekday(), "priority": lambda i, dt: i.get("group") or "unknown"}.get(q.get("group_by"))
+    groups = []
+    if key:
+        g = {}
+        for i, dt in rows:
+            g.setdefault(key(i, dt), []).append(i["real_response"])
+        items = [(k, spread(v)) for k, v in g.items() if len(v) >= 15]
+        items.sort(key=(lambda kv: kv[0]) if q["group_by"] in ("hour", "weekday") else (lambda kv: -kv[1]["median"]))
+        name = {"hour": hour_label, "weekday": lambda d: WEEKDAY_NAMES[d]}.get(q["group_by"], str)
+        groups = [{"name": name(k), "wait": mmss(v["median"]), "median_s": v["median"], "calls": v["n"]} for k, v in items[:24]]
+    head = f"{what[0].upper() + what[1:]}: help typically arrives in {mmss(s['median'])}, and {pct(s['over8'])} wait over 8 minutes."
+    if groups:
+        worst = max(groups, key=lambda x: x["median_s"])
+        head += f" Slowest: {worst['name']} ({worst['wait']})."
+    return {"mode": "lookup", "title": title, "headline": head, "facts": facts, "groups": groups,
+            "focus": {"lat": r[0], "lng": r[1], "label": r[2]} if r else None,
+            "basis": f"Straight from {s['n']:,} real recorded October 2026 calls (DataSF Fire Department Calls for Service); no simulation."}
+
+
+
+VALIDATION_R = round(json.load(open(BUILD / "validation.json")).get("runnr: learned + calibrated", {}).get("hood_corr", 0.94), 2)
+
+
+# ---------- residents' proposals: a new station somewhere, simulated, voted on ----------
+PROPOSALS = ROOT_DIR / "data" / "proposals.json"  # ponytail: one JSON file; Render's disk resets on deploy, use a DB for real
+PROP_LOCK = Lock()
+KIND_LABEL = {"fire": "Fire station", "ambulance": "Ambulance post", "police": "Police station", "hospital": "Hospital"}
+
+
+def load_proposals():
+    try:
+        return json.load(open(PROPOSALS))
+    except (OSError, ValueError):
+        return []
+
+
+def station_plan(lat, lng, kind):
+    return {"title": f"New {KIND_LABEL[kind].lower()} here", "new_stations": [{"place": {"lat": lat, "lng": lng, "label": "this spot"}, "kind": kind}],
+            "focus": {"place": {"lat": lat, "lng": lng, "label": "Within 1.5 km of this spot"}, "from_hour": -1, "to_hour": -1}}
+
+
+def station_effect(lat, lng, kind, day=None):
+    if kind not in ("fire", "ambulance"):
+        return {"mode": "collect", "title": f"New {KIND_LABEL[kind].lower()} here",
+                "headline": f"Medio can't simulate a {KIND_LABEL[kind].lower()} yet: its data covers fire and EMS response only. You can still submit it, and the city sees how many residents want one here."}
+    return simulate_plan(station_plan(lat, lng, kind), None, None, day)
+
+
+# ---------- findings: what the datasets say, computed from them ----------
+BEST_SPOTS = BUILD / "best_spots.json"
+DATASETS = [
+    {"name": "Fire Department Calls for Service", "source": "DataSF nuek-vuh3", "use": "300,081 real 911 incidents (Nov 2024–Oct 2026): every unit's dispatch, drive and arrival time. Trains the travel model; October 2026 is held out to test it."},
+    {"name": "Fire stations and police stations", "source": "DataSF wt27-4jim", "use": "Where every unit is based."},
+    {"name": "Neighborhood boundaries", "source": "DataSF j2bu-swwd", "use": "Groups calls into 41 neighborhoods."},
+    {"name": "Census ACS population by neighborhood", "source": "DataSF 4qbq-hvtt", "use": "Who lives where: joined to response times for the equity finding."},
+    {"name": "Street centerlines", "source": "DataSF 3psu-pn9h", "use": "Draws each trip along real streets."},
+    {"name": "Hospital locations and diversions", "source": "CA HHS + DataSF t4sf-777q", "use": "Where ambulances end up after transporting a patient."},
+]
+
+
+def corr(xs, ys):
+    mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
+    sx, sy = sum((x - mx) ** 2 for x in xs) ** 0.5, sum((y - my) ** 2 for y in ys) ** 0.5
+    return sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / (sx * sy)
+
+
+@lru_cache(1)
+def equity():
+    """Real October waits by neighborhood vs who lives there (Census ACS)."""
+    people = json.load(open(SF / "people.json"))
+    real = {}
+    for i in RT["test"]:
+        real.setdefault(i["hood"], []).append(i["real_response"])
+    W = "White alone, Not Hispanic or Latino"
+    pts = [{"hood": h, "white": round(people[h][W] / people[h]["total"], 3), "senior": round(people[h]["age_65_plus"] / people[h]["total"], 3),
+            "wait_s": spread(v)["median"], "calls": len(v)}
+           for h, v in real.items() if h in people and people[h]["total"] > 2000 and len(v) >= 40]
+    r_white = corr([p["white"] for p in pts], [p["wait_s"] for p in pts])
+    q = sorted(pts, key=lambda p: p["white"])
+    k = len(q) // 4
+    low, high = q[:k], q[-k:]
+    w = lambda ps: sum(p["wait_s"] * p["calls"] for p in ps) / sum(p["calls"] for p in ps)
+    return {"r_white": round(r_white, 2), "n": len(pts), "points": pts,
+            "least_white_quarter": {"wait": mmss(w(low)), "white": pct(sum(p["white"] for p in low) / k)},
+            "most_white_quarter": {"wait": mmss(w(high)), "white": pct(sum(p["white"] for p in high) / k)},
+            "gap": mmss(w(low) - w(high)),
+            "slowest": [{"hood": p["hood"], "wait": mmss(p["wait_s"]), "white": pct(p["white"])} for p in sorted(pts, key=lambda p: -p["wait_s"])[:5]]}
+
+
+def best_spots():
+    """Try a new fire station (an engine + an ambulance) at every neighborhood's center; rank by calls helped."""
+    rows = []
+    for h in hood_names():
+        lat, lng = hood_centroid(h)
+        if not Handler.in_sf(lat, lng):
+            continue
+        out, _ = run_plan(build_run(station_plan(lat, lng, "fire"), None)[0])
+        o = measure(out, (lat, lng, h, None), None)
+        rows.append({"hood": h, "lat": round(lat, 5), "lng": round(lng, 5), "before": o["before"], "after": o["after"],
+                     "change": o["change"], "change_s": o["change_s"], "helped": o["faster_30s"], "calls": o["calls"],
+                     "citywide": o["citywide"]["change"], "slowest_five": o["slowest_five"]})
+        PLAN_CACHE.clear()
+    rows.sort(key=lambda r: (int(r["calls"].replace(",", "")) < 150, r["change_s"]))  # biggest cut where calls are common
+    json.dump(rows, open(BEST_SPOTS, "w"), indent=1)
+    return rows
+
+
+def findings():
+    v = json.load(open(BUILD / "validation.json")).get("runnr: learned + calibrated", {})
+    return {"equity": equity(), "best_spots": json.load(open(BEST_SPOTS))[:8] if BEST_SPOTS.exists() else [],
+            "datasets": DATASETS, "accuracy": {"r": VALIDATION_R, "hood_err": mmss(v.get("hood_median_abs_err_s", 16)),
+                                               "call_err": mmss(v.get("median_abs_err_s", 91)), "calls": f"{v.get('incidents', 13417):,}"}}
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -637,6 +726,11 @@ class Handler(BaseHTTPRequestHandler):
         path = self.path.split("?")[0]
         if path in ("/", "/index.html"):
             self.reply((FRONTEND / "index.html").read_bytes(), "text/html; charset=utf-8")
+        elif path == "/api/proposals":
+            ps = sorted(load_proposals(), key=lambda p: (-p["votes"], p["id"]))
+            self.reply(json.dumps([{k: v for k, v in p.items() if k != "voters"} for p in ps]))
+        elif path == "/api/findings":
+            self.reply(json.dumps(findings()))
         elif path == "/api/meta":
             body, gz = meta_payload()
             self.reply(body, gz=gz if "gzip" in self.headers.get("Accept-Encoding", "") else None)
@@ -654,6 +748,10 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path == "/api/ask":
             return self.ask()
+        if self.path == "/api/station":
+            return self.station()
+        if self.path in ("/api/proposals", "/api/vote"):
+            return self.proposals()
         if self.path not in ("/api/simulate", "/api/here"):
             return self.reply("not found", "text/plain", 404)
         try:
@@ -680,41 +778,103 @@ class Handler(BaseHTTPRequestHandler):
         summary, log = run(closed, added, volume)
         self.reply(json.dumps({**summary, "replay": replay(log, day)}))
 
+    def body(self, limit=4_000):
+        n = min(int(self.headers.get("Content-Length", 0)), limit)
+        return json.loads(self.rfile.read(n) or b"{}")
+
+    @staticmethod
+    def in_sf(lat, lng):
+        return 37.69 < lat < 37.85 and -122.56 < lng < -122.33
+
     def ask(self):
         try:
-            n = min(int(self.headers.get("Content-Length", 0)), 4_000)
-            body = json.loads(self.rfile.read(n) or b"{}")
+            body = self.body()
             text = str(body.get("text", ""))[:500].strip()
             me = body.get("me") if isinstance(body.get("me"), dict) else None
-            if me and not (-122.56 < float(me.get("lng", 0)) < -122.33 and 37.69 < float(me.get("lat", 0)) < 37.85):
+            if me and not self.in_sf(float(me.get("lat", 0)), float(me.get("lng", 0))):
                 me = None
-        except (ValueError, TypeError, AttributeError):
+            day = int(body.get("day") or DEFAULT_DAY)
+        except (ValueError, TypeError, AttributeError, OverflowError):
             return self.reply('{"error": "bad request"}', code=400)
         if not text:
-            return self.reply('{"error": "Type a question first."}', code=400)
+            return self.reply('{"error": "Describe a situation first."}', code=400)
+        if nl is None:
+            return self.reply('{"error": "Typed what-ifs are not set up on this server."}', code=503)
         try:
-            import nl
-        except ImportError:
-            return self.reply('{"error": "Typed questions are not set up on this server."}', code=503)
-        try:
-            state = {}
-            # nl._context expects {station: {"units": ...}} (Arshdeep's audit fix: bare fleet() listed units as "unknown")
-            r = nl.agent(text, {st: {"units": u} for st, u in fleet().items()}, tool_handlers(me, state), (me or {}).get("label"))
-            usage = r.pop("usage", None)
+            # nl._context expects {station: {"units": ...}}
+            plan = nl.plan_scenario(text, {st: {"units": u} for st, u in fleet().items()}, (me or {}).get("label"))
+            usage = plan.pop("usage", None)
             if usage:
                 print(f"ask: {usage}")
-            if "error" in r:
-                return self.reply(json.dumps(r), code=400)
-            r.update(state)  # focus to fly to, scenario for the map
-            self.reply(json.dumps(r))
+            if "error" in plan:
+                return self.reply(json.dumps(plan), code=400)
+            if plan["mode"] == "off_topic":
+                return self.reply(json.dumps({"error": "Medio answers questions about 911 fire and ambulance response in San Francisco. Try: what if there's a big crash on 6th Street at rush hour?"}), code=400)
+            out = lookup(plan["lookup"], me, plan["title"]) if plan["mode"] == "lookup" else simulate_plan(plan, me, text, day)
+            self.reply(json.dumps(out), code=400 if "error" in out else 200)
         except Exception as e:  # model or network failure: tell the page, don't crash the server
-            self.reply(json.dumps({"error": f"Couldn't read that question: {e}"}), code=400)
+            self.reply(json.dumps({"error": f"That one didn't work ({type(e).__name__}). Try rephrasing."}), code=400)
+
+    def station(self):
+        try:
+            b = self.body()
+            lat, lng, kind = float(b["lat"]), float(b["lng"]), str(b.get("kind", "fire"))
+            if not self.in_sf(lat, lng) or kind not in KIND_LABEL:
+                raise ValueError
+            day = int(b.get("day") or DEFAULT_DAY)
+        except (KeyError, ValueError, TypeError, AttributeError, OverflowError):
+            return self.reply('{"error": "Pick a spot inside San Francisco."}', code=400)
+        self.reply(json.dumps(station_effect(lat, lng, kind, day)))
+
+    def proposals(self):
+        try:
+            b = self.body()
+            if self.path == "/api/vote":
+                pid, client = str(b["id"]), str(b.get("client", ""))[:40]
+                with PROP_LOCK:
+                    ps = load_proposals()
+                    p = next((p for p in ps if p["id"] == pid), None)
+                    if not p:
+                        return self.reply('{"error": "That proposal is gone."}', code=404)
+                    if client and client not in p["voters"]:
+                        p["voters"].append(client)
+                        p["votes"] = len(p["voters"])
+                    json.dump(ps, open(PROPOSALS, "w"))
+                return self.reply(json.dumps({"id": pid, "votes": p["votes"]}))
+            lat, lng, kind = float(b["lat"]), float(b["lng"]), str(b.get("kind", "fire"))
+            if not self.in_sf(lat, lng) or kind not in KIND_LABEL:
+                raise ValueError
+            note, name = str(b.get("note", "")).strip()[:280], str(b.get("name", "")).strip()[:40]
+            client = str(b.get("client", ""))[:40]
+        except (KeyError, ValueError, TypeError, AttributeError):
+            return self.reply('{"error": "Pick a spot inside San Francisco first."}', code=400)
+        eff = station_effect(lat, lng, kind)
+        o = eff.get("outcome")
+        hood = min(hood_names(), key=lambda h: sim.km(lat, lng, *hood_centroid(h)))
+        rec = {"id": f"p{int(datetime.now().timestamp() * 1000)}", "lat": round(lat, 5), "lng": round(lng, 5), "kind": kind,
+               "kind_label": KIND_LABEL[kind], "hood": hood, "note": note, "name": name, "voters": [client] if client else [],
+               "votes": 1 if client else 0, "created": datetime.now(sim.SF).strftime("%b %-d, %-I:%M %p"),
+               "effect": {"before": o["before"], "after": o["after"], "change": o["change"], "calls": o["calls"],
+                          "citywide": o["citywide"]["change"]} if o else None}
+        with PROP_LOCK:
+            ps = load_proposals()
+            if len(ps) >= 500:
+                return self.reply('{"error": "The proposal board is full for this demo."}', code=429)
+            ps.append(rec)
+            PROPOSALS.parent.mkdir(exist_ok=True)
+            json.dump(ps, open(PROPOSALS, "w"))
+        self.reply(json.dumps({k: v for k, v in rec.items() if k != "voters"}))
 
     def log_message(self, *_):
         pass
 
 
 if __name__ == "__main__":
+    import sys
+    if "--best-spots" in sys.argv:  # offline: ~1 min, writes data/build/best_spots.json
+        for r in best_spots()[:8]:
+            print(f"{r['hood']:32s} {r['before']} -> {r['after']} ({r['change']}), {r['helped']} of {r['calls']} calls 30+ s faster, city {r['citywide']}")
+        sys.exit()
     port = int(os.environ.get("PORT", 8000))
     warm()  # build the model run, page payload and gzipped data files before taking traffic
     print(f"Medio on http://localhost:{port}")

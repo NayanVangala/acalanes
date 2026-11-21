@@ -1,0 +1,945 @@
+[
+ {
+  "hood": "Visitacion Valley",
+  "lat": 37.71379,
+  "lng": -122.40931,
+  "before": "9:29",
+  "after": "8:35",
+  "change": "\u22120:54",
+  "change_s": -54,
+  "helped": "64",
+  "calls": "275",
+  "citywide": "\u22120:01",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "8:52",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Bayview Hunters Point",
+  "lat": 37.72859,
+  "lng": -122.37747,
+  "before": "8:41",
+  "after": "7:55",
+  "change": "\u22120:46",
+  "change_s": -46,
+  "helped": "112",
+  "calls": "396",
+  "citywide": "\u22120:01",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:01",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "McLaren Park",
+  "lat": 37.71674,
+  "lng": -122.41735,
+  "before": "9:32",
+  "after": "8:46",
+  "change": "\u22120:46",
+  "change_s": -46,
+  "helped": "64",
+  "calls": "319",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "8:55",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Sunset/Parkside",
+  "lat": 37.74829,
+  "lng": -122.49315,
+  "before": "8:19",
+  "after": "7:41",
+  "change": "\u22120:38",
+  "change_s": -38,
+  "helped": "57",
+  "calls": "268",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:08",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Excelsior",
+  "lat": 37.71963,
+  "lng": -122.42776,
+  "before": "9:01",
+  "after": "8:25",
+  "change": "\u22120:36",
+  "change_s": -36,
+  "helped": "94",
+  "calls": "458",
+  "citywide": "\u22120:01",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "8:59",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Outer Richmond",
+  "lat": 37.78092,
+  "lng": -122.50179,
+  "before": "7:50",
+  "after": "7:15",
+  "change": "\u22120:35",
+  "change_s": -35,
+  "helped": "41",
+  "calls": "217",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:09",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Outer Mission",
+  "lat": 37.7184,
+  "lng": -122.44926,
+  "before": "8:10",
+  "after": "7:43",
+  "change": "\u22120:27",
+  "change_s": -27,
+  "helped": "91",
+  "calls": "463",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:02",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Lakeshore",
+  "lat": 37.72509,
+  "lng": -122.49476,
+  "before": "8:50",
+  "after": "8:23",
+  "change": "\u22120:27",
+  "change_s": -27,
+  "helped": "42",
+  "calls": "172",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:06",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Oceanview/Merced/Ingleside",
+  "lat": 37.71665,
+  "lng": -122.46101,
+  "before": "8:15",
+  "after": "7:52",
+  "change": "\u22120:23",
+  "change_s": -23,
+  "helped": "69",
+  "calls": "421",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:04",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Potrero Hill",
+  "lat": 37.7603,
+  "lng": -122.38725,
+  "before": "7:42",
+  "after": "7:20",
+  "change": "\u22120:22",
+  "change_s": -22,
+  "helped": "50",
+  "calls": "317",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:10",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Seacliff",
+  "lat": 37.78826,
+  "lng": -122.48563,
+  "before": "7:19",
+  "after": "6:57",
+  "change": "\u22120:22",
+  "change_s": -22,
+  "helped": "30",
+  "calls": "222",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:09",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Inner Sunset",
+  "lat": 37.75908,
+  "lng": -122.46472,
+  "before": "7:52",
+  "after": "7:32",
+  "change": "\u22120:20",
+  "change_s": -20,
+  "helped": "65",
+  "calls": "409",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:09",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "West of Twin Peaks",
+  "lat": 37.73751,
+  "lng": -122.4579,
+  "before": "8:10",
+  "after": "7:50",
+  "change": "\u22120:20",
+  "change_s": -20,
+  "helped": "35",
+  "calls": "270",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:05",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Golden Gate Park",
+  "lat": 37.76625,
+  "lng": -122.48388,
+  "before": "7:59",
+  "after": "7:40",
+  "change": "\u22120:19",
+  "change_s": -19,
+  "helped": "57",
+  "calls": "363",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:10",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Financial District/South Beach",
+  "lat": 37.7946,
+  "lng": -122.39435,
+  "before": "7:33",
+  "after": "7:18",
+  "change": "\u22120:15",
+  "change_s": -15,
+  "helped": "192",
+  "calls": "1,242",
+  "citywide": "\u22120:01",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:10",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Marina",
+  "lat": 37.80662,
+  "lng": -122.43893,
+  "before": "7:17",
+  "after": "7:02",
+  "change": "\u22120:15",
+  "change_s": -15,
+  "helped": "60",
+  "calls": "326",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:10",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Inner Richmond",
+  "lat": 37.78153,
+  "lng": -122.46986,
+  "before": "7:42",
+  "after": "7:28",
+  "change": "\u22120:14",
+  "change_s": -14,
+  "helped": "86",
+  "calls": "459",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:10",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Portola",
+  "lat": 37.72688,
+  "lng": -122.41081,
+  "before": "8:29",
+  "after": "8:15",
+  "change": "\u22120:14",
+  "change_s": -14,
+  "helped": "63",
+  "calls": "414",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:01",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Twin Peaks",
+  "lat": 37.75188,
+  "lng": -122.44978,
+  "before": "7:55",
+  "after": "7:42",
+  "change": "\u22120:13",
+  "change_s": -13,
+  "helped": "39",
+  "calls": "291",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "8:58",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Glen Park",
+  "lat": 37.741,
+  "lng": -122.44037,
+  "before": "7:58",
+  "after": "7:45",
+  "change": "\u22120:13",
+  "change_s": -13,
+  "helped": "38",
+  "calls": "302",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:03",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Russian Hill",
+  "lat": 37.80362,
+  "lng": -122.4229,
+  "before": "7:05",
+  "after": "6:53",
+  "change": "\u22120:12",
+  "change_s": -12,
+  "helped": "105",
+  "calls": "821",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:10",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "North Beach",
+  "lat": 37.8097,
+  "lng": -122.40991,
+  "before": "7:01",
+  "after": "6:49",
+  "change": "\u22120:12",
+  "change_s": -12,
+  "helped": "68",
+  "calls": "472",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:07",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Mission Bay",
+  "lat": 37.77914,
+  "lng": -122.38625,
+  "before": "7:47",
+  "after": "7:36",
+  "change": "\u22120:11",
+  "change_s": -11,
+  "helped": "116",
+  "calls": "734",
+  "citywide": "\u22120:01",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:09",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Bernal Heights",
+  "lat": 37.74028,
+  "lng": -122.41482,
+  "before": "7:23",
+  "after": "7:13",
+  "change": "\u22120:10",
+  "change_s": -10,
+  "helped": "76",
+  "calls": "654",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:07",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "South of Market",
+  "lat": 37.77851,
+  "lng": -122.40832,
+  "before": "7:04",
+  "after": "6:56",
+  "change": "\u22120:08",
+  "change_s": -8,
+  "helped": "463",
+  "calls": "4,402",
+  "citywide": "\u22120:03",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:09",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Mission",
+  "lat": 37.76158,
+  "lng": -122.41992,
+  "before": "6:50",
+  "after": "6:42",
+  "change": "\u22120:08",
+  "change_s": -8,
+  "helped": "141",
+  "calls": "1,839",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:08",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Presidio Heights",
+  "lat": 37.78344,
+  "lng": -122.45242,
+  "before": "7:24",
+  "after": "7:16",
+  "change": "\u22120:08",
+  "change_s": -8,
+  "helped": "74",
+  "calls": "681",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:10",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Haight Ashbury",
+  "lat": 37.76628,
+  "lng": -122.4425,
+  "before": "7:07",
+  "after": "6:59",
+  "change": "\u22120:08",
+  "change_s": -8,
+  "helped": "72",
+  "calls": "815",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:11",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Chinatown",
+  "lat": 37.79579,
+  "lng": -122.40647,
+  "before": "7:11",
+  "after": "7:04",
+  "change": "\u22120:07",
+  "change_s": -7,
+  "helped": "207",
+  "calls": "2,580",
+  "citywide": "\u22120:01",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:07",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Lone Mountain/USF",
+  "lat": 37.78075,
+  "lng": -122.45153,
+  "before": "7:20",
+  "after": "7:13",
+  "change": "\u22120:07",
+  "change_s": -7,
+  "helped": "74",
+  "calls": "781",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:10",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Tenderloin",
+  "lat": 37.78098,
+  "lng": -122.41687,
+  "before": "6:59",
+  "after": "6:54",
+  "change": "\u22120:05",
+  "change_s": -5,
+  "helped": "452",
+  "calls": "4,717",
+  "citywide": "\u22120:02",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:08",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Nob Hill",
+  "lat": 37.79103,
+  "lng": -122.41782,
+  "before": "6:59",
+  "after": "6:55",
+  "change": "\u22120:04",
+  "change_s": -4,
+  "helped": "232",
+  "calls": "3,861",
+  "citywide": "\u22120:01",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:09",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Western Addition",
+  "lat": 37.78426,
+  "lng": -122.42789,
+  "before": "6:51",
+  "after": "6:48",
+  "change": "\u22120:03",
+  "change_s": -3,
+  "helped": "144",
+  "calls": "3,251",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:09",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Japantown",
+  "lat": 37.78436,
+  "lng": -122.43381,
+  "before": "6:48",
+  "after": "6:45",
+  "change": "\u22120:03",
+  "change_s": -3,
+  "helped": "125",
+  "calls": "1,872",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:09",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Pacific Heights",
+  "lat": 37.79272,
+  "lng": -122.4275,
+  "before": "6:50",
+  "after": "6:47",
+  "change": "\u22120:03",
+  "change_s": -3,
+  "helped": "97",
+  "calls": "2,127",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:10",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Castro/Upper Market",
+  "lat": 37.76206,
+  "lng": -122.43547,
+  "before": "6:57",
+  "after": "6:54",
+  "change": "\u22120:03",
+  "change_s": -3,
+  "helped": "81",
+  "calls": "1,140",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:09",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Noe Valley",
+  "lat": 37.74754,
+  "lng": -122.43456,
+  "before": "7:25",
+  "after": "7:22",
+  "change": "\u22120:03",
+  "change_s": -3,
+  "helped": "32",
+  "calls": "484",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:03",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Hayes Valley",
+  "lat": 37.7743,
+  "lng": -122.42331,
+  "before": "6:48",
+  "after": "6:46",
+  "change": "\u22120:02",
+  "change_s": -2,
+  "helped": "171",
+  "calls": "3,793",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:08",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Presidio",
+  "lat": 37.80177,
+  "lng": -122.46854,
+  "before": "8:22",
+  "after": "7:01",
+  "change": "\u22121:21",
+  "change_s": -81,
+  "helped": "29",
+  "calls": "69",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:09",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Treasure Island",
+  "lat": 37.81532,
+  "lng": -122.36708,
+  "before": "7:20",
+  "after": "6:55",
+  "change": "\u22120:25",
+  "change_s": -25,
+  "helped": "4",
+  "calls": "30",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:10",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ },
+ {
+  "hood": "Lincoln Park",
+  "lat": 37.78682,
+  "lng": -122.50143,
+  "before": "7:22",
+  "after": "7:09",
+  "change": "\u22120:13",
+  "change_s": -13,
+  "helped": "24",
+  "calls": "148",
+  "citywide": "no change",
+  "slowest_five": {
+   "before": "9:10",
+   "after": "9:09",
+   "names": [
+    "Visitacion Valley",
+    "Twin Peaks",
+    "Lakeshore",
+    "Excelsior",
+    "Bayview Hunters Point"
+   ]
+  }
+ }
+]
