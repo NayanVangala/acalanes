@@ -24,7 +24,7 @@ from pathlib import Path
 from statistics import median
 from zoneinfo import ZoneInfo
 
-DATA = Path(__file__).parent / "data"
+from paths import BUILD, SF as SF_DATA
 SF = ZoneInfo("America/Los_Angeles")
 SIM_TYPES = {"ENGINE", "TRUCK", "MEDIC", "PRIVATE", "RESCUE SQUAD"}  # units that deliver help on scene
 CELL_LAT, CELL_LNG = 0.0045, 0.0057  # ~500 m
@@ -56,10 +56,10 @@ def km(a_lat, a_lng, b_lat, b_lng):
 
 
 def load_stations():
-    return {s["station"].split()[0]: (s["lat"], s["lng"]) for s in json.load(open(DATA / "stations.json"))}
+    return {s["station"].split()[0]: (s["lat"], s["lng"]) for s in json.load(open(SF_DATA / "stations.json"))}
 
 
-def load_incidents(path=DATA / "calls.csv.gz"):
+def load_incidents(path=SF_DATA / "calls.csv.gz"):
     """Incidents with >= 1 on-scene unit of a SIM_TYPE, in time order."""
     inc = {}
     with gzip.open(path, "rt") as f:
@@ -300,7 +300,7 @@ def validate():
     assert mean(closed) >= mean(base) - 1 and mean(surge) >= mean(base) - 1, "capacity sanity check failed"
     for r in results.values():  # NaN isn't valid JSON for browsers
         r["hood_corr"] = None if math.isnan(r["hood_corr"]) else round(r["hood_corr"], 3)
-    json.dump(results, open(DATA / "validation.json", "w"), indent=1)
+    json.dump(results, open(BUILD / "validation.json", "w"), indent=1)
 
 
 def summarize(test, sim, sample=4000):
@@ -317,7 +317,7 @@ def summarize(test, sim, sample=4000):
     return {"city": stats(allv), "hoods": {h: stats(v) for h, v in by_hood.items() if v}, "points": pts}
 
 
-def export(path=DATA / "runtime.pkl.gz"):
+def export(path=BUILD / "runtime.pkl.gz"):
     """Everything the web server needs, fit once: model, fleet, calibration, held-out month."""
     import pickle
     incidents = load_incidents()

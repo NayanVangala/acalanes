@@ -1,16 +1,19 @@
 """Runnr web server. python3 app.py -> http://localhost:8000 (Render sets $PORT).
 
 GET  /                 the app (web/index.html)
-GET  /data/<file>      stations.json, hoods.geojson, people.json, validation.json
+GET  /data/<file>      stations.json, hoods.geojson, people.json, validation.json, buildings.json
 GET  /api/meta         fleet, period, replay days, baseline results + replay of the default day
 POST /api/simulate     {"closed": [stations], "added": [[station, "MEDIC"|"ENGINE"]], "volume": 1.0, "day": <ordinal>}
                        -> neighborhood results for the whole held-out month + a replay of one day
+POST /api/ask          {"text": "close the two stations nearest Bayview"} -> scenario (needs nl.py + ANTHROPIC_API_KEY)
+JSON and /data files are gzip-compressed when the browser accepts it.
 """
 import gzip
 import json
 import os
 import pickle
 from collections import Counter, OrderedDict
+from functools import lru_cache
 from datetime import date, datetime, time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -19,8 +22,14 @@ from threading import Lock
 import sim
 from sim import TravelModel  # noqa: F401  (needed to unpickle the model)
 
-ROOT = Path(__file__).parent
-with gzip.open(ROOT / "data/runtime.pkl.gz", "rb") as f:
+from paths import BUILD, FRONTEND, SF
+
+
+def data_file(name):
+    return (BUILD if name == "validation.json" else SF) / name
+
+
+with gzip.open(BUILD / "runtime.pkl.gz", "rb") as f:
     RT = pickle.load(f)
 STATIONS = set(sim.load_stations())
 TYPES = {"MEDIC", "ENGINE", "TRUCK"}
@@ -29,6 +38,23 @@ CACHE = OrderedDict()
 DAYS = Counter(i["day"] for i in RT["test"])
 DEFAULT_DAY = max(DAYS, key=DAYS.get)  # the busiest day makes the liveliest replay
 OFF = round(RT["offset"])
+DATA_FILES = {"stations.json", "hoods.geojson", "people.json", "validation.json", "buildings.json"}
+# added units (NEW*) start at a station; find its key from the start coordinates in the sim log
+STATION_AT = {(round(lng, 5), round(lat, 5)): "S" + k for k, (lat, lng) in sim.load_stations().items()}
+try:
+    import routing
+    routing._load()
+except Exception as e:  # no routes file: vehicles fall back to straight lines
+    print(f"street routing off: {e}")
+    routing = None
+
+
+def street_path(d):
+    if routing is None:
+        return None
+    h = RT["homes"].get(d["unit"])
+    key = h[0] if h else STATION_AT.get((round(d["from"][0], 5), round(d["from"][1], 5)))
+    return routing.route(key, d["to"][0], d["to"][1]) if key else None
 
 
 def day_start(ordinal):
@@ -61,7 +87,7 @@ def replay(log, ordinal):
         travel = arr - dep
         trips.append([d["unit"], d["type"], round(d["from"][0], 5), round(d["from"][1], 5), d["to"][0], d["to"][1],
                       round(dep), round(arr), round(free), round(free + travel), d["hood"], d["call"] - t0,
-                      d["call_type"].capitalize()])
+                      d["call_type"].capitalize(), street_path(d)])
         c = calls.setdefault(d["incident"], [d["to"][0], d["to"][1], d["call"] - t0, arr, d["hood"], d["call_type"].capitalize()])
         c[3] = min(c[3], arr)
     trips.sort(key=lambda r: r[6])
@@ -69,11 +95,15 @@ def replay(log, ordinal):
             "calls": sorted(([*c[:3], round(c[3]), *c[4:]] for c in calls.values()), key=lambda c: c[2])}
 
 
-def meta():
-    fleet = Counter((h[0][1:], h[3]) for h in RT["homes"].values() if h[0][0] == "S")
+def fleet():
     by_station = {}
-    for (st, typ), n in fleet.items():
+    for (st, typ), n in Counter((h[0][1:], h[3]) for h in RT["homes"].values() if h[0][0] == "S").items():
         by_station.setdefault(st, {})[typ] = n
+    return by_station
+
+
+def meta():
+    by_station = fleet()
     summary, log = run()
     days = [{"day": d, "label": date.fromordinal(d).strftime("%a %b %-d"), "calls": n} for d, n in sorted(DAYS.items())]
     return {"period": RT["period"], "calls": len(RT["test"]), "units": len(RT["homes"]),
@@ -81,11 +111,21 @@ def meta():
             "days": days, "replay": replay(log, DEFAULT_DAY)}
 
 
+@lru_cache(maxsize=8)
+def data_file_gz(name):
+    return gzip.compress(data_file(name).read_bytes(), 6)
+
+
 class Handler(BaseHTTPRequestHandler):
-    def reply(self, body, ctype="application/json", code=200):
+    def reply(self, body, ctype="application/json", code=200, gz=None):
         data = body if isinstance(body, bytes) else body.encode()
+        zipped = "gzip" in self.headers.get("Accept-Encoding", "") and (gz is not None or ctype == "application/json")
+        if zipped:
+            data = gz if gz is not None else gzip.compress(data, 5)
         self.send_response(code)
         self.send_header("Content-Type", ctype)
+        if zipped:
+            self.send_header("Content-Encoding", "gzip")
         self.send_header("Content-Length", str(len(data)))
         self.end_headers()
         self.wfile.write(data)
@@ -93,16 +133,19 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = self.path.split("?")[0]
         if path in ("/", "/index.html"):
-            self.reply((ROOT / "web/index.html").read_bytes(), "text/html; charset=utf-8")
+            self.reply((FRONTEND / "index.html").read_bytes(), "text/html; charset=utf-8")
         elif path == "/api/meta":
             self.reply(json.dumps(meta()))
-        elif path.startswith("/data/") and Path(path).name in {"stations.json", "hoods.geojson", "people.json",
-                                                               "validation.json"}:
-            self.reply((ROOT / "data" / Path(path).name).read_bytes())
+        elif path.startswith("/data/") and Path(path).name in DATA_FILES and data_file(Path(path).name).exists():
+            name = Path(path).name
+            gz = data_file_gz(name) if "gzip" in self.headers.get("Accept-Encoding", "") else None
+            self.reply(b"" if gz else data_file(name).read_bytes(), "application/json", gz=gz)
         else:
             self.reply("not found", "text/plain", 404)
 
     def do_POST(self):
+        if self.path == "/api/ask":
+            return self.ask()
         if self.path != "/api/simulate":
             return self.reply("not found", "text/plain", 404)
         try:
@@ -117,6 +160,27 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply('{"error": "bad request"}', code=400)
         summary, log = run(closed, added, volume)
         self.reply(json.dumps({**summary, "replay": replay(log, day)}))
+
+    def ask(self):
+        try:
+            n = min(int(self.headers.get("Content-Length", 0)), 4_000)
+            text = str(json.loads(self.rfile.read(n) or b"{}").get("text", ""))[:500].strip()
+        except (ValueError, TypeError, AttributeError):
+            return self.reply('{"error": "bad request"}', code=400)
+        if not text:
+            return self.reply('{"error": "Type a question first."}', code=400)
+        try:
+            import nl
+        except ImportError:
+            return self.reply('{"error": "Typed questions are not set up on this server."}', code=503)
+        try:
+            out = nl.parse_scenario(text, fleet())  # {station: {type: count}}; nl fills in addresses
+            usage = out.pop("usage", None)
+            if usage:
+                print(f"ask: {usage}")
+            self.reply(json.dumps(out), code=400 if "error" in out else 200)
+        except Exception as e:  # model or network failure: tell the page, don't crash the server
+            self.reply(json.dumps({"error": f"Couldn't read that question: {e}"}), code=400)
 
     def log_message(self, *_):
         pass

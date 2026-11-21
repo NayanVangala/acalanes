@@ -14,7 +14,7 @@ import urllib.parse
 from datetime import datetime
 from pathlib import Path
 
-OUT = Path(__file__).parent / "data"
+OUT = Path(__file__).resolve().parents[1] / "data/sf"
 START, END = "2024-11-01", "2026-11-01"
 
 

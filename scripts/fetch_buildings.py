@@ -13,9 +13,9 @@ import sys
 import urllib.parse
 from pathlib import Path
 
-ROOT = Path(__file__).parent
+ROOT = Path(__file__).resolve().parents[1]
 RAW = ROOT / "data/raw/buildings"
-OUT = ROOT / "data/buildings.json"
+OUT = ROOT / "data/sf/buildings.json"
 BBOX = (-122.528, 37.700, -122.350, 37.835)
 DOWNTOWN = (-122.425, 37.770, -122.385, 37.800)
 MAX_BYTES = 12_000_000

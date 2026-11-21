@@ -24,16 +24,29 @@ The results are shown on a 3D map of the city, with neighborhoods raised by how 
 3. **Validation:** a held-out month is replayed and simulated arrival times are compared with the real ones, against two simple baselines.
 4. **Scenarios:** close a station, add a unit, or change call volume, and see the impact by neighborhood.
 
-Full spec, MVP scope, validation targets, limits and demo script: [PRD.md](PRD.md).
+Full spec, MVP scope, validation targets, limits and demo script: [docs/PRD.md](docs/PRD.md).
 
 ## Run it
 
 ```bash
-python3 fetch_data.py   # download calls (already committed as data/calls.csv.gz)
-python3 app.py          # http://localhost:8000
+python3 src/backend/app.py      # http://localhost:8000
+python3 src/backend/sim.py      # validation table
+python3 scripts/fetch_data.py   # re-download DataSF data (already committed in data/sf/)
 ```
 
-Python 3.10+, no extra packages. Deployed on Render (`python3 app.py`, binds to `$PORT`).
+Python 3.10+, no extra packages. For the "Ask a what-if" box, copy `config/.env.example` to `.env` and add an Anthropic key. Deployed on Render from `render.yaml`.
+
+## Layout
+
+```
+src/backend/    app.py (server) · sim.py (model + simulator) · routing.py (streets) · nl.py (Haiku) · paths.py
+src/frontend/   index.html (3D map, deck.gl)
+scripts/        dataset downloads
+data/sf/        source data: calls, stations, neighborhoods, population, buildings
+data/build/     generated: runtime model, routes, validation results
+docs/           PRD
+config/         .env.example
+```
 
 ## Validation (held-out October 2026, 13,417 incidents)
 
@@ -43,14 +56,14 @@ Python 3.10+, no extra packages. Deployed on Render (`python3 app.py`, binds to 
 | Baseline: straight-line, one speed | 100 s | 0.72 | 32 s |
 | **Runnr (learned travel + calibration)** | **90 s** | **0.92** | **16 s** |
 
-Reproduce: `python3 sim.py`. After changing the model, run `python3 sim.py --export` to rebuild `data/runtime.pkl.gz`, the small file the server loads.
+Reproduce: `python3 src/backend/sim.py`. After changing the model, run `python3 src/backend/sim.py --export` to rebuild `data/build/runtime.pkl.gz`, the small file the server loads.
 
 ## Status
 
 - [x] Data download and cleaning (300,081 incidents, Nov 2024 to Oct 2026)
 - [x] Travel-time model and simulator
 - [x] Validation numbers
-- [x] 3D map with scenario controls (`web/index.html`, styled after Bench)
+- [x] Live 3D replay: satellite map, 3D buildings, 3D vehicles on real streets, what-if scenarios, Haiku Ask box (`src/frontend/index.html`)
 - [ ] Render deploy (`render.yaml` is ready; connect the repo in Render)
 - [ ] Slides
 

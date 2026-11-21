@@ -15,7 +15,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-ROOT = Path(__file__).parent
+from paths import ROOT, SF
 MODEL = "claude-haiku-5-5"
 URL = "https://api.anthropic.com/v1/messages"
 TYPES = {"MEDIC", "ENGINE"}
@@ -72,7 +72,7 @@ def _km(a, b):
 
 def _context(stations_meta):
     """Station list plus, for each neighborhood, its 4 nearest stations (so 'near Bayview' works)."""
-    known = {s["station"].split()[0]: s for s in json.load(open(ROOT / "data/stations.json"))}
+    known = {s["station"].split()[0]: s for s in json.load(open(SF / "stations.json"))}
     st = {}
     for num, m in stations_meta.items():
         k = known.get(str(num), {})
@@ -84,7 +84,7 @@ def _context(stations_meta):
         u = ", ".join(f"{c} {t.lower()}" for t, c in st[num]["units"].items()) or "unknown"
         lines.append(f"{num} | {st[num]['address'].title()} | {u}")
     lines.append("\nNeighborhoods and their nearest stations (closest first):")
-    for f in json.load(open(ROOT / "data/hoods.geojson"))["features"]:
+    for f in json.load(open(SF / "hoods.geojson"))["features"]:
         g = f["geometry"]
         ring = max([g["coordinates"][0]] if g["type"] == "Polygon" else [p[0] for p in g["coordinates"]], key=len)
         c = (sum(p[1] for p in ring) / len(ring), sum(p[0] for p in ring) / len(ring))
@@ -134,7 +134,7 @@ def parse_scenario(text, stations_meta):
 
 
 if __name__ == "__main__":
-    meta = {s["station"]: {} for s in json.load(open(ROOT / "data/stations.json")) if s["station"].isdigit()}
+    meta = {s["station"]: {} for s in json.load(open(SF / "stations.json")) if s["station"].isdigit()}
     assert parse_scenario("", meta)["error"]
     for q in ["close the two stations nearest Bayview", "add 3 ambulances in the Excelsior",
               "what happens in a heat wave with double the calls"]:

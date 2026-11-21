@@ -8,3 +8,4 @@ __pycache__/
 data/raw/
 .playwright-mcp/
 ruvector.db
+agentdb.rvf*

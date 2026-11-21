@@ -4,7 +4,7 @@ services:
     runtime: python
     plan: free
     buildCommand: "true"
-    startCommand: python3 app.py
+    startCommand: python3 src/backend/app.py
     healthCheckPath: /api/meta
     envVars:
       - key: PYTHON_VERSION
