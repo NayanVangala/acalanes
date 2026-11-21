@@ -895,6 +895,8 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
 
 .tl-k { display: block; font-size: 11px; font-weight: 500; color: var(--ink-faint); line-height: 1; margin-bottom: 1px; }
 .timeline .scrubwrap { cursor: ew-resize; }
+
+.set-perf { display: flex; margin: 4px 0 6px; } .set-perf button { flex: 1; }
 </style>
 </head>
 <body>
@@ -929,6 +931,9 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
   <h3>Replay</h3>
   <label class="set-row" for="s-routes"><span>Route lines<small>How strongly every drive so far today shows; 0% hides them</small></span><input type="range" id="s-routes" min="0" max="100" step="5"><output class="num"></output></label>
   <label class="set-row" for="s-vehicle"><span>Vehicle size</span><input type="range" id="s-vehicle" min="50" max="200" step="10"><output class="num"></output></label>
+  <h3>Performance</h3>
+  <div class="seg set-perf" role="group" aria-label="Performance"><button type="button" data-perf="quality">Quality</button><button type="button" data-perf="balanced">Balanced</button><button type="button" data-perf="fast">Fast</button></div>
+  <p class="cap">If the map feels slow, try Fast: it draws fewer pixels and a lighter 3D city.</p>
   <h3>Interface</h3>
   <label class="set-check"><input type="checkbox" id="s-labels"><span>Labels on map pins<small>Names next to crashes, new stations and your address</small></span></label>
   <label class="set-check"><input type="checkbox" id="s-smooth"><span>Smooth camera moves<small>Off: the map jumps instead of flying</small></span></label>
@@ -1248,7 +1253,11 @@ let POLICE_ST = null, POL = [], PSEGS = [], HOSP = null;
 let ME = null;  // the visitor's chosen spot: { lng, lat, label, hood }
 let ROUTES = [], SEL_ROUTE = null;  // every trip's route, and the clicked one
 // Settings (menu > Settings), kept per browser. translucency/grey/routes 0-100, vehicle 50-200 (%).
-const SET_DEFAULT = { translucency: 35, grey: 0, routes: 45, vehicle: 100, labels: true, smooth: true };
+const SET_DEFAULT = { translucency: 35, grey: 0, routes: 45, vehicle: 100, labels: true, smooth: true, perf: "balanced" };
+// Performance: pixels rendered (Retina is 2x = 4x the pixels) and how detailed Google's city tiles get
+const PERF = { quality: { px: 2, sse: 1 }, balanced: { px: 1.5, sse: 1.5 }, fast: { px: 1, sse: 2.4 } };
+const perf = () => PERF[SET.perf] || PERF.balanced;
+const devicePx = () => Math.min(window.devicePixelRatio || 1, perf().px);
 let SET = { ...SET_DEFAULT };
 try { SET = { ...SET_DEFAULT, ...JSON.parse(localStorage.getItem("medio-settings") || "{}") }; } catch (e) { /* storage blocked */ }
 const mapOpacity = () => Math.max(0, 1 - SET.translucency / 100);
@@ -1265,6 +1274,7 @@ class GreyExtension extends deck.LayerExtension {
 }
 GreyExtension.defaultProps = { greyAmount: 0 };
 const GREY_EXT = [new GreyExtension()];
+const ROUTE_FILTER = [new deck.DataFilterExtension({ filterSize: 1 })];
 let scenario = { closed: [], added: [], volume: 1 };
 let lastRun = JSON.stringify(scenario);
 let CUSTOM = null, MARKERS = [], PROPS = [], PICKING = false, PROP_KIND = "fire", PROP_SPOT = null;  // typed scenario title, map pins, proposals
@@ -1315,7 +1325,7 @@ let G_SSE = 16;
 const DETAIL = { bay: 14, world: 9 };  // max tile depth outside SF (SF itself goes to ~18-19)
 // Nothing outside the Bay is downloaded, so spend that budget on the city: SF tiles refine at a finer
 // screen-space error than the rest of the Bay (lower = sharper), and finer still at street level.
-const sfSSE = () => (view.zoom > 15.5 ? 5 : view.zoom > 13.5 ? 8 : 12);  // sharp up close, light when the whole city is in view
+const sfSSE = () => (view.zoom > 15.5 ? 5 : view.zoom > 13.5 ? 8 : 12) * perf().sse;  // sharp up close, light when the whole city is in view
 const SF_PAD = [-122.545, 37.69, -122.34, 37.845];
 const inBox = (ll, b) => ll[0] >= b[0] && ll[0] <= b[2] && ll[1] >= b[1] && ll[1] <= b[3];
 // does a tile's bounding volume reach the Bay Area? (tile centers alone fail for the planet-sized top tiles)
@@ -1784,14 +1794,12 @@ function layers(t, veh) {
     }));
   }
   // every route driven so far today stays on the map, faint; click one for the vehicle and the call log
-  let nDone = 0;
-  while (nDone < ROUTES.length && ROUTES[nDone].trip[6] <= t) nDone++;
-  const nKey = Math.floor(nDone / 4) * 4;  // rebuild every few departures, not every frame
-  if (SET.routes > 0) L.push(memo("routes", [ROUTES, nKey, zk, SET.routes], () => new deck.PathLayer({
-    id: "routes", data: ROUTES.slice(0, nKey), getPath: (d) => d.path, widthUnits: "pixels", getWidth: 3, widthMinPixels: 2,
+  if (SET.routes > 0) L.push(memo("routes", [ROUTES, zk, SET.routes], () => new deck.PathLayer({
+    id: "routes", data: ROUTES, getPath: (d) => d.path, widthUnits: "pixels", getWidth: 3, widthMinPixels: 2,
+    extensions: ROUTE_FILTER, getFilterValue: (d) => d.trip[6], filterRange: [-1, 0],
     capRounded: true, jointRounded: true, pickable: true, autoHighlight: true, highlightColor: [255, 255, 255, 200],
     getColor: (d) => (d.fire ? [...RGB.engine, Math.round(SET.routes * 1.6)] : [...RGB.medic, Math.round(SET.routes * 1.6)]), parameters: { depthTest: false },
-  })));
+  })).clone({ filterRange: [-1, t] }));
   if (SEL_ROUTE) L.push(memo("route-sel", [SEL_ROUTE, zk], () => new deck.PathLayer({
     id: "route-sel", data: [SEL_ROUTE], getPath: (d) => d.path, widthUnits: "pixels", getWidth: 6, capRounded: true, jointRounded: true,
     getColor: (d) => (d.fire ? [...RGB.engine, 255] : [...RGB.medic, 255]), parameters: { depthTest: false },
@@ -1882,7 +1890,7 @@ function setView(v, ms = 700) {
 
 function initDeck() {
   deckgl = new deck.Deck({
-    parent: $("#map"), viewState: view, controller: { dragRotate: true, touchRotate: true, doubleClickZoom: true, scrollZoom: true, touchZoom: true, inertia: 300, keyboard: false },
+    parent: $("#map"), viewState: view, useDevicePixels: devicePx(), controller: { dragRotate: true, touchRotate: true, doubleClickZoom: true, scrollZoom: true, touchZoom: true, inertia: 300, keyboard: false },
     onViewStateChange: ({ viewState, interactionState }) => {
       const user = interactionState && (interactionState.isDragging || interactionState.isPanning || interactionState.isZooming || interactionState.isRotating);
       if (user) { if (followUnit) stopFollow(); }
@@ -1939,11 +1947,12 @@ function dropToStreet() {
 
 // ---------- loop ----------
 let lastHud = 0;
+let lastLayers = 0;
 function frame(now) {
   const dt = Math.min(0.1, (now - lastFrame) / 1000);
   lastFrame = now;
   if (playing) { simT += dt * speed; if (simT >= 86400) simT -= 86400; }
-  if (window.G_TILESET) window.G_TILESET.options.maximumScreenSpaceError = view.zoom > 15.5 ? 6 : G_SSE;
+  if (window.G_TILESET) window.G_TILESET.options.maximumScreenSpaceError = (view.zoom > 15.5 ? 6 : G_SSE) * perf().sse;
   const veh = vehiclesAt(simT);
   if (followUnit) {
     const v = veh.list.find((x) => x.unit === followUnit);
@@ -1954,7 +1963,7 @@ function frame(now) {
       deckgl.setProps({ viewState: view });
     }
   }
-  deckgl.setProps({ layers: layers(simT, veh) });
+  if (playing || followUnit || now - lastLayers > 100) { lastLayers = now; deckgl.setProps({ layers: layers(simT, veh) }); }
   if (now - lastHud > 200) { lastHud = now; hud(veh); attribution(); }
   requestAnimationFrame(frame);
 }
@@ -2589,11 +2598,16 @@ function saveSettings() { try { localStorage.setItem("medio-settings", JSON.stri
 function syncSettings() {
   for (const k of ["translucency", "grey", "routes", "vehicle"]) { const el = $(`#s-${k}`); el.value = SET[k]; el.nextElementSibling.textContent = `${SET[k]}%`; }
   $("#s-labels").checked = SET.labels; $("#s-smooth").checked = SET.smooth;
+  document.querySelectorAll("[data-perf]").forEach((b) => b.classList.toggle("on", b.dataset.perf === SET.perf));
 }
+document.querySelectorAll("[data-perf]").forEach((b) => (b.onclick = () => {
+  SET.perf = b.dataset.perf; saveSettings(); syncSettings();
+  deckgl.setProps({ useDevicePixels: devicePx() });
+}));
 for (const k of ["translucency", "grey", "routes", "vehicle"]) $(`#s-${k}`).oninput = (e) => { SET[k] = +e.target.value; e.target.nextElementSibling.textContent = `${SET[k]}%`; saveSettings(); };
 $("#s-labels").onchange = (e) => { SET.labels = e.target.checked; saveSettings(); };
 $("#s-smooth").onchange = (e) => { SET.smooth = e.target.checked; saveSettings(); };
-$("#s-reset").onclick = () => { SET = { ...SET_DEFAULT }; saveSettings(); syncSettings(); };
+$("#s-reset").onclick = () => { SET = { ...SET_DEFAULT }; saveSettings(); syncSettings(); deckgl.setProps({ useDevicePixels: devicePx() }); };
 $("#m-settings").onclick = () => { $("#menu-pop").hidden = true; syncSettings(); $("#set-page").hidden = false; };
 $("#set-close").onclick = () => { $("#set-page").hidden = true; };
 syncSettings();
