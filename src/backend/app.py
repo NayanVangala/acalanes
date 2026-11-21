@@ -529,11 +529,12 @@ def measure(alt, focus, hours):
 
 def template_headline(o, extra=()):
     lead = "".join(f"{f['k']}: {f['v']}. " for f in extra)
-    where = o["where"] + ("" if o["when"] == "all day" else f", {o['when']}")
+    where = o["where"][:1].upper() + o["where"][1:] + ("" if o["when"] == "all day" else f", {o['when']}")
     if o["change"] == "no change":
         s = f"{where}: help still arrives in about {o['after']}; nearby stations absorb the change."
     else:
-        s = f"{where}: help arrives in {o['after']} instead of {o['before']} ({o['change']}); {o['slower_30s']} of {o['calls']} real calls wait 30+ s longer."
+        n, how = (o["faster_30s"], "get help 30+ s sooner") if o["change_s"] < 0 else (o["slower_30s"], "wait 30+ s longer")
+        s = f"{where}: help arrives in {o['after']} instead of {o['before']} ({o['change']}); {n} of {o['calls']} real calls {how}."
     if o["where"] != "Citywide" and o["citywide"]["change"] != "no change":
         s += f" Citywide: {o['citywide']['before']} → {o['citywide']['after']}."
     return lead + s
@@ -632,7 +633,7 @@ def load_proposals():
 
 def station_plan(lat, lng, kind):
     return {"title": f"New {KIND_LABEL[kind].lower()} here", "new_stations": [{"place": {"lat": lat, "lng": lng, "label": "this spot"}, "kind": kind}],
-            "focus": {"place": {"lat": lat, "lng": lng, "label": "Within 1.5 km of this spot"}, "from_hour": -1, "to_hour": -1}}
+            "focus": {"place": {"lat": lat, "lng": lng, "label": "within 1.5 km of this spot"}, "from_hour": -1, "to_hour": -1}}
 
 
 def station_effect(lat, lng, kind, day=None):

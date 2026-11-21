@@ -596,7 +596,7 @@ body:has(#panel:not(.hidden)) .drawer-tab .chev { transform: rotate(180deg); }
 .drawer .tabs { flex: 1; display: flex; gap: 4px; padding: 3px; border: 0; border-radius: 999px; background: var(--hover); }
 .drawer .tabs button { flex: 1; padding: 7px 10px; border: 0; border-radius: 999px; font-size: 14px; font-weight: 500; color: var(--ink-soft); background: transparent; margin: 0; }
 .drawer .tabs button[aria-selected="true"] { background: var(--frost-solid); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); border: 0; }
-#panel:not([data-tab="whatif"]) [data-pane="whatif"], #panel:not([data-tab="location"]) [data-pane="location"], #panel:not([data-tab="live"]) [data-pane="live"] { display: none; }
+#panel:not([data-tab="whatif"]) [data-pane="whatif"], #panel:not([data-tab="location"]) [data-pane="location"], #panel:not([data-tab="live"]) [data-pane="findings"] { display: none; }
 .drawer .loc-form .me-list { width: 100%; max-width: none; background: var(--frost-solid); border: 1px solid var(--rule); border-radius: 14px; box-shadow: 0 12px 28px rgba(10, 20, 30, 0.18); }
 .drawer .loc-form .me-list li[aria-selected="true"], .drawer .loc-form .me-list li:hover { background: var(--hover); }
 .drawer .loc-form input { height: 40px; border-radius: 10px; padding: 0 12px; font-size: 14.5px; }
@@ -725,6 +725,73 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
 
 .reply-facts li { grid-template-columns: 1fr; gap: 1px; }
 .reply-facts li b { text-align: left; font-size: 14.5px; }
+
+/* ---------- four tabs, what-if card, proposals, findings ---------- */
+#panel [data-pane] { display: none; }
+#panel[data-tab="whatif"] [data-pane="whatif"], #panel[data-tab="propose"] [data-pane="propose"],
+#panel[data-tab="findings"] [data-pane="findings"], #panel[data-tab="location"] [data-pane="location"] { display: block; }
+#panel [data-pane][hidden] { display: none !important; }
+.drawer .tabs button { padding: 7px 4px; font-size: 13.5px; }
+.wi-lead { margin: 6px 0 10px; font-size: 14px; line-height: 1.5; color: var(--ink-soft); }
+.wi-ex { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.wi-ex button { width: 100%; text-align: left; padding: 10px 12px; border: 0; border-radius: 12px; background: var(--raised); color: var(--ink); font-size: 14.5px; cursor: pointer; }
+.wi-ex button:hover { background: var(--frost-solid); }
+#panel:has(#reply:not([hidden])) #wi-intro { display: none; }
+.presets summary { cursor: pointer; font-size: 15px; font-weight: 600; padding: 4px 0; }
+.presets .options { margin-top: 10px; }
+.oc-title { margin: 0 0 4px; font-size: 13px; font-weight: 600; color: var(--ink-faint); }
+.oc-head { margin: 0 0 12px; font-size: 16px; line-height: 1.45; font-weight: 500; color: var(--ink); }
+.oc-big { padding: 12px 14px; border-radius: 14px; background: var(--hover); margin-bottom: 10px; }
+.oc-big.bad { background: rgba(194, 58, 43, 0.10); } .oc-big.warn { background: rgba(183, 121, 31, 0.12); } .oc-big.good { background: rgba(46, 139, 87, 0.11); }
+.oc-k { font-size: 13px; color: var(--ink-soft); }
+.oc-v { display: flex; align-items: baseline; gap: 8px; margin: 2px 0; font-size: 15px; color: var(--ink-soft); flex-wrap: wrap; }
+.oc-v b { font-size: 30px; font-weight: 600; color: var(--ink); letter-spacing: -0.01em; }
+.oc-big.bad .chip { background: rgba(194, 58, 43, 0.16); color: var(--bad); } .oc-big.good .chip { background: rgba(46, 139, 87, 0.16); color: var(--ok); }
+.oc-big.warn .chip { background: rgba(183, 121, 31, 0.18); color: var(--warn); }
+.oc-sub { font-size: 12.5px; color: var(--ink-faint); }
+.oc-rows { list-style: none; margin: 0 0 10px; padding: 0; }
+.oc-rows li { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-top: 1px solid var(--rule); font-size: 13.5px; }
+.oc-rows li span { color: var(--ink-soft); } .oc-rows li b { font-weight: 600; text-align: right; }
+.oc h3 { margin: 12px 0 6px; font-size: 13.5px; font-weight: 600; }
+.bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.bars li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; font-size: 13px; }
+.bars li span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bars li b { font-weight: 600; }
+.bars li i { grid-column: 1 / -1; height: 5px; border-radius: 3px; background: var(--rule-strong); }
+.bars li i.up { background: var(--bad); } .bars li i.down { background: var(--ok); } .bars li i.n { background: var(--accent); }
+.oc-did { margin: 0; padding-left: 18px; font-size: 13.5px; color: var(--ink-soft); display: grid; gap: 3px; }
+.oc-note { margin: 8px 0 0; font-size: 12.5px; color: var(--ink-faint); line-height: 1.45; }
+.prop-kind { display: flex; margin: 4px 0 10px; }
+.prop-kind button { flex: 1; font-size: 13px; padding: 0 6px; }
+.prop-pick { width: 100%; }
+.prop-pick.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+.prop-out:not(:empty) { margin-top: 12px; padding: 14px; border-radius: 14px; background: var(--raised); }
+.prop-form { display: grid; gap: 6px; margin-top: 12px; }
+.prop-form textarea, .prop-form input { font: inherit; font-size: 14px; padding: 9px 11px; border-radius: 10px; border: 1px solid var(--rule-strong); background: var(--raised); color: var(--ink); resize: vertical; }
+.prop-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.prop-list > li:not(.note) { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 11px 12px; border-radius: 12px; background: var(--raised); }
+.prop-list b { font-size: 14.5px; } .prop-list p { margin: 2px 0 0; font-size: 13px; color: var(--ink-soft); }
+.prop-list .eff { font-size: 13px; color: var(--ok); font-weight: 600; }
+.vote { grid-row: span 3; align-self: center; min-width: 52px; height: 52px; border-radius: 12px; border: 1px solid var(--rule-strong); background: var(--frost-solid); color: var(--ink); font: 600 15px var(--font); cursor: pointer; display: grid; place-items: center; line-height: 1.1; }
+.vote small { display: block; font-size: 11px; font-weight: 500; color: var(--ink-faint); }
+.vote.on { background: var(--ink); color: #fff; border-color: var(--ink); } .vote.on small { color: rgba(255, 255, 255, 0.75); }
+.find h2 { font-size: 16px !important; line-height: 1.35; }
+.find .big2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
+.find .big2 div { padding: 10px 12px; border-radius: 12px; background: var(--raised); }
+.find .big2 b { display: block; font-size: 26px; font-weight: 600; }
+.find .big2 span { font-size: 12.5px; color: var(--ink-soft); }
+.scatter { width: 100%; height: auto; display: block; margin: 6px 0; }
+.scatter text { font: 11px var(--font); fill: var(--ink-faint); }
+.scatter .lbl { fill: var(--ink); font-weight: 600; }
+.spots { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.spots button { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 1px 10px; text-align: left; padding: 10px 12px; border: 0; border-radius: 12px; background: var(--raised); color: var(--ink); cursor: pointer; font: inherit; }
+.spots button:hover { background: var(--frost-solid); }
+.spots b { font-size: 14.5px; } .spots em { font-style: normal; font-weight: 600; color: var(--ok); } .spots span { grid-column: 1 / -1; font-size: 12.5px; color: var(--ink-faint); }
+.datasets { margin: 6px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; font-size: 13.5px; }
+.datasets b { display: block; } .datasets span { color: var(--ink-faint); font-size: 12.5px; } .datasets p { margin: 2px 0 0; color: var(--ink-soft); }
+.stage.picking #map, .stage.picking canvas { cursor: crosshair !important; }
+
+.drawer .legend, .drawer .feed { position: static; inset: auto; width: auto; box-shadow: none; background: none; }
 </style>
 </head>
 <body>
@@ -778,34 +845,73 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
   <header class="drawer-head">
     <nav class="tabs" role="tablist" aria-label="Panel sections">
       <button role="tab" data-tab="whatif" aria-selected="true">What if</button>
-      <button role="tab" data-tab="location" aria-selected="false">Location</button>
-      <button role="tab" data-tab="live" aria-selected="false">Live</button>
+      <button role="tab" data-tab="propose" aria-selected="false">Propose</button>
+      <button role="tab" data-tab="findings" aria-selected="false">Findings</button>
+      <button role="tab" data-tab="location" aria-selected="false">You</button>
     </nav>
     <button class="fab sm" id="panel-close" aria-label="Close the panel" title="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </header>
   <div class="scroll">
-    <section class="block reply" id="reply" data-pane="whatif" aria-live="polite" hidden></section>
-
-    <section class="block me-block" id="me-block" data-pane="location">
-      <h2>How fast would help reach you? <button class="link" id="me-clear" type="button" hidden>Clear</button></h2>
-      <form class="ask loc-form" id="loc-form" autocomplete="off"><div class="me-search"><input id="loc-q" type="text" autocomplete="off" spellcheck="false" placeholder="Enter a San Francisco address" aria-label="Your address in San Francisco"
-        role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="loc-list"><ul class="me-list" id="loc-list" role="listbox" aria-label="Address suggestions" hidden></ul></div><button class="btn" type="submit" id="loc-go">Find</button></form>
-      <p class="me-privacy" id="me-empty">Start typing and pick your address from the list, or use where you are now. Addresses are looked up with Photon (OpenStreetMap data) and never saved.</p>
-      <button class="btn me-geo-btn" id="me-geo2" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Use my current location</button>
-      <div class="me-card" id="me-card" hidden></div>
+    <section class="block wi-intro" id="wi-intro" data-pane="whatif">
+      <h2>What if…?</h2>
+      <p class="wi-lead">Describe any situation in your own words in the box at the bottom. Medio replays all 13,417 real 911 calls from October 2026 with it and shows who waits longer for help, and where.</p>
+      <ul class="wi-ex"><li><button type="button">A car crash on 6th Street at 5 PM</button></li><li><button type="button">A Giants game tonight at Oracle Park</button></li><li><button type="button">Pouring rain during evening rush hour</button></li><li><button type="button">The 911 phone system goes down for a minute</button></li><li><button type="button">Close the two stations nearest Bayview</button></li><li><button type="button">A new fire station in Visitacion Valley</button></li></ul>
     </section>
-
-    <section class="block" data-pane="whatif">
-      <h2>Try a scenario</h2>
+    <section class="block reply" id="reply" data-pane="whatif" aria-live="polite" hidden></section>
+    <section class="block" data-pane="whatif"><details class="presets">
+      <summary>Preset scenarios</summary>
       <div class="options">
         <button class="ex" data-ex="today"><kbd>A</kbd><span>Today, as is</span><em class="num" data-meta="today"></em></button>
         <button class="ex" data-ex="close3"><kbd>B</kbd><span>Close 3 downtown stations</span><em class="num" data-meta="close3"></em></button>
         <button class="ex" data-ex="heat"><kbd>C</kbd><span>Heat wave, 2× calls</span><em class="num" data-meta="heat"></em></button>
         <button class="ex" data-ex="south"><kbd>D</kbd><span>2 ambulances for the south</span><em class="num" data-meta="south"></em></button>
       </div>
+    </details></section>
+
+    <section class="block" data-pane="propose">
+      <h2>Propose something new</h2>
+      <p class="wi-lead">Think your neighborhood needs a station? Pick what to add and click where it should go. Medio replays October with it, so you see who would get help faster before you submit.</p>
+      <div class="seg prop-kind" role="group" aria-label="What to add">
+        <button type="button" class="on" data-kind="fire">Fire station</button><button type="button" data-kind="ambulance">Ambulance post</button><button type="button" data-kind="police">Police</button><button type="button" data-kind="hospital">Hospital</button>
+      </div>
+      <button class="btn prop-pick" id="prop-pick" type="button">Click the map to choose a spot</button>
+      <div class="prop-out" id="prop-out" aria-live="polite"></div>
+      <form class="prop-form" id="prop-form" hidden>
+        <label class="label" for="prop-note">Why here? (optional)</label>
+        <textarea id="prop-note" rows="2" maxlength="280" placeholder="It takes forever for help to get up the hill"></textarea>
+        <label class="label" for="prop-name">Your first name (optional)</label>
+        <input id="prop-name" type="text" maxlength="40" autocomplete="given-name">
+        <button class="cta" type="submit" id="prop-submit">Submit proposal</button>
+      </form>
+    </section>
+    <section class="block" data-pane="propose">
+      <h2>Residents’ proposals <span class="num" id="prop-count"></span></h2>
+      <ol class="prop-list" id="prop-list"><li class="note">No proposals yet. Be the first.</li></ol>
     </section>
 
-    <section class="block" data-pane="whatif">
+    <section class="block find" data-pane="findings" id="find-equity"><p class="note">Loading findings…</p></section>
+    <section class="block find" data-pane="findings" id="find-spots"></section>
+    <section class="block" data-pane="findings">
+      <h2 id="findings-title">Slowest neighborhoods</h2>
+      <div id="findings"></div>
+    </section>
+    <section class="block find" data-pane="findings" id="find-data"></section>
+    <section class="block" data-pane="findings">
+      <h2>How the numbers are made</h2>
+      <ol class="how">
+        <li><b>Real records:</b> <span id="how-n">300,081</span> San Francisco 911 calls, with when each unit was dispatched and when it arrived.</li>
+        <li><b>Learned travel times:</b> the typical drive from each station to each 500 m block, by hour, from 333,000 real trips.</li>
+        <li><b>Simulator:</b> replays every call in order. The call's own station goes first when it's free; otherwise the unit that can arrive soonest. Busy units stay busy.</li>
+        <li><b>Checked against reality:</b> a month the model never saw (October 2026). By neighborhood it matches real arrival times with r = <span id="how-r">0.94</span>.</li>
+      </ol>
+      <p class="ai-note">No AI calculates or predicts these numbers. Claude Haiku is used only to read questions typed below.</p>
+    </section>    <section class="block" data-pane="findings">
+      <details>
+        <summary>How accurate is this?</summary>
+        <table class="acc num" id="acc"></table>
+        <p class="note">We replayed October 2026, a month the model never saw, and compared it with the real recorded arrival times. "Area r" is how closely neighborhood medians match reality (1.0 is perfect).</p>
+      </details>
+    </section>    <section class="block" data-pane="findings" hidden>
       <div class="verdict" id="verdict">
         <p class="vword" id="vword">…</p>
         <p class="vsub" id="vsub">Loading the simulator</p>
@@ -815,42 +921,36 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
         </div>
       </div>
     </section>
-
-    <section class="block" data-pane="whatif">
-      <h2 id="findings-title">Slowest neighborhoods</h2>
-      <div id="findings"></div>
+    <section class="block me-block" id="me-block" data-pane="location">
+      <h2>How fast would help reach you? <button class="link" id="me-clear" type="button" hidden>Clear</button></h2>
+      <form class="ask loc-form" id="loc-form" autocomplete="off"><div class="me-search"><input id="loc-q" type="text" autocomplete="off" spellcheck="false" placeholder="Enter a San Francisco address" aria-label="Your address in San Francisco"
+        role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="loc-list"><ul class="me-list" id="loc-list" role="listbox" aria-label="Address suggestions" hidden></ul></div><button class="btn" type="submit" id="loc-go">Find</button></form>
+      <p class="me-privacy" id="me-empty">Start typing and pick your address from the list, or use where you are now. Addresses are looked up with Photon (OpenStreetMap data) and never saved.</p>
+      <button class="btn me-geo-btn" id="me-geo2" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Use my current location</button>
+      <div class="me-card" id="me-card" hidden></div>
     </section>
 
-    <section class="block" data-pane="whatif">
-      <h2>How the numbers are made</h2>
-      <ol class="how">
-        <li><b>Real records:</b> <span id="how-n">300,081</span> San Francisco 911 calls, with when each unit was dispatched and when it arrived.</li>
-        <li><b>Learned travel times:</b> the typical drive from each station to each 500 m block, by hour, from 333,000 real trips.</li>
-        <li><b>Simulator:</b> replays every call in order. The call's own station goes first when it's free; otherwise the unit that can arrive soonest. Busy units stay busy.</li>
-        <li><b>Checked against reality:</b> a month the model never saw (October 2026). By neighborhood it matches real arrival times with r = <span id="how-r">0.94</span>.</li>
-      </ol>
-      <p class="ai-note">No AI calculates or predicts these numbers. Claude Haiku is used only to read questions typed below.</p>
-    </section>
 
-    <section class="block" data-pane="whatif">
-      <details>
-        <summary>How accurate is this?</summary>
-        <table class="acc num" id="acc"></table>
-        <p class="note">We replayed October 2026, a month the model never saw, and compared it with the real recorded arrival times. "Area r" is how closely neighborhood medians match reality (1.0 is perfect).</p>
-      </details>
-    </section>
 
-    <section class="block" data-pane="live">
+
+
+
+
+
+
+
+
+    <section class="block" data-pane="findings">
       <h2>Right now</h2>
       <ul class="checks counters"><li><i class="box live"></i><span class="k">Median wait so far today</span><b class="num" id="n-med">—</b></li></ul>
     </section>
-    <section class="block" data-pane="live">
+    <section class="block" data-pane="findings" hidden>
       <section class="feed" id="feedbox" aria-live="off">
     <div class="col-head sub"><h2><button class="feed-toggle" id="feed-toggle" aria-expanded="true">Dispatches</button></h2><span class="num" id="feed-count"></span></div>
     <ol id="feed"></ol>
   </section>
     </section>
-    <section class="block" data-pane="live">
+    <section class="block" data-pane="findings">
       <h2>Legend</h2>
       <div class="legend" aria-label="Map legend">
     <div class="lg-ramp"><span>Wait for help</span><div class="ramp" aria-hidden="true"></div><span class="num">6 → 10+ min</span></div>
@@ -983,6 +1083,7 @@ let POLICE_ST = null, POL = [], PSEGS = [], HOSP = null;
 let ME = null;  // the visitor's chosen spot: { lng, lat, label, hood }
 let scenario = { closed: [], added: [], volume: 1 };
 let lastRun = JSON.stringify(scenario);
+let CUSTOM = null, MARKERS = [], PROPS = [], PICKING = false, PROP_KIND = "fire", PROP_SPOT = null;  // typed scenario title, map pins, proposals
 let addType = "MEDIC";
 let view = { maxPitch: 80, ...HOME, zoom: LIMIT.minZoom, minZoom: LIMIT.minZoom, maxZoom: LIMIT.maxZoom, pitch: 0, bearing: 0 };
 let deckgl, simT = 8 * 3600, speed = 300, playing = !reduced, lastFrame = performance.now();
@@ -1532,6 +1633,17 @@ function layers(t, veh) {
     L.push(mesh("police", veh.police, MESH.police, [255, 255, 255], { pickable: true }));
     L.push(mesh("bar-police", veh.police, MESH.barPolice, (v) => v.state === 0 ? ((flash ^ v.blink) ? [255, 40, 40] : [60, 120, 255]) : v.state === 1 ? [60, 120, 255] : [70, 74, 80]));
   }
+  const pins = [...MARKERS, ...PROPS.map((q) => ({ kind: "prop", lat: q.lat, lng: q.lng }))];
+  if (PROP_SPOT && !MARKERS.some((m) => m.kind === "new")) pins.push({ kind: "new", lat: PROP_SPOT.lat, lng: PROP_SPOT.lng, label: "Your spot" });
+  if (pins.length) {
+    const MK = { new: [46, 139, 87], closed: [194, 58, 43], incident: [232, 98, 44], crowd: [142, 68, 173], prop: [30, 136, 229] };
+    L.push(new deck.ScatterplotLayer({ id: "pins", data: pins, getPosition: (m) => at(m.lng, m.lat), radiusUnits: "pixels",
+      getRadius: (m) => (m.kind === "prop" ? 7 : 12), stroked: true, getFillColor: (m) => [...MK[m.kind], 225], getLineColor: [255, 255, 255, 255],
+      lineWidthMinPixels: 2.5, parameters: { depthTest: false }, updateTriggers: { getPosition: zk } }));
+    L.push(new deck.TextLayer({ id: "pin-labels", data: pins.filter((m) => m.label), getPosition: (m) => at(m.lng, m.lat), getText: (m) => m.label,
+      characterSet: "auto", getSize: 13, getPixelOffset: [0, -24], getColor: [20, 20, 20, 255], background: true, getBackgroundColor: [255, 255, 255, 235],
+      backgroundPadding: [6, 3], fontFamily: "Jost, system-ui, sans-serif", fontWeight: 600, parameters: { depthTest: false }, updateTriggers: { getPosition: zk } }));
+  }
   for (const k of MEMO.keys()) if (!USED.has(k)) MEMO.delete(k);  // a layer that left the map is finalized by deck
   USED.clear();
   return L;
@@ -1582,7 +1694,9 @@ function initDeck() {
     })],
     parameters: { clearColor: [0, 0, 0, 0] },  // transparent: the fog sky behind the canvas shows past the edge of the map
     getCursor: ({ isDragging, isHovering }) => (isDragging ? "grabbing" : isHovering ? "pointer" : "grab"),
-    onClick: ({ object, layer }) => {
+    onClick: (info) => {
+      if (PICKING && info.coordinate) { pickSpot(info.coordinate[0], info.coordinate[1]); return; }
+      const { object, layer } = info;
       if (!object || !layer) return;
       if (layer.id.startsWith("stations")) toggleClosed(object.station);
       else if (layer.id.startsWith("vehicles")) startFollow(object.unit);
@@ -1671,7 +1785,7 @@ function hud(veh) {
 }
 
 // ---------- verdict + findings ----------
-const isScenario = () => lastRun !== JSON.stringify({ closed: [], added: [], volume: 1 });
+const isScenario = () => !!CUSTOM || lastRun !== JSON.stringify({ closed: [], added: [], volume: 1 });
 function hoodRows() {
   return Object.entries(RESULT.hoods).filter(([n, r]) => r.calls >= 30 && BASE.hoods[n]).map(([name, r]) => {
     const b = BASE.hoods[name], d = r.median - b.median;
@@ -1705,7 +1819,7 @@ function renderVerdict() {
   $("#m-med").textContent = mmss(c.median);
   const sc = $("#scen-chip");
   sc.hidden = !scen;
-  if (scen) $("#scen-text").textContent = `${readAs(JSON.parse(lastRun))} · ${signed(dMed)} citywide`;
+  if (scen) $("#scen-text").textContent = `${CUSTOM || readAs(JSON.parse(lastRun))} · ${signed(dMed)} citywide`;
   $("#ck-med").className = `box ${c.median > 480 ? "bad" : c.median > 430 ? "warn" : "ok"}`;
   $("#ck-over").className = `box ${c.over8 >= 0.45 ? "bad" : c.over8 >= 0.3 ? "warn" : "ok"}`;
   $("#m-over").textContent = pct(c.over8);
@@ -1779,6 +1893,7 @@ async function run() {
     if (!r.ok) throw new Error(r.status);
     const d = await r.json();
     RESULT = d; loadReplay(d.replay);
+    CUSTOM = null; MARKERS = [];
     lastRun = JSON.stringify(scenario);
     const ex = Object.keys(EXAMPLES).find((k) => JSON.stringify(EXAMPLES[k]) === lastRun);
     if (ex) { const d = RESULT.city.median - BASE.city.median, el = document.querySelector(`[data-meta="${ex}"]`);
@@ -2155,37 +2270,58 @@ function showReply(question, html) {
   openPanel("whatif");
   document.querySelector("#panel .scroll").scrollTop = 0;
 }
-function replyHTML(d) {
-  const facts = (d.facts || []).map((f) => `<li class="${f.tone || ""}"><span>${esc(f.k)}</span><b class="num">${esc(f.v)}</b>${f.note ? `<em>${esc(f.note)}</em>` : ""}</li>`).join("");
-  const assume = (d.assumptions || []).length ? `<p class="reply-a"><b>Assumed:</b> ${d.assumptions.map(esc).join(" ")}</p>` : "";
-  const steps = (d.steps || []).length ? `<ol class="reply-steps" aria-label="What was checked">${d.steps.map((x) => `<li>${esc(x.label)}</li>`).join("")}</ol>` : "";
-  const check = !d.checked ? "" : (d.unmatched || []).length
-    ? `Couldn’t match ${d.unmatched.map(esc).join(", ")} to the data, so treat ${d.unmatched.length > 1 ? "those" : "that"} with care.`
-    : `All ${d.checked} numbers above match the simulator and records output.`;
-  return `<p class="reply-h">${esc(d.headline || "")}</p>${facts ? `<ul class="reply-facts">${facts}</ul>` : ""}${assume}${steps}
-    <p class="ai-note">${check} Claude Haiku picked which checks to run and wrote the sentences; it never makes up a number.</p>`;
+function outcomeHTML(d, typed = true) {
+  const o = d.outcome, c = o.citywide, local = o.where !== "Citywide";
+  const big = `<div class="oc-big ${d.tone}"><div class="oc-k">Typical wait for help, ${esc(o.where)}${o.when !== "all day" ? `, ${esc(o.when)}` : ""}</div>
+    <div class="oc-v"><span class="num">${o.before}</span><span aria-hidden="true">→</span><b class="num">${o.after}</b><i class="num chip">${esc(o.change)}</i></div>
+    <div class="oc-sub">${o.calls} real calls · over 8 min: ${o.over8_before} → ${o.over8_after}</div></div>`;
+  const rows = [...(d.facts || []).map((f) => [f.k, f.v]), ...(local ? [["Citywide", `${c.before} → ${c.after} (${c.change})`]] : []),
+    ["Calls 30+ s slower", o.slower_30s], ["Calls 30+ s faster", o.faster_30s]];
+  const mx = Math.max(1, ...o.neighborhoods.map((n) => Math.abs(n.change_s)));
+  const bars = o.neighborhoods.length ? `<h3>Neighborhoods that change most</h3><ul class="bars">${o.neighborhoods.map((n) =>
+    `<li><span>${esc(n.name)}</span><b class="num">${n.before} → ${n.after} (${esc(n.change)})</b><i class="${n.change_s > 0 ? "up" : "down"}" style="width:${Math.max(4, Math.abs(n.change_s) / mx * 100)}%"></i></li>`).join("")}</ul>` : "";
+  return `<div class="oc"><p class="oc-title">${esc(d.title)}</p><p class="oc-head">${esc(d.headline)}</p>${big}
+    <ul class="oc-rows">${rows.map(([k, v]) => `<li><span>${esc(k)}</span><b class="num">${esc(v)}</b></li>`).join("")}</ul>${bars}
+    <h3>What Medio simulated</h3><ul class="oc-did">${d.simulated.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
+    ${(d.assumptions || []).length ? `<p class="oc-note"><b>Assumed:</b> ${d.assumptions.map(esc).join(" ")}</p>` : ""}
+    ${(d.not_modeled || []).length ? `<p class="oc-note"><b>Not modeled:</b> ${d.not_modeled.map(esc).join(" ")}</p>` : ""}
+    <p class="oc-note">${esc(d.basis)}${typed ? " Claude Haiku turned your words into the plan above and wrote the first sentence; every number comes from the simulator." : ""}</p></div>`;
+}
+function lookupHTML(d) {
+  const mx = Math.max(1, ...d.groups.map((g) => g.median_s));
+  return `<div class="oc"><p class="oc-title">${esc(d.title)}</p><p class="oc-head">${esc(d.headline)}</p>
+    <ul class="oc-rows">${d.facts.map((f) => `<li><span>${esc(f.k)}</span><b class="num">${esc(f.v)}</b></li>`).join("")}</ul>
+    ${d.groups.length ? `<h3>Typical wait by group</h3><ul class="bars">${d.groups.map((g) => `<li><span>${esc(g.name)}</span><b class="num">${g.wait} · ${g.calls} calls</b><i class="n" style="width:${g.median_s / mx * 100}%"></i></li>`).join("")}</ul>` : ""}
+    <p class="oc-note">${esc(d.basis)}</p></div>`;
+}
+// a simulated scenario drives the whole map: neighborhood colors, banner, replayed dispatches, pins
+function applyResult(d, fly = true) {
+  RESULT = d.result; CUSTOM = d.title; MARKERS = d.markers || [];
+  loadReplay(d.result.replay);
+  renderAll();
+  if (fly && d.focus) setView({ longitude: d.focus.lng, latitude: d.focus.lat, zoom: Math.max(view.zoom, 13.5), pitch: 55 }, 1400);
 }
 $("#ask-form").onsubmit = async (e) => {
   e.preventDefault();
   const text = $("#ask").value.trim(), out = $("#ask-out");
   if (!text) return;
-  $("#ask-go").disabled = true; out.hidden = false; out.className = "toast"; out.textContent = "Checking October’s records and running the simulator… about 10 seconds";
+  $("#ask-go").disabled = true; out.hidden = false; out.className = "toast"; out.textContent = "Replaying October’s 13,417 calls with your scenario… about 5 seconds";
   try {
     const r = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text, me: ME ? { lat: ME.lat, lng: ME.lng, label: ME.label } : null }) });
+      body: JSON.stringify({ text, day: REPLAY && REPLAY.day, me: ME ? { lat: ME.lat, lng: ME.lng, label: ME.label } : null }) });
     if (r.status === 503 || r.status === 404) {
-      out.className = "toast err"; out.textContent = "Asking in plain words isn’t set up on this server. Use the controls below instead.";
-      $("#ask-form").hidden = true; return;
+      out.className = "toast err"; out.textContent = "Typed what-ifs aren’t set up on this server. Try the preset scenarios.";
+      return;
     }
     const d = await r.json();
-    if (!r.ok || d.error) { out.className = "toast err"; out.textContent = d.error || "That question didn’t work. Try naming a station, a neighborhood or a call volume."; return; }
+    if (!r.ok || d.error) { out.className = "toast err"; out.textContent = d.error || "That one didn’t work. Try describing what happens and where."; return; }
     out.hidden = true;
-    showReply(text, replyHTML(d));
-    if (d.focus) setView({ longitude: d.focus.lng, latitude: d.focus.lat, zoom: Math.max(view.zoom, 14), pitch: 60 }, 1400);
-    if (d.scenario) {  // the answer simulated a change to the city: show it on the map too
-      scenario = { closed: d.scenario.closed.map(String), added: d.scenario.added, volume: d.scenario.volume };
-      renderScenario();
-      await run();
+    if (d.mode === "lookup") {
+      showReply(text, lookupHTML(d));
+      if (d.focus) setView({ longitude: d.focus.lng, latitude: d.focus.lat, zoom: Math.max(view.zoom, 13.5), pitch: 55 }, 1400);
+    } else {
+      showReply(text, outcomeHTML(d));
+      applyResult(d);
     }
   } catch (err) {
     out.className = "toast err"; out.textContent = "Couldn’t reach the server. Check your connection and try again.";
@@ -2210,6 +2346,113 @@ addEventListener("keydown", (e) => {
   }
 });
 
+
+// ---------- What if examples ----------
+document.querySelectorAll(".wi-ex button").forEach((b) => (b.onclick = () => { $("#ask").value = b.textContent; $("#ask-form").requestSubmit(); }));
+
+// ---------- Propose: pick a spot, preview it in the simulator, submit, vote ----------
+const KIND_NAME = { fire: "fire station", ambulance: "ambulance post", police: "police station", hospital: "hospital" };
+let CLIENT = "";
+try { CLIENT = localStorage.getItem("medio-client") || ""; if (!CLIENT) { CLIENT = Math.random().toString(36).slice(2); localStorage.setItem("medio-client", CLIENT); } } catch (e) { CLIENT = Math.random().toString(36).slice(2); }
+const voted = () => { try { return new Set(JSON.parse(localStorage.getItem("medio-voted") || "[]")); } catch (e) { return new Set(); } };
+document.querySelectorAll(".prop-kind [data-kind]").forEach((b) => (b.onclick = () => {
+  PROP_KIND = b.dataset.kind;
+  document.querySelectorAll(".prop-kind [data-kind]").forEach((x) => x.classList.toggle("on", x === b));
+  if (PROP_SPOT) pickSpot(PROP_SPOT.lng, PROP_SPOT.lat);
+}));
+function setPicking(on) {
+  PICKING = on;
+  $("#prop-pick").classList.toggle("on", on);
+  $("#prop-pick").textContent = on ? "Now click the map where it should go" : PROP_SPOT ? "Choose a different spot" : "Click the map to choose a spot";
+  document.querySelector(".stage").classList.toggle("picking", on);
+}
+$("#prop-pick").onclick = () => setPicking(!PICKING);
+async function pickSpot(lng, lat) {
+  setPicking(false);
+  PROP_SPOT = { lng, lat };
+  $("#prop-pick").textContent = "Choose a different spot";
+  $("#prop-out").innerHTML = `<p class="oc-note">Replaying October with a new ${KIND_NAME[PROP_KIND]} here…</p>`;
+  openPanel("propose");
+  setView({ longitude: lng, latitude: lat, zoom: Math.max(view.zoom, 13.5), pitch: 55 }, 1000);
+  try {
+    const r = await fetch("/api/station", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lat, lng, kind: PROP_KIND, day: REPLAY && REPLAY.day }) });
+    const d = await r.json();
+    if (!r.ok || d.error) { $("#prop-out").innerHTML = `<p class="oc-note">${esc(d.error || "That spot didn’t work. Try another.")}</p>`; return; }
+    $("#prop-out").innerHTML = d.mode === "collect" ? `<p class="oc-head">${esc(d.headline)}</p>` : outcomeHTML(d, false);
+    if (d.result) applyResult(d, false);
+    $("#prop-form").hidden = false;
+  } catch (e) { $("#prop-out").innerHTML = `<p class="oc-note">Couldn’t reach the server. Try again.</p>`; }
+}
+$("#prop-form").onsubmit = async (e) => {
+  e.preventDefault();
+  if (!PROP_SPOT) return;
+  $("#prop-submit").disabled = true; $("#prop-submit").textContent = "Submitting…";
+  try {
+    const r = await fetch("/api/proposals", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...PROP_SPOT, kind: PROP_KIND, note: $("#prop-note").value, name: $("#prop-name").value, client: CLIENT }) });
+    const d = await r.json();
+    if (!r.ok || d.error) throw new Error(d.error);
+    try { const v = voted(); v.add(d.id); localStorage.setItem("medio-voted", JSON.stringify([...v])); } catch (err) { /* private mode */ }
+    $("#prop-form").hidden = true; $("#prop-note").value = "";
+    $("#prop-out").insertAdjacentHTML("afterbegin", `<p class="oc-head">Submitted. Your proposal is on the board below, and residents can vote for it.</p>`);
+    PROP_SPOT = null; loadProposals();
+  } catch (err) { $("#prop-out").insertAdjacentHTML("beforeend", `<p class="oc-note">${esc(err.message || "Couldn’t submit. Try again.")}</p>`); }
+  finally { $("#prop-submit").disabled = false; $("#prop-submit").textContent = "Submit proposal"; }
+};
+function renderProposals() {
+  const v = voted();
+  $("#prop-count").textContent = PROPS.length ? `(${PROPS.length})` : "";
+  $("#prop-list").innerHTML = PROPS.length ? PROPS.map((q) => `<li>
+    <div><b>${esc(q.kind_label)} in ${esc(q.hood)}</b>
+      ${q.effect ? `<p class="eff">${q.effect.before} → ${q.effect.after} typical wait nearby (${esc(q.effect.change)})</p>` : `<p class="note">Not simulated: fire and EMS only</p>`}
+      ${q.note ? `<p>“${esc(q.note)}”</p>` : ""}<p class="note">${esc(q.name || "A resident")}, ${esc(q.created)}</p></div>
+    <button class="vote ${v.has(q.id) ? "on" : ""}" type="button" data-id="${esc(q.id)}" aria-label="Vote for this proposal">${q.votes}<small>vote${q.votes === 1 ? "" : "s"}</small></button></li>`).join("")
+    : `<li class="note">No proposals yet. Be the first.</li>`;
+  document.querySelectorAll(".vote").forEach((b) => (b.onclick = async () => {
+    if (b.classList.contains("on")) return;
+    const r = await fetch("/api/vote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: b.dataset.id, client: CLIENT }) });
+    if (r.ok) { try { const v2 = voted(); v2.add(b.dataset.id); localStorage.setItem("medio-voted", JSON.stringify([...v2])); } catch (e) { /* private mode */ } loadProposals(); }
+  }));
+}
+async function loadProposals() {
+  try { PROPS = await fetch("/api/proposals").then((r) => r.json()); } catch (e) { PROPS = []; }
+  renderProposals();
+}
+
+// ---------- Findings: computed from the datasets on the server ----------
+async function loadFindings() {
+  let F;
+  try { F = await fetch("/api/findings").then((r) => r.json()); } catch (e) { $("#find-equity").innerHTML = `<p class="note">Couldn’t load findings.</p>`; return; }
+  const e = F.equity, pts = e.points;
+  const ws = pts.map((p) => p.wait_s), lo = Math.min(...ws) - 15, hi = Math.max(...ws) + 15;
+  const X = (w) => 34 + w * 270, Y = (s) => 172 - (s - lo) / (hi - lo) * 158;
+  const slow = new Set(e.slowest.slice(0, 3).map((x) => x.hood));
+  const svg = `<svg class="scatter" viewBox="0 0 320 200" role="img" aria-label="Each dot is a neighborhood: share of white residents across, typical wait for help up. Correlation ${e.r_white}.">
+    <line x1="34" y1="172" x2="304" y2="172" stroke="currentColor" opacity=".25"/><line x1="34" y1="10" x2="34" y2="172" stroke="currentColor" opacity=".25"/>
+    ${pts.map((p) => `<circle cx="${X(p.white).toFixed(1)}" cy="${Y(p.wait_s).toFixed(1)}" r="${slow.has(p.hood) ? 5 : 3.6}" fill="${slow.has(p.hood) ? "#c23a2b" : "#e8622c"}" opacity="${slow.has(p.hood) ? 1 : 0.7}"><title>${esc(p.hood)}: ${mmss(p.wait_s)}, ${pct(p.white)} white</title></circle>`).join("")}
+    ${pts.filter((p) => slow.has(p.hood)).map((p) => `<text class="lbl" x="${Math.min(X(p.white) + 7, 230).toFixed(1)}" y="${(Y(p.wait_s) + 4).toFixed(1)}">${esc(p.hood.split(" ")[0])}</text>`).join("")}
+    <text x="34" y="190">0% white</text><text x="304" y="190" text-anchor="end">100% white</text>
+    <text x="30" y="16" text-anchor="end">${mmss(hi)}</text><text x="30" y="172" text-anchor="end">${mmss(lo)}</text></svg>`;
+  $("#find-equity").innerHTML = `<h2>Neighborhoods with fewer white residents wait longer for help</h2>
+    <div class="big2"><div><b class="num">${e.least_white_quarter.wait}</b><span>typical wait in the quarter of neighborhoods with the fewest white residents (${e.least_white_quarter.white})</span></div>
+    <div><b class="num">${e.most_white_quarter.wait}</b><span>in the quarter with the most (${e.most_white_quarter.white})</span></div></div>
+    <p class="wi-lead">A ${e.gap} gap in real recorded arrival times. Across ${e.n} neighborhoods, the correlation is r = ${e.r_white}. Slowest: ${e.slowest.slice(0, 3).map((x) => `${esc(x.hood)} ${x.wait}`).join(", ")}.</p>${svg}
+    <p class="oc-note">Data: DataSF Fire Department Calls for Service (real October 2026 arrival times) joined with Census ACS population by neighborhood. This is a correlation: the slow areas are also the farthest from fire stations.</p>`;
+  const sp = F.best_spots;
+  $("#find-spots").innerHTML = sp.length ? `<h2>Where a new fire station would help most</h2>
+    <p class="wi-lead">We put a new station (an engine and an ambulance) at the center of every neighborhood, one at a time, and replayed October each time. Click one to see it on the map.</p>
+    <ol class="spots">${sp.slice(0, 5).map((x) => `<li><button type="button" data-lat="${x.lat}" data-lng="${x.lng}"><b>${esc(x.hood)}</b><em class="num">${esc(x.change)}</em>
+      <span>${x.before} → ${x.after} typical wait nearby · ${x.helped} of ${x.calls} calls 30+ s faster</span></button></li>`).join("")}</ol>` : "";
+  document.querySelectorAll(".spots button").forEach((b) => (b.onclick = () => {
+    PROP_KIND = "fire"; document.querySelectorAll(".prop-kind [data-kind]").forEach((x) => x.classList.toggle("on", x.dataset.kind === "fire"));
+    pickSpot(+b.dataset.lng, +b.dataset.lat);
+  }));
+  $("#find-data").innerHTML = `<h2>The data behind every number</h2>
+    <p class="wi-lead">Checked against reality: on October 2026, a month the model never saw, neighborhood medians match real arrival times with r = ${F.accuracy.r} (typical miss ${F.accuracy.hood_err} per neighborhood).</p>
+    <ul class="datasets">${F.datasets.map((x) => `<li><b>${esc(x.name)}</b><span>${esc(x.source)}</span><p>${esc(x.use)}</p></li>`).join("")}</ul>`;
+}
+loadProposals();
+loadFindings();
 // ---------- boot ----------
 (async () => {
   const get = (u) => fetch(u).then((r) => r.json());
