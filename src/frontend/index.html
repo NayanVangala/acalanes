@@ -173,10 +173,12 @@ table.acc tr.ours td { color: var(--ok); font-weight: 600; }
 
 /* your location */
 .me-block h2 { color: var(--ink); font-size: 15px; }
-.me-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 8px; }
-.me-row .link { white-space: nowrap; }
-.me-privacy { font-size: 12px; color: var(--ink-faint); }
+.me-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-faint); }
+.me-geo { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 7px; white-space: nowrap; }
+.me-geo svg { width: 15px; height: 15px; flex: none; }
+.me-privacy { margin: -4px 0 0; font-size: 12px; color: var(--ink-faint); }
 .me-card { display: grid; gap: 10px; border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: rgba(255,255,255,0.03); }
+.me-card[hidden] { display: none; }
 .me-card.stop { border-color: rgba(255,107,91,.55); background: rgba(255,107,91,.08); }
 .me-card.warn { border-color: rgba(255,194,75,.55); background: rgba(255,194,75,.06); }
 .me-card.pass { border-color: rgba(61,220,151,.55); background: rgba(61,220,151,.06); }
@@ -292,7 +294,8 @@ dialog p b { color: var(--ink); }
     <section class="block me-block" id="me-block" data-pane="whatif">
       <h2>How fast would help reach you? <button class="link" id="me-clear" type="button" hidden>Clear</button></h2>
       <form class="ask" id="me-form"><input id="me-q" type="text" autocomplete="street-address" placeholder="Enter a San Francisco address" aria-label="Your address in San Francisco"><button class="btn" type="submit" id="me-go">Find</button></form>
-      <div class="me-row"><button class="link" id="me-geo" type="button">Use my current location</button><span class="me-privacy">Looked up with OpenStreetMap, never saved</span></div>
+      <div class="me-row"><span>or</span><button class="btn me-geo" id="me-geo" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Use my current location</button></div>
+      <p class="me-privacy">Addresses are looked up with OpenStreetMap and never saved.</p>
       <p class="ask-out" id="me-msg" role="status" hidden></p>
       <div class="me-card" id="me-card" hidden></div>
     </section>
