@@ -892,6 +892,9 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
 .set-check { display: grid; grid-template-columns: 20px 1fr; gap: 10px; align-items: start; padding: 10px 0; border-top: 1px solid var(--rule); cursor: pointer; }
 .set-check input { margin-top: 3px; width: 16px; height: 16px; accent-color: var(--ink); }
 .set-reset { margin-top: 14px; width: 100%; }
+
+.tl-k { display: block; font-size: 11px; font-weight: 500; color: var(--ink-faint); line-height: 1; margin-bottom: 1px; }
+.timeline .scrubwrap { cursor: ew-resize; }
 </style>
 </head>
 <body>
@@ -996,7 +999,7 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
     <section class="block" data-pane="whatif"><details class="presets">
       <summary>Preset scenarios</summary>
       <div class="options">
-        <button class="ex" data-ex="today"><kbd>A</kbd><span>Today, as is</span><em class="num" data-meta="today"></em></button>
+        <button class="ex" data-ex="today"><kbd>A</kbd><span>No changes (October 2026)</span><em class="num" data-meta="today"></em></button>
         <button class="ex" data-ex="close3"><kbd>B</kbd><span>Close 3 downtown stations</span><em class="num" data-meta="close3"></em></button>
         <button class="ex" data-ex="heat"><kbd>C</kbd><span>Heat wave, 2× calls</span><em class="num" data-meta="heat"></em></button>
         <button class="ex" data-ex="south"><kbd>D</kbd><span>2 ambulances for the south</span><em class="num" data-meta="south"></em></button>
@@ -1133,10 +1136,10 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
 
 <div class="timeline frost">
   <button class="play" id="play" aria-label="Pause replay"><svg viewBox="0 0 24 24" fill="currentColor" id="play-icon"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg></button>
-    <div class="clock"><b class="num" id="clock">08:00</b><select id="day" aria-label="Day to replay"></select></div>
+    <div class="clock"><span class="tl-k">Replaying a real day</span><b class="num" id="clock">08:00</b><select id="day" aria-label="Day to replay" title="Pick another real day from October 2026"></select></div>
     <div class="track">
       <div class="scrubwrap"><svg id="activity" viewBox="0 0 24 100" preserveAspectRatio="none" aria-hidden="true"></svg>
-        <input type="range" id="scrub" min="0" max="86340" step="60" value="28800" aria-label="Time of day"></div>
+        <input type="range" id="scrub" min="0" max="86340" step="60" value="28800" aria-label="Time of day" title="Drag to any time of the day"></div>
       <div class="hours num" aria-hidden="true"><span>0:00</span><span>6:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
     </div>
     <div class="speed"><div class="seg" role="group" aria-label="Replay speed"><button data-speed="60">1 min/s</button><button class="on" data-speed="300">5 min/s</button><button data-speed="900">15 min/s</button></div></div>
@@ -2001,7 +2004,7 @@ function renderVerdict() {
   const c = RESULT.city, b = BASE.city, scen = isScenario(), rows = hoodRows();
   const worst = Math.max(...rows.map((x) => x.d)), best = Math.min(...rows.map((x) => x.d));
   const dMed = c.median - b.median, dOver = (c.over8 - b.over8) * 100;
-  let cls = "", word = "Today", sub = "How San Francisco responds now, replayed for October 2026.";
+  let cls = "", word = "No changes", sub = "San Francisco as it is, replayed from October 2026’s real calls.";
   if (scen) {
     if (worst >= 60 || dOver >= 5) { cls = "stop"; word = "Strained"; sub = `One neighborhood waits ${Math.round(worst)} s longer.`; }
     else if (worst >= 15) { cls = "warn"; word = "Slower"; sub = `Some neighborhoods wait up to ${Math.round(worst)} s longer.`; }
@@ -2018,7 +2021,7 @@ function renderVerdict() {
   $("#d-over").textContent = scen ? signed(dOver, " pts") : "target 8:00";
   $("#d-over").className = `num ${!scen || Math.abs(dOver) < 0.5 ? "flat" : dOver > 0 ? "up" : "down"}`;
   $("#chip-dot").style.background = { stop: "var(--bad)", warn: "var(--warn)", pass: "var(--ok)" }[cls] || "var(--ink-faint)";
-  $("#chip-verdict").textContent = scen ? `Scenario: ${word.toLowerCase()}` : "Today, as is";
+  $("#chip-verdict").textContent = scen ? `Scenario (${word.toLowerCase()})` : "October 2026, no changes";
   // top strip mirrors the verdict tiles so the key numbers are always on screen
   $("#m-med").textContent = mmss(c.median);
   const sc = $("#scen-chip");
@@ -2502,6 +2505,7 @@ function lookupHTML(d) {
 // a simulated scenario drives the whole map: neighborhood colors, banner, replayed dispatches, pins
 function applyResult(d, fly = true) {
   RESULT = d.result; CUSTOM = d.title; MARKERS = d.markers || [];
+  if (d.hours) { simT = d.hours[0] * 3600; $("#scrub").value = simT; setPlaying(true); }  // watch the hour the question is about
   LAST_OUTCOME = d; if (typeof renderLast === "function") renderLast();
   loadReplay(d.result.replay);
   renderAll();

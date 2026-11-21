@@ -624,6 +624,7 @@ def simulate_plan(plan, me, question=None, day=None):
             "outcome": o, "facts": extra, "markers": marks,
             "focus": {"lat": focus[0], "lng": focus[1], "label": focus[2]} if focus else None,
             "result": {**summary, "replay": replay(log, day if day in DAYS else DEFAULT_DAY)},
+            "hours": list(hours) if hours else None,
             "basis": f"Re-ran all {len(RT['test']):,} real 911 calls from October 2026 through the simulator (validated against reality: neighborhood r = {VALIDATION_R})."}
 
 
