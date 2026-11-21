@@ -1,0 +1,7 @@
+.claude/
+.claude-flow/
+.swarm/
+.env
+node_modules/
+__pycache__/
+.venv/
