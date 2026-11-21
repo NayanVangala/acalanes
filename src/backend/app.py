@@ -8,6 +8,7 @@ POST /api/simulate     {"closed": [stations], "added": [[station, "MEDIC"|"ENGIN
 POST /api/ask          {"text": "close the two stations nearest Bayview"} -> scenario (needs nl.py + ANTHROPIC_API_KEY)
 JSON and /data files are gzip-compressed when the browser accepts it.
 """
+import csv
 import gzip
 import json
 import os
@@ -50,7 +51,7 @@ CACHE = OrderedDict()
 DAYS = Counter(i["day"] for i in RT["test"])
 DEFAULT_DAY = max(DAYS, key=DAYS.get)  # the busiest day makes the liveliest replay
 OFF = round(RT["offset"])
-DATA_FILES = {"stations.json", "hoods.geojson", "people.json", "validation.json", "buildings.json"}
+DATA_FILES = {"stations.json", "hoods.geojson", "people.json", "validation.json", "buildings.json", "police_stations.json"}
 # added units (NEW*) start at a station; find its key from the start coordinates in the sim log
 STATION_AT = {(round(lng, 5), round(lat, 5)): "S" + k for k, (lat, lng) in sim.load_stations().items()}
 try:
@@ -67,6 +68,38 @@ def street_path(d):
     h = RT["homes"].get(d["unit"])
     key = h[0] if h else STATION_AT.get((round(d["from"][0], 5), round(d["from"][1], 5)))
     return routing.route(key, d["to"][0], d["to"][1]) if key else None
+
+
+def load_police():
+    """Real SFPD dispatches (scripts/fetch_police.py), grouped by local day. Empty if the file is missing."""
+    by_day = {}
+    try:
+        stations = {s["district"]: s for s in json.load(open(SF / "police_stations.json"))}
+        with gzip.open(SF / "police_calls.csv.gz", "rt") as f:
+            for r in csv.DictReader(f):
+                if r["district"] in stations:
+                    by_day.setdefault(sim.day(int(r["dispatch"])), []).append(r)
+    except FileNotFoundError:
+        stations = {}
+    return stations, by_day
+
+
+POLICE_STATIONS, POLICE = load_police()
+
+
+@lru_cache(maxsize=40)
+def police_day(ordinal):
+    """[district, fx, fy, tx, ty, dispatch, onscene, clear, call_type, priority, path] for one day, times in
+    seconds after local midnight. Real records: scenarios don't change them. clear = close, capped at 45 min on scene."""
+    t0, out = day_start(ordinal), []
+    for r in POLICE.get(ordinal, []):
+        st = POLICE_STATIONS[r["district"]]
+        tx, ty, d, o = float(r["lng"]), float(r["lat"]), int(r["dispatch"]), int(r["onscene"])
+        c = min(int(r["close"]) if r["close"] else o + 2700, o + 2700)
+        path = routing.route("P" + r["district"], tx, ty) if routing else None
+        out.append([r["district"], st["lng"], st["lat"], tx, ty, d - t0, o - t0, max(c, o) - t0,
+                    r["call_type"], r["priority"], path])
+    return out
 
 
 def day_start(ordinal):
@@ -103,7 +136,7 @@ def replay(log, ordinal):
         c = calls.setdefault(d["incident"], [d["to"][0], d["to"][1], d["call"] - t0, arr, d["hood"], d["call_type"].capitalize()])
         c[3] = min(c[3], arr)
     trips.sort(key=lambda r: r[6])
-    return {"day": ordinal, "trips": trips,
+    return {"day": ordinal, "trips": trips, "police": police_day(ordinal),
             "calls": sorted(([*c[:3], round(c[3]), *c[4:]] for c in calls.values()), key=lambda c: c[2])}
 
 

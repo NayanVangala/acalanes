@@ -1,0 +1,72 @@
+[
+ {
+  "name": "Bayview Station",
+  "district": "BAYVIEW",
+  "address": "201 Williams Ave",
+  "lat": 37.729642,
+  "lng": -122.398087
+ },
+ {
+  "name": "Central Station",
+  "district": "CENTRAL",
+  "address": "766 Vallejo St",
+  "lat": 37.798645,
+  "lng": -122.409863
+ },
+ {
+  "name": "Ingleside Station",
+  "district": "INGLESIDE",
+  "address": "1 Sergeant John V Young St",
+  "lat": 37.72477,
+  "lng": -122.446251
+ },
+ {
+  "name": "Mission Station",
+  "district": "MISSION",
+  "address": "630 Valencia St",
+  "lat": 37.762681,
+  "lng": -122.42197
+ },
+ {
+  "name": "Northern Station",
+  "district": "NORTHERN",
+  "address": "1125 Fillmore St",
+  "lat": 37.780161,
+  "lng": -122.43239
+ },
+ {
+  "name": "Park Station",
+  "district": "PARK",
+  "address": "1899 Waller St",
+  "lat": 37.767824,
+  "lng": -122.455226
+ },
+ {
+  "name": "Richmond Station",
+  "district": "RICHMOND",
+  "address": "461 6Th Ave",
+  "lat": 37.780001,
+  "lng": -122.464461
+ },
+ {
+  "name": "Southern Station",
+  "district": "SOUTHERN",
+  "address": "1245 3Rd St",
+  "lat": 37.772554,
+  "lng": -122.389183
+ },
+ {
+  "name": "Taraval Station",
+  "district": "TARAVAL",
+  "address": "2345 24Th Ave",
+  "lat": 37.743734,
+  "lng": -122.481461
+ },
+ {
+  "name": "Tenderloin Station",
+  "district": "TENDERLOIN",
+  "address": "301 Eddy St",
+  "lat": 37.783646,
+  "lng": -122.412907
+ }
+]

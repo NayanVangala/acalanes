@@ -4,7 +4,7 @@ Source: DataSF "Streets – Active and Retired" (3psu-pn9h), active segments onl
   curl -L -o data/raw/streets/streets.geojson \
     'https://data.sfgov.org/resource/3psu-pn9h.geojson?$where=active=true&$select=cnn,classcode,streetname,line&$limit=50000'
 
-python3 src/backend/routing.py --build   -> data/build/routes.pkl.gz (one shortest-path tree per unit home and station)
+python3 src/backend/routing.py --build   -> data/build/routes.pkl.gz (one shortest-path tree per unit home, fire station and police station)
 python3 src/backend/routing.py           -> self-check
 
 Graph is undirected (emergency vehicles ignore one-way streets), largest connected component only,
@@ -126,6 +126,7 @@ def build():
         homes = pickle.load(f)["homes"]
     sources = {h[0]: (h[1], h[2]) for h in homes.values()}
     sources.update({"S" + k: v for k, v in sim.load_stations().items()})
+    sources.update({"P" + p["district"]: (p["lat"], p["lng"]) for p in json.load(open(SF / "police_stations.json"))})
     src, pred = {}, {}
     for key, (la, ln) in sources.items():
         n = g.snap(la, ln)
