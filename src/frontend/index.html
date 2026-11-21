@@ -1315,6 +1315,7 @@ const RGB = { engine: [255, 90, 69], medic: [76, 201, 255], call: [255, 176, 32]
 let META, HOODS, STATIONS, PEOPLE, VALID, BASE, RESULT, REPLAY, SEGS = [], DEPARTS = [], BUILDINGS = null, followUnit = null;
 let POLICE_ST = null, POL = [], PSEGS = [], HOSP = null;
 let ME = null;  // the visitor's chosen spot: { lng, lat, label, hood }
+let ME_ROUTE = null;  // street route the first engine would drive to the visitor's spot (from /api/here)
 let ROUTES = [], SEL_ROUTE = null;  // every trip's route, and the clicked one
 // Settings (menu > Settings), kept per browser. translucency/grey/routes 0-100, vehicle 50-200 (%).
 const SET_DEFAULT = { translucency: 35, grey: 0, routes: 45, vehicle: 100, labels: true, smooth: true, perf: "balanced" };
@@ -1849,7 +1850,7 @@ function layers(t, veh) {
   L.push(halo.clone({ radiusScale: 1 + 0.6 * ph, opacity: 0.55 + 0.45 * (1 - ph) }));
   if (ME) {
     const st = nearestStation();
-    if (st) L.push(new deck.ArcLayer({
+    if (st && !ME_ROUTE) L.push(new deck.ArcLayer({  // straight arc only until the street route arrives
       id: "me-arc", data: [{ from: [st.lng, st.lat], to: [ME.lng, ME.lat] }], getSourcePosition: (d) => d.from, getTargetPosition: (d) => d.to,
       getSourceColor: [243, 154, 43, 230], getTargetColor: [255, 255, 255, 240], getWidth: 4, widthUnits: "pixels", getHeight: 0.5,
       parameters: { depthTest: false },
@@ -1861,6 +1862,19 @@ function layers(t, veh) {
       getLineColor: (d, { index }) => (index ? [243, 154, 43, 255] : [243, 154, 43, 200]), getLineWidth: (d, { index }) => (index ? 4 : 2),
       parameters: { depthTest: false }, updateTriggers: { getRadius: pulse, getPosition: zk },
     }));
+  }
+  if (ME && ME_ROUTE) {  // Google Maps-style route from the first engine's station to the spot, with the engine driving it
+    L.push(memo("me-route-casing", [ME_ROUTE], () => new deck.PathLayer({ id: "me-route-casing", data: [ME_ROUTE], getPath: (d) => d.path,
+      getColor: [255, 255, 255, 240], widthUnits: "pixels", getWidth: 11, capRounded: true, jointRounded: true, parameters: { depthTest: false } })));
+    L.push(memo("me-route", [ME_ROUTE], () => new deck.PathLayer({ id: "me-route", data: [ME_ROUTE], getPath: (d) => d.path,
+      getColor: [26, 115, 232, 255], widthUnits: "pixels", getWidth: 6, capRounded: true, jointRounded: true, parameters: { depthTest: false } })));
+    const k = ((performance.now() - ME_ROUTE.t0) % 7000) / 5600;  // ~5.6 s on the road, a short stop at the door, repeat
+    const [pos, hd] = along(ME_ROUTE.g, Math.min(1, k)), eng = [{ p: at(pos[0], pos[1]), h: hd }], fl = Math.floor(performance.now() / 260) % 2;
+    const engMat = { ambient: 0.55, diffuse: 0.6, shininess: 40, specularColor: [80, 80, 80] };
+    L.push(new deck.SimpleMeshLayer({ id: "me-engine", data: eng, mesh: MESH.engine, getPosition: (d) => d.p, getOrientation: (d) => [0, -d.h, 0],
+      sizeScale: vehicleScale(), getColor: [255, 255, 255], _useMeshColors: true, material: engMat }));
+    L.push(new deck.SimpleMeshLayer({ id: "me-engine-bar", data: eng, mesh: MESH.barEngine, getPosition: (d) => d.p, getOrientation: (d) => [0, -d.h, 0],
+      sizeScale: vehicleScale(), getColor: fl ? [255, 40, 40] : [60, 120, 255], _useMeshColors: true, material: engMat, updateTriggers: { getColor: fl } }));
   }
   // every route driven so far today stays on the map, faint; click one for the vehicle and the call log
   if (show.traffic && SET.routes > 0) L.push(memo("routes", [ROUTES, zk, SET.routes], () => new deck.PathLayer({
@@ -2270,6 +2284,12 @@ async function loadHere() {
     renderHere(d);
   } catch (e) { if ($("#here")) $("#here").innerHTML = `<p class="note">Couldn’t reach the server for the breakdown.</p>`; }
 }
+function fitRoute(path) {  // frame the whole station-to-door route
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const [x, y] of path) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  const spanM = Math.max((x1 - x0) * M_LAT * Math.cos((y0 * Math.PI) / 180), (y1 - y0) * M_LAT, 300);
+  setView({ longitude: (x0 + x1) / 2, latitude: (y0 + y1) / 2, zoom: Math.max(12.5, Math.min(16.5, Math.log2(40000 / spanM) + 9.5)), pitch: 50 }, 1200);
+}
 function renderHere(d) {
   const el = $("#here"), scen = d.is_scenario;
   const cell = (x) => (x ? `<b class="num">${mmss(x.median)}</b>` : "—");
@@ -2280,10 +2300,18 @@ function renderHere(d) {
     return `<tr><td>${esc(b[label])}</td><td>${cell(x)}${delta(b)}${x ? `<span class="bar" style="width:${Math.round((x.median / max) * 40)}px"></span>` : ""}</td><td class="num">${x ? pct(x.over8) : "—"}</td><td class="num">${x ? x.n : 0}</td></tr>`; }).join("");
   const resp = d.responders.map((r) => `Station ${esc(r.station)} (${mmss(r.drive_s["Midday (10–16)"])} drive)`).join(", ");
   el.dataset.ready = "1";
+  const first = d.responders[0];
+  if (first && first.path) {
+    const fresh = !ME_ROUTE || ME_ROUTE.key !== HERE_KEY;
+    ME_ROUTE = { key: HERE_KEY, path: first.path, g: geom(first.path), station: first.station, t0: fresh ? performance.now() : ME_ROUTE.t0 };
+    if (fresh) fitRoute(first.path);
+  }
+  const routeKm = first && first.path ? (geom(first.path).total / 1000).toFixed(1) : null;
   el.innerHTML = `<h3>When you call matters</h3>
     <table><tr><th>Time of day</th><th>Typical wait</th><th>Over 8 min</th><th>Calls</th></tr>${rows(d.by_time, "label")}</table>
     ${d.by_kind.length > 1 ? `<h3>What kind of emergency</h3><table><tr><th>Emergency</th><th>Typical wait</th><th>Over 8 min</th><th>Calls</th></tr>${rows(d.by_kind, "kind")}</table>` : ""}
     <p class="me-line">Most likely first engine: ${resp}.</p>
+    ${routeKm ? `<p class="me-line">On the map: the engine from <b>Station ${esc(first.station)}</b> drives ${routeKm} km on real streets, about <b class="num">${mmss(first.drive_s["Midday (10–16)"])}</b> at midday.</p>` : ""}
     <p class="note">${d.calls} real calls within ${d.radius_m} m of this spot, October 2026${scen ? `, re-simulated under your scenario (changes vs today in color)` : ""}. Bars compare times of day.</p>`;
 }
 function renderMine() {
@@ -2336,6 +2364,7 @@ function setMe(lng, lat, label) {
     return;
   }
   ME = { lng, lat, label, hood };
+  ME_ROUTE = null;
   openPanel("location");
   msg.hidden = true;
   $("#me-clear").hidden = false;
@@ -2453,7 +2482,7 @@ $("#me-geo").onclick = () => {
     () => { msg.className = "toast err"; msg.textContent = "Location access was blocked or timed out. Type an address instead."; },
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
 };
-$("#me-clear").onclick = () => { ME = null; for (const el of ADDRESS_INPUTS) el.value = ""; $("#me-msg").hidden = true; $("#me-clear").hidden = true; renderMine(); };
+$("#me-clear").onclick = () => { ME = null; ME_ROUTE = null; for (const el of ADDRESS_INPUTS) el.value = ""; $("#me-msg").hidden = true; $("#me-clear").hidden = true; renderMine(); };
 
 // ---------- wiring ----------
 $("#me-geo2").onclick = () => $("#me-geo").click();  // the Location tab's button uses the bottom bar's locate flow

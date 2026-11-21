@@ -225,6 +225,11 @@ def here(lng, lat, closed=(), added=(), volume=1.0):
         resp.append({"station": st, "drive_s": {BAND_LABEL[b]: round(RT["model"](home, c, lat, lng, b)) for b in range(5)},
                      "km": round(sim.km(lat, lng, slat, slng), 2)})
     out["responders"] = sorted(resp, key=lambda r: r["drive_s"][BAND_LABEL[2]])[:3]
+    # the street route the first engine would drive (DataSF centerlines, shortest path from its station)
+    if out["responders"] and routing is not None:
+        path = routing.route("S" + out["responders"][0]["station"], lng, lat)
+        if path and len(path) >= 2:
+            out["responders"][0]["path"] = path
     return out
 
 
