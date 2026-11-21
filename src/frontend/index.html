@@ -1204,7 +1204,7 @@ a.btn { display: inline-grid; place-items: center; text-decoration: none; color:
     <div class="clock"><span class="tl-k" id="tod-label">Time of day</span><b class="num" id="clock">08:00</b><select hidden id="day" aria-label="Day to replay" title="Pick another real day from October 2026"></select></div>
     <div class="track">
       <div class="scrubwrap"><svg id="activity" viewBox="0 0 24 100" preserveAspectRatio="none" aria-hidden="true"></svg>
-        <input type="range" id="scrub" min="0" max="86340" step="60" value="28800" aria-label="Time of day" title="Drag to any time of the day"></div>
+        <input type="range" id="scrub" min="0" max="86340" step="60" value="61200" aria-label="Time of day" title="Drag to any time of the day"></div>
       <div class="hours num" aria-hidden="true"><span>0:00</span><span>6:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
     </div>
     <div class="tl-sw" role="group" aria-label="Show on the map"><button type="button" class="sw" data-sw="l-traffic" aria-pressed="false">Dispatches</button><button type="button" class="sw" data-sw="l-routes" aria-pressed="false">Routes</button></div>
@@ -1367,7 +1367,7 @@ let lastRun = JSON.stringify(scenario);
 let CUSTOM = null, MARKERS = [], PROPS = [], PICKING = false, PROP_KIND = "fire", PROP_SPOT = null;  // typed scenario title, map pins, proposals
 let addType = "MEDIC";
 let view = { maxPitch: 80, ...HOME, zoom: LIMIT.minZoom, minZoom: LIMIT.minZoom, maxZoom: LIMIT.maxZoom, pitch: 0, bearing: 0 };
-let deckgl, simT = 8 * 3600, speed = 300, playing = !reduced, lastFrame = performance.now();
+let deckgl, simT = 17 * 3600, speed = 300, playing = !reduced, lastFrame = performance.now();
 const show = { sat: true, grid: false, hoods: true, extrude: false, bld: true, g3d: true, police: true, hosp: true, traffic: false, routes: false };  // traffic: the replay's moving vehicles, trails, routes and call pulses (heavy on the GPU, off by default)
 // ---------- Google Photorealistic 3D Tiles (only when the server has a key) ----------
 let GOOGLE_KEY = null, dropIn = false;
