@@ -487,13 +487,15 @@ const BAY = [-122.75, 37.40, -121.80, 38.10];  // imagery around SF so the edges
 const BAY_MASK = [[[BAY[0], BAY[1]], [BAY[2], BAY[1]], [BAY[2], BAY[3]], [BAY[0], BAY[3]]],
   [[BBOX[0], BBOX[1]], [BBOX[0], BBOX[3]], [BBOX[2], BBOX[3]], [BBOX[2], BBOX[1]]]];  // outer ring with SF cut out
 // keep the camera over the city: center stays near SF, can't zoom out past the Bay
-const LIMIT = { lng: [-122.62, -122.18], lat: [37.62, 37.93], minZoom: 10.8 };
+const LIMIT = { lng: [-122.62, -122.18], lat: [37.62, 37.93], minZoom: 10.8, maxZoom: 20 };
 const maxPitchAt = (z) => (z < 11.5 ? 50 : z < 12.5 ? 60 : z < 14 ? 68 : 80);
 function clampView(v) {
   const longitude = Math.min(LIMIT.lng[1], Math.max(LIMIT.lng[0], v.longitude)), latitude = Math.min(LIMIT.lat[1], Math.max(LIMIT.lat[0], v.latitude));
   // in Google's 3D city the ground is up to ~280 m high: pivot the camera on the ground under it, not on sea level
-  const zoom = Math.max(LIMIT.minZoom, v.zoom);
-  return { ...v, longitude, latitude, zoom, pitch: Math.min(v.pitch, maxPitchAt(zoom)), position: [0, 0, groundAt(longitude, latitude)] };
+  const zoom = Math.min(LIMIT.maxZoom, Math.max(LIMIT.minZoom, v.zoom));
+  // minZoom/maxZoom ride along in the view state so deck.gl's own controller enforces them on every input
+  // (wheel, pinch, double-click, inertia), not just the ones that pass through this function
+  return { ...v, longitude, latitude, zoom, minZoom: LIMIT.minZoom, maxZoom: LIMIT.maxZoom, pitch: Math.min(v.pitch, maxPitchAt(zoom)), position: [0, 0, groundAt(longitude, latitude)] };
 }
 const groundAt = (lng, lat) => (typeof groundZ === "function" ? Math.max(0, groundZ(lng, lat)) : 0);
 const CELL = [0.0057, 0.0045];
@@ -514,7 +516,7 @@ let ME = null;  // the visitor's chosen spot: { lng, lat, label, hood }
 let scenario = { closed: [], added: [], volume: 1 };
 let lastRun = JSON.stringify(scenario);
 let addType = "MEDIC";
-let view = { maxPitch: 80, ...HOME, zoom: 10.6, pitch: 0, bearing: 0 };
+let view = { maxPitch: 80, ...HOME, zoom: LIMIT.minZoom, minZoom: LIMIT.minZoom, maxZoom: LIMIT.maxZoom, pitch: 0, bearing: 0 };
 let deckgl, simT = 8 * 3600, speed = 300, playing = !reduced, lastFrame = performance.now();
 const show = { sat: true, grid: true, hoods: true, extrude: false, bld: true, g3d: true, police: true, hosp: true };
 // ---------- Google Photorealistic 3D Tiles (only when the server has a key) ----------
@@ -1087,7 +1089,9 @@ function initDeck() {
     onViewStateChange: ({ viewState, interactionState }) => {
       const user = interactionState && (interactionState.isDragging || interactionState.isPanning || interactionState.isZooming || interactionState.isRotating);
       if (user) { if (followUnit) stopFollow(); hideHint(); }
-      view = (interactionState && interactionState.inTransition) || viewState.transitionDuration ? viewState : clampView(viewState);  // don't fight fly-to animations
+      // clamp everything except the in-between frames of an animation (fly-tos are clamped at their target by setView).
+      // Checking viewState.transitionDuration here let pinch zoom and inertia pans skip the limits entirely.
+      view = interactionState && interactionState.inTransition ? viewState : clampView(viewState);
       deckgl.setProps({ viewState: view });
     },
     layers: [], getTooltip: tooltip,
