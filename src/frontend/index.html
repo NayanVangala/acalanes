@@ -180,10 +180,66 @@ dialog h2 { margin: 0 0 8px; font-size: 20px; }
 dialog p { margin: 0 0 10px; color: var(--ink-soft); font-size: 14px; }
 dialog p b { color: var(--ink); }
 
-@media (max-width: 1180px) { .feed { display: none; } }
+/* ---------- layout pass: strip, tabs, legend, dock, feed ---------- */
+.metrics { position: fixed; z-index: 10; top: 16px; right: 16px; display: flex; align-items: center; gap: 4px; padding: 6px 8px; }
+.m-verdict { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px 6px 8px; font-weight: 600; font-size: 14px; border-right: 1px solid var(--line); margin-right: 4px; white-space: nowrap; }
+.m-item { display: inline-flex; align-items: baseline; gap: 7px; padding: 4px 12px; white-space: nowrap; }
+.m-item + .m-item { border-left: 1px solid var(--line); }
+.m-label { font-size: 12.5px; color: var(--ink-soft); }
+.m-item b { font-size: 19px; font-weight: 500; }
+.chip { font-style: normal; font-size: 12px; padding: 2px 6px; border-radius: 6px; background: rgba(255,255,255,0.07); }
+.chip.up { background: rgba(255,107,91,0.16); } .chip.down { background: rgba(61,220,151,0.16); }
+.chip[hidden] { display: none; }
+.brand .icon-btn { width: 30px; height: 30px; }
+
+.tabs { display: flex; gap: 2px; padding: 8px 8px 0; border-bottom: 1px solid var(--line); }
+.tabs button { flex: 1; border: 0; background: transparent; color: var(--ink-soft); font-size: 13.5px; font-weight: 600; padding: 9px 6px 10px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tabs button:hover { color: var(--ink); }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.panel:not([data-tab="whatif"]) [data-pane="whatif"], .panel:not([data-tab="results"]) [data-pane="results"], .panel:not([data-tab="map"]) [data-pane="map"] { display: none; }
+.block + .block { border-top: 0; padding-top: 4px; }
+.cta:disabled { background: transparent; color: var(--ink-faint); box-shadow: inset 0 0 0 1px var(--line-strong); opacity: 1; }
+
+.legend { position: fixed; z-index: 9; left: 16px; bottom: 16px; width: 340px; padding: 10px 14px; display: grid; gap: 7px; font-size: 12.5px; color: var(--ink-soft); }
+.lg-ramp { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; }
+.lg-ramp .ramp { height: 6px; }
+.lg-row { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.lg-row span { display: inline-flex; align-items: center; gap: 6px; }
+
+.panel { width: 340px; bottom: auto; max-height: calc(100vh - 76px - 132px); }
+.panel .scroll { flex: 1 1 auto; min-height: 0; }
+.dock { left: 372px; right: 16px; width: auto; transform: none; grid-template-columns: auto auto minmax(0, 1fr) auto; }
+.zoom { bottom: 116px; }
+.hint { left: calc(50% + 178px); bottom: 112px; }
+.follow { top: 70px; }
+.scrubwrap { position: relative; height: 30px; }
+#activity { position: absolute; left: 8px; right: 8px; bottom: 9px; height: 22px; width: calc(100% - 16px); pointer-events: none; }
+#activity rect { fill: rgba(255,255,255,0.13); }
+#activity rect.past { fill: rgba(243,154,43,0.55); }
+#activity rect.pol { fill: rgba(90,140,255,0.22); }
+#activity rect.pol.past { fill: rgba(90,140,255,0.55); }
+.scrubwrap input[type=range] { position: absolute; left: 0; right: 0; bottom: 0; margin: 0; background: transparent; }
+.hours { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--ink-faint); padding: 0 8px; margin-top: -2px; }
+
+.feed { width: 290px; }
+.feed h2 { align-items: center; }
+.feed-toggle { border: 0; background: transparent; padding: 0; font: inherit; color: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.feed-toggle::after { content: ""; width: 6px; height: 6px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); margin-top: -3px; transition: transform .2s; }
+.feed.collapsed .feed-toggle::after { transform: rotate(-45deg); margin-top: 0; }
+.feed.collapsed li:nth-child(n+3) { display: none; }
+.feed li { grid-template-columns: 40px minmax(0, 1fr) auto; align-items: center; padding: 6px 4px; }
+.feed .u { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
+.feed .w { grid-column: auto; color: var(--ink-soft); font-size: 12px; }
+.feed li:nth-child(4) { opacity: .8; } .feed li:nth-child(5) { opacity: .6; } .feed li:nth-child(6) { opacity: .45; } .feed li:nth-child(n+7) { opacity: .3; }
+
+@media (max-width: 1180px) { .feed { display: none; } .m-item:nth-child(4) { display: none; } }
+@media (max-width: 1000px) { .m-label { display: none; } }
+@media (max-width: 980px) { .legend { display: none; } .panel { bottom: 116px; } .dock { left: 16px; } }
 @media (max-width: 760px) {
   .brand span { display: none; }
   .panel { top: auto; bottom: 150px; height: 42vh; width: calc(100vw - 32px); }
+  .metrics { top: 64px; left: 16px; right: auto; } .m-item:nth-child(n+4) { display: none; }
+  .hint { left: 50%; }
   .dock { grid-template-columns: auto 1fr; }
   .speed, .counters { display: none; }
   .zoom { bottom: auto; top: 76px; }
@@ -197,20 +253,30 @@ dialog p b { color: var(--ink); }
 <header class="glass brand">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6"/></svg>
   <b>Runnr</b><span>San Francisco 911, replayed from real calls</span>
+  <button class="icon-btn" id="help" aria-label="About Runnr" title="About">?</button>
   <button class="icon-btn" id="panel-toggle" aria-label="Hide controls" title="Hide controls"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg></button>
 </header>
 
-<div class="glass verdict-chip" role="status"><span class="vdot" id="chip-dot"></span><span id="chip-verdict">Loading</span>
-  <button class="icon-btn" id="help" aria-label="About Runnr">?</button></div>
+<div class="glass metrics" role="status" aria-live="polite">
+  <span class="m-verdict"><span class="vdot" id="chip-dot"></span><span id="chip-verdict">Loading</span></span>
+  <span class="m-item"><span class="m-label">Median wait for help</span><b class="num" id="m-med">—</b><i class="num chip" id="m-dmed" hidden></i></span>
+  <span class="m-item"><span class="m-label">Calls over 8 min</span><b class="num" id="m-over">—</b><i class="num chip" id="m-dover" hidden></i></span>
+  <span class="m-item"><span class="m-label">Calls replayed</span><b class="num" id="m-calls">—</b></span>
+</div>
 
-<aside class="glass panel" id="panel">
+<aside class="glass panel" id="panel" data-tab="whatif">
+  <nav class="tabs" role="tablist" aria-label="Panel sections">
+    <button role="tab" data-tab="whatif" aria-selected="true">What if</button>
+    <button role="tab" data-tab="results" aria-selected="false">Results</button>
+    <button role="tab" data-tab="map" aria-selected="false">Map</button>
+  </nav>
   <div class="scroll">
-    <section class="block" id="ask-block">
+    <section class="block" id="ask-block" data-pane="whatif">
       <form class="ask" id="ask-form"><input id="ask" type="text" autocomplete="off" placeholder="Ask a what-if, e.g. close the two stations nearest Bayview" aria-label="Ask a what-if question"><button class="btn" type="submit" id="ask-go">Ask</button></form>
       <p class="ask-out" id="ask-out" hidden></p>
     </section>
 
-    <section class="block">
+    <section class="block" data-pane="whatif">
       <h2>Change the city <button class="link" id="clear">Reset</button></h2>
       <div class="row"><select id="close-sel" aria-label="Station to close"></select><button class="btn" id="close-add">Close</button></div>
       <div class="chips" id="closed-chips"></div>
@@ -224,7 +290,7 @@ dialog p b { color: var(--ink); }
       <div class="range-row"><input type="range" id="volume" min="0.5" max="3" step="0.25" value="1"><output id="volume-out" class="num" for="volume">1.0×</output></div>
     </section>
 
-    <section class="block">
+    <section class="block" data-pane="whatif">
       <h2>Try a scenario</h2>
       <div class="examples">
         <button class="ex" data-ex="today"><span class="dot" style="background:var(--ink-faint)"></span>Today, as is</button>
@@ -234,7 +300,7 @@ dialog p b { color: var(--ink); }
       </div>
     </section>
 
-    <section class="block">
+    <section class="block" data-pane="results">
       <div class="verdict" id="verdict">
         <p class="vword" id="vword">…</p>
         <p class="vsub" id="vsub">Loading the simulator</p>
@@ -245,13 +311,13 @@ dialog p b { color: var(--ink); }
       </div>
     </section>
 
-    <section class="block">
+    <section class="block" data-pane="results">
       <h2 id="findings-title">Slowest neighborhoods</h2>
       <div id="findings"></div>
     </section>
 
-    <section class="block">
-      <h2>Map</h2>
+    <section class="block" data-pane="map">
+      <h2>Layers</h2>
       <div class="toggles">
         <label class="toggle" id="t-g3d" hidden><input type="checkbox" id="l-g3d" checked>Google 3D city</label>
         <label class="toggle"><input type="checkbox" id="l-sat" checked>Satellite</label>
@@ -262,22 +328,9 @@ dialog p b { color: var(--ink); }
         <label class="toggle" id="t-pol" hidden><input type="checkbox" id="l-pol" checked>Police</label>
         <label class="toggle" id="t-hosp" hidden><input type="checkbox" id="l-hosp" checked>Hospitals</label>
       </div>
-      <div class="ramp" aria-hidden="true"></div>
-      <div class="ramp-labels num"><span>6:00</span><span>8:00</span><span>10:00+</span></div>
-      <div class="legend-row">
-        <span><i class="dot" style="background:var(--engine)"></i>Engine or truck</span>
-        <span><i class="dot" style="background:var(--medic)"></i>Ambulance</span>
-        <span><i class="dot" style="background:#5a8cff"></i>Police car</span>
-        <span><i class="dot" style="background:var(--call)"></i>Waiting for help</span>
-      </div>
-      <div class="legend-row">
-        <span><i class="dot" style="background:#ff6e32;box-shadow:0 0 6px #ff6e32"></i>Fire station</span>
-        <span><i class="dot" style="background:#508cff;box-shadow:0 0 6px #508cff"></i>Police station</span>
-        <span><i class="dot" style="background:#ff3c46;box-shadow:0 0 6px #fff"></i>Hospital</span>
-      </div>
     </section>
 
-    <section class="block">
+    <section class="block" data-pane="results">
       <details>
         <summary>How accurate is this?</summary>
         <table class="acc num" id="acc"></table>
@@ -285,11 +338,26 @@ dialog p b { color: var(--ink); }
       </details>
     </section>
   </div>
-  <div class="foot"><button class="cta" id="run">Run simulation</button></div>
+  <div class="foot" data-pane="whatif"><button class="cta" id="run">Run simulation</button></div>
 </aside>
 
-<section class="glass feed" aria-live="off">
-  <h2>Dispatches <span class="num" id="feed-count"></span></h2>
+<div class="glass legend" aria-label="Map legend">
+  <div class="lg-ramp"><span>Wait for help</span><div class="ramp" aria-hidden="true"></div><span class="num">6 → 10+ min</span></div>
+  <div class="lg-row">
+    <span><i class="dot" style="background:var(--engine)"></i>Engine</span>
+    <span><i class="dot" style="background:var(--medic)"></i>Ambulance</span>
+    <span><i class="dot" style="background:#5a8cff"></i>Police</span>
+    <span><i class="dot" style="background:var(--call)"></i>Waiting call</span>
+  </div>
+  <div class="lg-row">
+    <span><i class="dot" style="background:#ff6e32;box-shadow:0 0 6px #ff6e32"></i>Fire station</span>
+    <span><i class="dot" style="background:#508cff;box-shadow:0 0 6px #508cff"></i>Police station</span>
+    <span><i class="dot" style="background:#ff3c46;box-shadow:0 0 6px #fff"></i>Hospital</span>
+  </div>
+</div>
+
+<section class="glass feed" id="feedbox" aria-live="off">
+  <h2><button class="feed-toggle" id="feed-toggle" aria-expanded="true">Dispatches</button><span class="num" id="feed-count"></span></h2>
   <ol id="feed"></ol>
 </section>
 
@@ -313,7 +381,9 @@ dialog p b { color: var(--ink); }
   <button class="play" id="play" aria-label="Pause replay"><svg viewBox="0 0 24 24" fill="currentColor" id="play-icon"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg></button>
   <div class="clock"><b class="num" id="clock">08:00</b><select id="day" aria-label="Day to replay"></select></div>
   <div class="track">
-    <input type="range" id="scrub" min="0" max="86340" step="60" value="28800" aria-label="Time of day">
+    <div class="scrubwrap"><svg id="activity" viewBox="0 0 24 100" preserveAspectRatio="none" aria-hidden="true"></svg>
+      <input type="range" id="scrub" min="0" max="86340" step="60" value="28800" aria-label="Time of day"></div>
+    <div class="hours num" aria-hidden="true"><span>0:00</span><span>6:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
     <div class="counters">
       <span class="c-move"><b class="num" id="n-move">0</b>driving</span>
       <span><b class="num" id="n-scene">0</b>on scene</span>
@@ -436,7 +506,39 @@ function along(g, f) {
   const heading = (Math.atan2((b[0] - a[0]) * g.kx, (b[1] - a[1]) * M_LAT) * 180) / Math.PI;
   return [[a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k], heading];
 }
-function loadReplay(r) {
+function loadReplay(r) { loadReplay0(r); drawActivity(); }
+// calls per hour behind the timeline: fire/EMS calls, with police stacked on top
+function drawActivity() {
+  const fire = new Array(24).fill(0), pol = new Array(24).fill(0);
+  for (const c of REPLAY.calls) fire[Math.min(23, Math.floor(c[2] / 3600))]++;
+  for (const p of REPLAY.police || []) pol[Math.min(23, Math.floor(p[5] / 3600))]++;
+  const max = Math.max(1, ...fire.map((f, h) => f + pol[h]));
+  let svg = "";
+  for (let h = 0; h < 24; h++) {
+    const fh = (fire[h] / max) * 100, ph = (pol[h] / max) * 100;
+    svg += `<rect data-h="${h}" x="${h + 0.12}" y="${100 - fh}" width="0.76" height="${fh}"/>`;
+    if (ph) svg += `<rect data-h="${h}" class="pol" x="${h + 0.12}" y="${100 - fh - ph}" width="0.76" height="${ph}"/>`;
+  }
+  $("#activity").innerHTML = svg;
+  lastActHour = -1;
+}
+let lastActHour = -1;
+function markActivity() {
+  const h = Math.floor(simT / 3600);
+  if (h === lastActHour) return;
+  lastActHour = h;
+  document.querySelectorAll("#activity rect").forEach((r) => r.classList.toggle("past", +r.dataset.h <= h));
+}
+function setTab(name) {
+  $("#panel").dataset.tab = name;
+  document.querySelectorAll(".tabs [data-tab]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === name)));
+}
+document.querySelectorAll(".tabs [data-tab]").forEach((b) => (b.onclick = () => setTab(b.dataset.tab)));
+$("#feed-toggle").onclick = () => {
+  const c = $("#feedbox").classList.toggle("collapsed");
+  $("#feed-toggle").setAttribute("aria-expanded", String(!c));
+};
+function loadReplay0(r) {
   REPLAY = r;
   SEGS = [];
   for (const t of r.trips) {
@@ -864,6 +966,7 @@ function attribution() {
   if (el.textContent !== txt) el.textContent = txt;
 }
 function hud(veh) {
+  markActivity();
   $("#compass-svg").style.transform = `rotate(${-view.bearing}deg)`;
   $("#clock").textContent = hhmm(simT);
   if (document.activeElement !== $("#scrub")) $("#scrub").value = Math.floor(simT / 60) * 60;
@@ -884,7 +987,7 @@ function hud(veh) {
     $("#feed").dataset.key = key;
     $("#feed").innerHTML = recent.length ? recent.map((t) => {
       const color = FIRE.has(t[1]) ? "var(--engine)" : "var(--medic)";
-      return `<li><span class="t num">${hhmm(t[6])}</span><span class="u"><i style="background:${color}"></i>${esc(t[0])} → ${esc(t[10])}</span><span class="w">${esc(t[12])} · help in ${mmss(t[7] - t[11])}</span></li>`;
+      return `<li title="${esc(t[12])}"><span class="t num">${hhmm(t[6])}</span><span class="u"><i style="background:${color}"></i>${esc(t[0])} → ${esc(t[10])}</span><span class="w num">${mmss(t[7] - t[11])}</span></li>`;
     }).join("") : `<li class="empty">No dispatches yet today. Press play.</li>`;
   }
 }
@@ -920,6 +1023,16 @@ function renderVerdict() {
   $("#d-over").className = `num ${!scen || Math.abs(dOver) < 0.5 ? "flat" : dOver > 0 ? "up" : "down"}`;
   $("#chip-dot").style.background = { stop: "var(--bad)", warn: "var(--warn)", pass: "var(--ok)" }[cls] || "var(--ink-faint)";
   $("#chip-verdict").textContent = scen ? `Scenario: ${word.toLowerCase()}` : "Today, as is";
+  // top strip mirrors the verdict tiles so the key numbers are always on screen
+  $("#m-med").textContent = mmss(c.median);
+  $("#m-over").textContent = pct(c.over8);
+  $("#m-calls").textContent = fmtN(c.calls);
+  for (const [id, v, u, eps] of [["#m-dmed", dMed, " s", 1], ["#m-dover", dOver, " pts", 0.5]]) {
+    const el = $(id);
+    el.hidden = !scen;
+    el.textContent = signed(v, u);
+    el.className = `num chip ${Math.abs(v) < eps ? "flat" : v > 0 ? "up" : "down"}`;
+  }
 }
 function renderFindings() {
   const scen = isScenario();
@@ -984,6 +1097,7 @@ async function run() {
     const d = await r.json();
     RESULT = d; loadReplay(d.replay);
     lastRun = JSON.stringify(scenario);
+    setTab("results");  // show what changed
   } catch (e) {
     $("#vsub").textContent = "The simulation didn’t finish. Press Run simulation to try again.";
   }
