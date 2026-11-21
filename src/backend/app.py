@@ -322,6 +322,53 @@ def typical_delays():
     return TYPICAL
 
 
+
+# ---------- live AI activity: every typed what-if is traced step by step for the AI activity page ----------
+import threading
+from collections import deque
+from time import perf_counter
+
+AI_LOG = deque(maxlen=25)
+AI_TOTALS = Counter()
+_TL = threading.local()
+
+
+def trace_start(kind, text):
+    t = {"id": f"t{int(perf_counter() * 1e6)}", "kind": kind, "text": text[:200], "started": datetime.now(sim.SF).strftime("%-I:%M:%S %p"),
+         "t0": perf_counter(), "steps": [], "status": "running", "ms": None, "summary": ""}
+    AI_LOG.appendleft(t)
+    AI_TOTALS["requests"] += 1
+    _TL.t = t
+    return t
+
+
+def step(agent, what, ms=None, **extra):
+    t = getattr(_TL, "t", None)
+    if t is not None:
+        t["steps"].append({"agent": agent, "what": what, "ms": None if ms is None else round(ms),
+                           "at": round((perf_counter() - t["t0"]) * 1000), **extra})
+
+
+def trace_end(status, summary=""):
+    t = getattr(_TL, "t", None)
+    if t is not None:
+        t.update(status=status, summary=summary, ms=round((perf_counter() - t["t0"]) * 1000))
+        _TL.t = None
+
+
+def usage_tokens(u):
+    u = u or {}
+    i = u.get("input_tokens", 0) + u.get("cache_creation_input_tokens", 0) + u.get("cache_read_input_tokens", 0)
+    o = u.get("output_tokens", 0)
+    AI_TOTALS["haiku_calls"] += 1
+    AI_TOTALS["tokens_in"] += i
+    AI_TOTALS["tokens_out"] += o
+    return {"tokens_in": i, "tokens_out": o, "cached": u.get("cache_read_input_tokens", 0)}
+
+
+def ai_activity():
+    return {"totals": dict(AI_TOTALS), "traces": [{k: v for k, v in t.items() if k != "t0"} for t in AI_LOG]}
+
 # ---------- the what-if engine: plan (typed by a person, or a proposed station) -> October re-simulated -> outcome ----------
 try:
     import nl
@@ -375,7 +422,10 @@ def resolve_place(p, me):
         lat, lng = hood_centroid(p["hood"])
         return lat, lng, p["hood"], p["hood"]
     if p.get("text") and nl:
+        t0 = perf_counter()
         g = nl.geocode(p["text"])
+        step("Geocoder (OpenStreetMap)", f"Found “{p['text']}” at {g[0]:.4f}, {g[1]:.4f}" if g else f"Couldn’t find “{p['text']}” in San Francisco",
+             (perf_counter() - t0) * 1000)
         if g:
             return g[0], g[1], g[2], None
     if p.get("lat") is not None and p.get("lng") is not None:  # a clicked point (proposals)
@@ -470,6 +520,7 @@ PLAN_CACHE = OrderedDict()
 
 def run_plan(kw):
     key = json.dumps(kw, sort_keys=True)
+    t0, hit = perf_counter(), key in PLAN_CACHE
     if key not in PLAN_CACHE:
         travel = Slowed(RT["model"], kw["slow"], set(kw["bands"])) if kw["slow"] > 1.01 else RT["model"]
         log = []
@@ -481,6 +532,8 @@ def run_plan(kw):
         if len(PLAN_CACHE) > 8:  # ponytail: tiny LRU, each entry holds a month of dispatches
             PLAN_CACHE.popitem(last=False)
     PLAN_CACHE.move_to_end(key)
+    step("Simulator", f"Replayed all {len(RT['test']):,} October calls with the plan" + (" (already cached)" if hit else ""), (perf_counter() - t0) * 1000)
+    AI_TOTALS["simulations"] += 1
     return PLAN_CACHE[key]
 
 
@@ -552,7 +605,18 @@ def simulate_plan(plan, me, question=None, day=None):
         focus, hours = inc_focus[0], hours or inc_focus[1]
     o = measure(out, focus, hours)
     told = {**{k: v for k, v in o.items() if not k.endswith("_s")}, "simulated": did, "facts": extra}
-    head = (nl.narrate(question, told) if question and nl else None) or template_headline(o, extra)
+    head = None
+    if question and nl:
+        info, t0 = {}, perf_counter()
+        head = nl.narrate(question, told, info)
+        step("Writer (Claude Haiku)", "Wrote the answer’s first sentence from the measured outcome", (perf_counter() - t0) * 1000, **usage_tokens(info.get("usage")))
+        if head:
+            AI_TOTALS["verified"] += 1
+            step("Number checker", f"All {info.get('checked', 0)} numbers in that sentence match the simulator’s output")
+        else:
+            AI_TOTALS["rejected"] += 1
+            step("Number checker", f"Rejected the sentence ({', '.join(info.get('bad', [])) or 'unusable'} not in the output); used a fixed template instead")
+    head = head or template_headline(o, extra)
     tone = "bad" if o["change_s"] >= 30 else "warn" if o["change_s"] >= 10 else "good" if o["change_s"] <= -10 else "flat"
     summary = sim.summarize(RT["test"], out)
     return {"mode": "simulate", "title": plan.get("title") or "Your scenario", "headline": head, "tone": tone,
@@ -734,6 +798,54 @@ def story():
     }
 
 
+@lru_cache(1)
+def breakdown():
+    """By responder: fire engines, trucks, ambulances (real October records + the simulator), police (real SFPD), and by call kind."""
+    _, log = run()
+    med = lambda xs: mmss(sorted(xs)[len(xs) // 2]) if xs else "—"
+    test, units = RT["test"], []
+    for name, types in (("Fire engines", ("ENGINE",)), ("Ladder trucks", ("TRUCK",)), ("Ambulances", ("MEDIC", "PRIVATE"))):
+        drive, turn, scene, n, first, trans = [], [], [], 0, 0, 0
+        for i in test:
+            us = [u for u in i["units"] if u["type"] in types]
+            n += len(us)
+            for u in us:
+                if u["enroute"] and u["onscene"] and 0 < u["onscene"] - u["enroute"] < 1800:
+                    drive.append(u["onscene"] - u["enroute"])
+                if u["enroute"] and 0 <= u["enroute"] - u["dispatch"] < 600:
+                    turn.append(u["enroute"] - u["dispatch"])
+                if u["available"] and u["onscene"] and 0 < u["available"] - u["onscene"] < 6 * 3600:
+                    scene.append(u["available"] - u["onscene"])
+                trans += bool(u.get("transport"))
+            arr = [u for u in i["units"] if u["onscene"]]
+            first += bool(arr) and min(arr, key=lambda u: u["onscene"])["type"] in types
+        sim_drive = [d["arrive"] - d["depart"] for d in log if d["type"] in types]
+        units.append({"name": name, "fleet": sum(h[3] in types for h in RT["homes"].values()), "dispatches": f"{n:,}",
+                      "turnout": med(turn), "drive_real": med(drive), "drive_sim": med(sim_drive), "on_scene": med(scene),
+                      "first": pct(first / len(test)), "transport": pct(trans / n) if "MEDIC" in types and n else None})
+    pol = []
+    for rows in POLICE.values():
+        for r in rows:
+            d = int(r["onscene"]) - int(r["dispatch"])
+            if 0 < d < 3 * 3600:
+                pol.append((r["priority"], r["district"], r["call_type"], d))
+    by = lambda k: {key: [x[3] for x in pol if x[k] == key] for key in {x[k] for x in pol}}
+    pri = by(0)
+    police = {"calls": f"{len(pol):,}", "median": med([x[3] for x in pol]),
+              "priority": [{"name": {"A": "A: emergency", "B": "B: urgent", "C": "C: routine"}.get(k, k), "wait": med(v), "calls": f"{len(v):,}"}
+                           for k, v in sorted(pri.items()) if len(v) >= 30],
+              "districts": sorted(({"name": k.title(), "wait": med(v), "wait_s": sorted(v)[len(v) // 2], "calls": len(v)} for k, v in by(1).items() if len(v) >= 30),
+                                  key=lambda x: -x["wait_s"]),
+              "types": [{"name": k, "calls": n} for k, n in Counter(x[2] for x in pol).most_common(6)]}
+    kinds = []
+    for k in ["Medical", "Fire", "Alarm", "Traffic collision", "Other"]:
+        xs = [i["real_response"] for i in test if kind_of(i) == k]
+        if xs:
+            sp = spread(xs)
+            kinds.append({"name": k, "calls": f"{sp['n']:,}", "wait": mmss(sp["median"]), "over8": pct(sp["over8"])})
+    return {"units": units, "police": police, "kinds": kinds}
+
+
 def findings():
     v = json.load(open(BUILD / "validation.json")).get("runnr: learned + calibrated", {})
     return {"equity": equity(), "story": story(), "best_spots": json.load(open(BEST_SPOTS))[:8] if BEST_SPOTS.exists() else [],
@@ -762,6 +874,10 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/proposals":
             ps = sorted(load_proposals(), key=lambda p: (-p["votes"], p["id"]))
             self.reply(json.dumps([{k: v for k, v in p.items() if k != "voters"} for p in ps]))
+        elif path == "/api/breakdown":
+            self.reply(json.dumps(breakdown()))
+        elif path == "/api/ai":
+            self.reply(json.dumps(ai_activity()))
         elif path == "/api/findings":
             self.reply(json.dumps(findings()))
         elif path == "/api/meta":
@@ -835,17 +951,32 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply('{"error": "Typed what-ifs are not set up on this server."}', code=503)
         try:
             # nl._context expects {station: {"units": ...}}
+            trace_start("What if", text)
+            step("Planner (Claude Haiku)", "Reading your words and choosing simulator levers…")
+            t0 = perf_counter()
             plan = nl.plan_scenario(text, {st: {"units": u} for st, u in fleet().items()}, (me or {}).get("label"))
             usage = plan.pop("usage", None)
-            if usage:
-                print(f"ask: {usage}")
             if "error" in plan:
+                step("Planner (Claude Haiku)", plan["error"], (perf_counter() - t0) * 1000)
+                trace_end("error", plan["error"])
                 return self.reply(json.dumps(plan), code=400)
+            levers = [k for k in ("close_stations", "add_units", "new_stations", "units_busy", "incidents") if plan.get(k)]
+            levers += [k for k, neutral in (("call_volume", 1.0), ("slowdown", 1.0), ("dispatch_delay_s", 0)) if plan.get(k) != neutral]
+            step("Planner (Claude Haiku)", f"Plan “{plan['title']}” ({plan['mode']}): " + (", ".join(x.replace("_", " ") for x in levers) or "no levers"),
+                 (perf_counter() - t0) * 1000, **usage_tokens(usage))
             if plan["mode"] == "off_topic":
+                trace_end("done", "Off topic")
                 return self.reply(json.dumps({"error": "Medio answers questions about 911 fire and ambulance response in San Francisco. Try: what if there's a big crash on 6th Street at rush hour?"}), code=400)
-            out = lookup(plan["lookup"], me, plan["title"]) if plan["mode"] == "lookup" else simulate_plan(plan, me, text, day)
+            if plan["mode"] == "lookup":
+                t0 = perf_counter()
+                out = lookup(plan["lookup"], me, plan["title"])
+                step("Records", "Queried the real October records directly (no simulation)", (perf_counter() - t0) * 1000)
+            else:
+                out = simulate_plan(plan, me, text, day)
+            trace_end("error" if "error" in out else "done", out.get("error") or out.get("headline", ""))
             self.reply(json.dumps(out), code=400 if "error" in out else 200)
         except Exception as e:  # model or network failure: tell the page, don't crash the server
+            trace_end("error", type(e).__name__)
             self.reply(json.dumps({"error": f"That one didn't work ({type(e).__name__}). Try rephrasing."}), code=400)
 
     def station(self):
@@ -857,7 +988,10 @@ class Handler(BaseHTTPRequestHandler):
             day = int(b.get("day") or DEFAULT_DAY)
         except (KeyError, ValueError, TypeError, AttributeError, OverflowError):
             return self.reply('{"error": "Pick a spot inside San Francisco."}', code=400)
-        self.reply(json.dumps(station_effect(lat, lng, kind, day)))
+        trace_start("Proposal preview", f"New {KIND_LABEL[kind].lower()} at {lat:.4f}, {lng:.4f}")
+        out = station_effect(lat, lng, kind, day)
+        trace_end("done", out.get("headline", ""))
+        self.reply(json.dumps(out))
 
     def proposals(self):
         try:

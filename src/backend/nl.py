@@ -156,7 +156,7 @@ NARRATE = """Write the answer to the person's what-if from the simulator's measu
 headline: one or two plain sentences that directly answer their question, using only numbers that appear in the outcome, copied exactly (7:24, +0:18, 40%). Lead with what matters to them: for an incident, how fast the first engine gets there (from facts); for a change, how their place or time is affected; then the citywide picture if it differs. Waits are medians: say "typical", never "average". If nothing changes, say why in plain words (nearby stations cover it). No hype."""
 
 
-def narrate(question, outcome):
+def narrate(question, outcome, info=None):
     """One or two sentences from the measured outcome; every number checked against it. None if unusable."""
     key = _key()
     if not key:
@@ -168,11 +168,16 @@ def narrate(question, outcome):
             "messages": [{"role": "user", "content": f"Question: {question}\n\nOutcome: {data}"}]}
     try:
         resp = _post(body, key, timeout=20)
+        if info is not None:
+            info["usage"] = resp.get("usage", {})
         raw = next((b.get("text", "") for b in resp.get("content", []) if b.get("type") == "text"), "")
         head = str(json.loads(raw)["headline"])[:500]
     except Exception:
         return None
-    bad = [n for n in NUM.findall(head) if n not in data]
+    nums = NUM.findall(head)
+    bad = [n for n in nums if n not in data]
+    if info is not None:
+        info.update(checked=len(nums), bad=bad)
     return None if bad else head
 
 
