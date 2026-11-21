@@ -1493,6 +1493,52 @@ function ramp(sec) {
   }
   return STOPS[STOPS.length - 1][1];
 }
+
+// ---------- wait-time gradient: a smooth surface instead of one flat color per neighborhood ----------
+// Gaussian-weighted average of the simulated wait at ~4,000 sampled calls (sigma 300 m), on a coarse grid that the GPU
+// stretches smoothly; faded where there are few calls and clipped to San Francisco's land. Rebuilt only when results change.
+let HEAT = { key: null, canvas: null };
+function heatCanvas() {
+  if (HEAT.key === RESULT && HEAT.canvas) return HEAT.canvas;
+  const [w0, s0, e0, n0] = BBOX, kx = 88000, ky = 111000;  // meters per degree at SF
+  const GW = 150, GH = Math.round(GW * ((n0 - s0) * ky) / ((e0 - w0) * kx));
+  const B = 0.006, buckets = new Map(), key = (x, y) => x * 10000 + y;
+  for (const [lng, lat, v] of RESULT.points) {
+    const k = key(Math.floor(lng / B), Math.floor(lat / B));
+    (buckets.get(k) || buckets.set(k, []).get(k)).push([lng, lat, v]);
+  }
+  const coarse = document.createElement("canvas"); coarse.width = GW; coarse.height = GH;
+  const cx = coarse.getContext("2d"), img = cx.createImageData(GW, GH), sig2 = 2 * 300 * 300;
+  for (let y = 0; y < GH; y++) for (let x = 0; x < GW; x++) {
+    const lng = w0 + ((x + 0.5) / GW) * (e0 - w0), lat = n0 - ((y + 0.5) / GH) * (n0 - s0);
+    const bx = Math.floor(lng / B), by = Math.floor(lat / B);
+    let sw = 0, sv = 0;
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) for (const [plng, plat, v] of buckets.get(key(bx + i, by + j)) || []) {
+      const dx = (plng - lng) * kx, dy = (plat - lat) * ky, w = Math.exp(-(dx * dx + dy * dy) / sig2);
+      sw += w; sv += w * v;
+    }
+    const o = (y * GW + x) * 4;
+    if (sw < 0.05) { img.data[o + 3] = 0; continue; }
+    const c = ramp(sv / sw);
+    img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = Math.round(150 * Math.min(1, sw / 1.2));
+  }
+  cx.putImageData(img, 0, 0);
+  const W = 900, H = Math.round(W * GH / GW), out = document.createElement("canvas"); out.width = W; out.height = H;
+  const ox = out.getContext("2d");
+  ox.imageSmoothingEnabled = true; ox.imageSmoothingQuality = "high";
+  ox.drawImage(coarse, 0, 0, W, H);
+  // keep only San Francisco's land (the neighborhood shapes), crisp at the edge
+  ox.globalCompositeOperation = "destination-in";
+  ox.beginPath();
+  const px = ([lng, lat]) => [((lng - w0) / (e0 - w0)) * W, ((n0 - lat) / (n0 - s0)) * H];
+  for (const f of HOODS.features) {
+    const polys = f.geometry.type === "Polygon" ? [f.geometry.coordinates] : f.geometry.coordinates;
+    for (const poly of polys) for (const ring of poly) ring.forEach((pt, i) => { const [a, b] = px(pt); i ? ox.lineTo(a, b) : ox.moveTo(a, b); });
+  }
+  ox.fill("evenodd");
+  HEAT = { key: RESULT, canvas: out };
+  return out;
+}
 function centroid(f) {
   const g = f.geometry, rings = g.type === "Polygon" ? [g.coordinates[0]] : g.coordinates.map((p) => p[0]);
   const ring = rings.sort((a, b) => b.length - a.length)[0];
@@ -1828,11 +1874,15 @@ function layers(t, veh) {
     getElevation: (b) => b[0], getFillColor: [205, 212, 220, 235],
     material: { ambient: 0.42, diffuse: 0.62, shininess: 24, specularColor: [40, 44, 50] },
   })));
+  if (show.hoods && !show.extrude) L.push(memo("heat", [RESULT, ext], () => new deck.BitmapLayer({
+    id: "heat", image: heatCanvas(), bounds: BBOX, parameters: { depthTest: false }, extensions: ext,
+  })));
   if (show.hoods) L.push(memo("hoods", [RESULT, show.extrude, ext], () => new deck.GeoJsonLayer({
     id: "hoods", data: HOODS, pickable: true, stroked: true, filled: true, extruded: show.extrude,
     getElevation: (f) => Math.max(40, (((RESULT.hoods[f.properties.nhood] || {}).median || 400) - 330) * 4),
-    getFillColor: (f) => [...ramp((RESULT.hoods[f.properties.nhood] || {}).median || 400), show.extrude ? 185 : 105],  // light pastel wash that still reads at a glance
-    getLineColor: (f) => [...ramp((RESULT.hoods[f.properties.nhood] || {}).median || 400), 170],
+    // flat: the gradient underneath carries the color; the shapes stay (nearly invisible) for clicking and thin outlines
+    getFillColor: (f) => [...ramp((RESULT.hoods[f.properties.nhood] || {}).median || 400), show.extrude ? 185 : 2],
+    getLineColor: (f) => (show.extrude ? [...ramp((RESULT.hoods[f.properties.nhood] || {}).median || 400), 170] : [255, 255, 255, 90]),
     getLineWidth: 1.5, lineWidthUnits: "pixels",
     material: { ambient: 0.55, diffuse: 0.5 },
     parameters: { depthTest: show.extrude }, extensions: show.extrude ? NO_EXT : ext,
