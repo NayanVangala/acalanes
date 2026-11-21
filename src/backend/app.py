@@ -1,16 +1,19 @@
 """Medio web server. python3 app.py -> http://localhost:8000 (Render sets $PORT).
 
-GET  /                 the app (web/index.html)
-GET  /data/<file>      stations.json, hoods.geojson, people.json, validation.json, buildings.json
+GET  /                 the app (src/frontend/index.html)
+GET  /data/<file>      stations, hoods, people, validation, buildings, police_stations, hospitals, elevation (.json)
 GET  /api/meta         fleet, period, replay days, baseline results + replay of the default day
+GET  /api/config       {"google_maps_key": ...} for the Google 3D city (browser key, domain-restricted)
 POST /api/simulate     {"closed": [stations], "added": [[station, "MEDIC"|"ENGINE"]], "volume": 1.0, "day": <ordinal>}
                        -> neighborhood results for the whole held-out month + a replay of one day
-POST /api/ask          {"text": "close the two stations nearest Bayview"} -> scenario (needs nl.py + ANTHROPIC_API_KEY)
+POST /api/here         {"lng", "lat", + optional scenario} -> typical wait at that spot by time of day and kind of call
+POST /api/ask          {"text": "...", "me": {lng, lat, label}} -> answer built from simulator numbers (needs nl.py + ANTHROPIC_API_KEY)
 JSON and /data files are gzip-compressed when the browser accepts it.
 """
 import csv
 import gzip
 import json
+import math
 import os
 import pickle
 from collections import Counter, OrderedDict
@@ -125,7 +128,7 @@ def run(closed=(), added=(), volume=1.0):
     CACHE.move_to_end(key)
     for k in list(RESP):
         if k not in CACHE:
-            del RESP[k]
+            RESP.pop(k, None)  # two request threads can reach the same stale key: del would raise KeyError
     return CACHE[key]
 
 
@@ -287,9 +290,15 @@ def kind_stats(kind):
             "label": want or "all calls"}
 
 
+def sf_ts(hour):
+    """Timestamp for today at `hour` San Francisco time. A naive datetime would use the server's zone:
+    Render runs UTC, so '5 PM' became 9-10 AM in SF and picked the wrong travel-time and calibration band."""
+    return int(datetime.combine(datetime.now(sim.SF).date(), time(hour), sim.SF).timestamp())
+
+
 def nearest_units(lat, lng, hour, engines, ambulances, closed=()):
     """The units most likely sent: open station engines and ambulances ranked by learned drive time at that hour."""
-    c, b = sim.cell(lat, lng), sim.band(int(datetime.combine(date.today(), time(hour)).timestamp()))
+    c, b = sim.cell(lat, lng), sim.band(sf_ts(hour))
     ranked = sorted(((RT["model"](h, c, lat, lng, b), uid, h) for uid, h in RT["homes"].items()
                      if not (h[0][0] == "S" and h[0][1:] in set(closed))), key=lambda x: x[0])
     eng = [(t, u, h) for t, u, h in ranked if h[3] in ("ENGINE", "TRUCK")][:max(engines, 0)]
@@ -388,7 +397,7 @@ def answer(q, me=None):
         delay, turnout = typical_delays()
         block = {u: (hour * 3600, hour * 3600 + dur * 60) for _, u, _ in eng + amb}
         eff = window_effect(block, lat, lng, hour, min(24, hour + (dur + 59) // 60))
-        arrive = delay + turnout + (first or 0) + sim.offset_for(RT["offset"], int(datetime.combine(date.today(), time(hour)).timestamp()))
+        arrive = delay + turnout + (first or 0) + sim.offset_for(RT["offset"], sf_ts(hour))
         out["focus"] = {"lat": lat, "lng": lng, "label": place}
         facts.append({"k": "First engine reaches the scene", "v": f"~{mmss(arrive)}", "note": "dispatch + turnout + learned drive time"})
         facts.append({"k": "Units tied up", "v": ", ".join(u for _, u, _ in eng + amb)})
@@ -524,10 +533,13 @@ class Handler(BaseHTTPRequestHandler):
             req = json.loads(self.rfile.read(n) or b"{}")
             closed = [str(s) for s in req.get("closed", []) if str(s) in STATIONS][:44]
             added = [(str(s), t) for s, t in req.get("added", []) if str(s) in STATIONS and t in TYPES][:20]
-            volume = min(max(float(req.get("volume", 1.0)), 0.5), 3.0)
+            volume = float(req.get("volume", 1.0))
+            if not math.isfinite(volume):  # json.loads accepts NaN/Infinity; NaN slips through min/max and crashes sim
+                raise ValueError("volume")
+            volume = min(max(volume, 0.5), 3.0)
             day = int(req.get("day", DEFAULT_DAY))
             day = day if day in DAYS else DEFAULT_DAY
-        except (ValueError, TypeError, AttributeError):
+        except (ValueError, TypeError, AttributeError, OverflowError):  # OverflowError: {"day": 1e999}
             return self.reply('{"error": "bad request"}', code=400)
         if self.path == "/api/here":
             try:
@@ -557,7 +569,9 @@ class Handler(BaseHTTPRequestHandler):
         except ImportError:
             return self.reply('{"error": "Typed questions are not set up on this server."}', code=503)
         try:
-            q = nl.parse_question(text, fleet())  # the AI only reads the question; answer() computes everything
+            # the AI only reads the question; answer() computes everything. nl._context expects {station: {"units": ...}}:
+            # passing fleet() bare listed every station's units as "unknown" in the prompt
+            q = nl.parse_question(text, {st: {"units": units} for st, units in fleet().items()})
             usage = q.pop("usage", None)
             if usage:
                 print(f"ask: {usage}")

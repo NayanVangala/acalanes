@@ -83,7 +83,7 @@ def parse_question(text, stations_meta):
         return {"error": "The question box isn't set up: the server has no ANTHROPIC_API_KEY."}
     ctx, valid = _context(stations_meta)
     hoods = {f["properties"]["nhood"] for f in json.load(open(SF / "hoods.geojson"))["features"]}
-    body = {"model": MODEL, "max_tokens": 1024,
+    body = {"model": MODEL, "max_tokens": 4096,
             "system": [{"type": "text", "text": Q_SYSTEM + "\n\n" + ctx, "cache_control": {"type": "ephemeral"}}],
             "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": Q_SCHEMA}},
             "messages": [{"role": "user", "content": text}]}
@@ -198,7 +198,7 @@ def parse_scenario(text, stations_meta):
         return {"error": "The question box isn't set up: the server has no ANTHROPIC_API_KEY."}
     ctx, valid = _context(stations_meta)
     body = {
-        "model": MODEL, "max_tokens": 1024,
+        "model": MODEL, "max_tokens": 4096,
         "system": [{"type": "text", "text": SYSTEM + "\n\n" + ctx, "cache_control": {"type": "ephemeral"}}],
         "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": SCHEMA}},
         "messages": [{"role": "user", "content": text}],
