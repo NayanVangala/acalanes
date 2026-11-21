@@ -113,9 +113,51 @@ def day_start(ordinal):
 
 RESP = {}  # scenario key -> {incident id: simulated response seconds}, for the location what-if
 
+# The scenarios people click most, simulated once offline and shipped in data/build/ so they answer instantly:
+# on Render's free CPU a fresh run takes 12-28 s (1.3 s on a laptop). Rebuild after any model change with
+#   python3 src/backend/app.py --precompute
+# The file carries a fingerprint of runtime.pkl.gz; if the model changes it is ignored instead of serving stale numbers.
+PRECOMPUTED = BUILD / "scenarios.pkl.gz"
+PIN_SCENARIOS = [
+    ((), (), 1.0),                                      # today
+    (("1", "8", "36"), (), 1.0),                        # preset: close 3 downtown stations
+    ((), (), 2.0),                                      # preset: heat wave, 2x calls
+    ((), (("43", "MEDIC"), ("44", "MEDIC")), 1.0),      # preset: 2 ambulances for the south
+    (("44",), (), 1.0),                                 # demo: close Station 44
+    ((), (("44", "MEDIC"),), 1.0),                      # demo: +1 ambulance at Station 44 (Location card button)
+]
+
+
+def scenario_key(closed=(), added=(), volume=1.0):
+    return json.dumps([sorted(closed), sorted(added), volume])
+
+
+def runtime_fingerprint():
+    import hashlib
+    return hashlib.sha256((BUILD / "runtime.pkl.gz").read_bytes()).hexdigest()
+
+
+def load_pinned():
+    try:
+        with gzip.open(PRECOMPUTED, "rb") as f:
+            saved = pickle.load(f)
+    except FileNotFoundError:
+        return {}
+    if saved.get("runtime_sha") != runtime_fingerprint():
+        print("precomputed scenarios are for an older model: ignoring them (rebuild with --precompute)")
+        return {}
+    return saved["runs"]
+
+
+PINNED = load_pinned()  # key -> (summary, log, responses); never evicted
+
 
 def run(closed=(), added=(), volume=1.0):
-    key = json.dumps([sorted(closed), sorted(added), volume])
+    key = scenario_key(closed, added, volume)
+    if key in PINNED:
+        summary, log, resp = PINNED[key]
+        RESP[key] = resp
+        return summary, log
     if key not in CACHE:
         with LOCK:
             log = []
@@ -127,7 +169,7 @@ def run(closed=(), added=(), volume=1.0):
                 CACHE.popitem(last=False)
     CACHE.move_to_end(key)
     for k in list(RESP):
-        if k not in CACHE:
+        if k not in CACHE and k not in PINNED:
             RESP.pop(k, None)  # two request threads can reach the same stale key: del would raise KeyError
     return CACHE[key]
 
@@ -1039,6 +1081,18 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     import sys
+    if "--precompute" in sys.argv:  # offline: ~10 s on a laptop, writes data/build/scenarios.pkl.gz
+        runs = {}
+        for closed, added, volume in PIN_SCENARIOS:
+            log = []
+            out = sim.simulate(RT["test"], RT["homes"], RT["model"], closed=closed, added=added, volume=volume,
+                               offset=RT["offset"], log=log)
+            runs[scenario_key(closed, added, volume)] = (sim.summarize(RT["test"], out), log, out)
+            print(f"precomputed closed={list(closed)} added={list(added)} volume={volume}")
+        with gzip.open(PRECOMPUTED, "wb", 6) as f:
+            pickle.dump({"runtime_sha": runtime_fingerprint(), "runs": runs}, f, protocol=4)
+        print(f"-> {PRECOMPUTED} ({PRECOMPUTED.stat().st_size / 1e6:.1f} MB)")
+        sys.exit()
     if "--best-spots" in sys.argv:  # offline: ~1 min, writes data/build/best_spots.json
         for r in best_spots()[:8]:
             print(f"{r['hood']:32s} {r['before']} -> {r['after']} ({r['change']}), {r['helped']} of {r['calls']} calls 30+ s faster, city {r['citywide']}")

@@ -1361,7 +1361,7 @@ function initGoogle(key) {
     window.G_TILESET = tileset;  // handy for debugging tile loads in the console
     tileset.options.maximumScreenSpaceError = G_SSE;  // 8 = loaders.gl default; higher loads fewer, slightly softer tiles
     // keep the city's detailed tiles cached instead of evicting and re-downloading them (loaders.gl default is 32 MB)
-    if ("maximumMemoryUsage" in tileset.options) tileset.options.maximumMemoryUsage = 768;
+    if ("maximumMemoryUsage" in tileset.options) tileset.options.maximumMemoryUsage = 256;  // 768 MB caused GPU-memory stalls on laptops
     // Full detail only over San Francisco: elsewhere stop refining early (rest of the Bay coarse, beyond it coarser).
     // Refinement is what triggers downloads, so this cuts requests, not just what's drawn.
     const tr = tileset._traverser;

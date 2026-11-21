@@ -24,6 +24,7 @@ Acalanes Data Fest 2026 project: a live 3D replay of San Francisco 911 fire/EMS 
 python3 src/backend/app.py               # http://localhost:8000 (PORT env overrides)
 python3 src/backend/sim.py               # validation table + sanity checks, writes data/build/validation.json
 python3 src/backend/sim.py --export      # rebuild data/build/runtime.pkl.gz after model changes
+python3 src/backend/app.py --precompute  # then rebuild data/build/scenarios.pkl.gz (clicked scenarios answer instantly on Render)
 python3 src/backend/app.py --best-spots  # rebuild data/build/best_spots.json (~1 min)
 python3 src/backend/routing.py --build   # rebuild data/build/routes.pkl.gz from data/raw/osm/roads.json
 python3 src/backend/nl.py                # live Haiku self-test (costs ~$0.0003)
