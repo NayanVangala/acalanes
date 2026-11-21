@@ -111,7 +111,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 7px 9px; border-radius: 9px; border: 1px solid var(--line); cursor: pointer; user-select: none; }
 .toggle input { accent-color: var(--accent); margin: 0; }
-.ramp { height: 8px; border-radius: 4px; background: linear-gradient(90deg, #1a9850, #91cf60, #fad648, #f28026, #c41e22); }
+.ramp { height: 8px; border-radius: 4px; background: linear-gradient(90deg, #78c896, #bee4a0, #fae296, #f8b482, #ec7878); }
 .ramp-labels { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-faint); }
 .legend-row { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-soft); }
 .legend-row span { display: inline-flex; align-items: center; gap: 6px; }
@@ -1174,7 +1174,7 @@ a.btn { display: inline-grid; place-items: center; text-decoration: none; color:
     <section class="block" data-pane="findings">
       <h2>Legend</h2>
       <div class="legend" aria-label="Map legend">
-    <div class="lg-ramp"><span>Fast</span><div class="ramp" aria-hidden="true"></div><span>Slow</span></div><p class="lg-note num">typical wait: 6:50 → 9:30+</p>
+    <div class="lg-ramp"><span>Fast</span><div class="ramp" aria-hidden="true"></div><span>Slow</span></div><p class="lg-note num">typical wait: 6:40 → 9:50</p>
     <div class="lg-row">
       <span><i class="dot" style="background:var(--engine)"></i>Engine</span>
       <span><i class="dot" style="background:var(--medic)"></i>Ambulance</span>
@@ -1461,7 +1461,8 @@ function initGoogle(key) {
 
 // ---------- color ----------
 // tuned to the real spread of neighborhood medians (6:41 to 9:54): green = help arrives fast, dark red = slowest
-const STOPS = [[410, [26, 152, 80]], [440, [145, 207, 96]], [465, [250, 214, 72]], [510, [242, 128, 38]], [570, [196, 30, 34]]];
+// pastel, evenly spaced over the real spread (6:41 to 9:54) so neighboring areas blend into a smooth gradient
+const STOPS = [[400, [120, 200, 150]], [440, [190, 228, 160]], [480, [250, 226, 150]], [530, [248, 180, 130]], [590, [236, 120, 120]]];
 function ramp(sec) {
   if (sec <= STOPS[0][0]) return STOPS[0][1];
   for (let k = 1; k < STOPS.length; k++) {
@@ -1808,9 +1809,9 @@ function layers(t, veh) {
   if (show.hoods) L.push(memo("hoods", [RESULT, show.extrude, ext], () => new deck.GeoJsonLayer({
     id: "hoods", data: HOODS, pickable: true, stroked: true, filled: true, extruded: show.extrude,
     getElevation: (f) => Math.max(40, (((RESULT.hoods[f.properties.nhood] || {}).median || 400) - 330) * 4),
-    getFillColor: (f) => [...ramp((RESULT.hoods[f.properties.nhood] || {}).median || 400), show.extrude ? 205 : 118],  // strong enough to read the slowness at a glance
-    getLineColor: (f) => [...ramp((RESULT.hoods[f.properties.nhood] || {}).median || 400), 245],
-    getLineWidth: 2.5, lineWidthUnits: "pixels",
+    getFillColor: (f) => [...ramp((RESULT.hoods[f.properties.nhood] || {}).median || 400), show.extrude ? 185 : 105],  // light pastel wash that still reads at a glance
+    getLineColor: (f) => [...ramp((RESULT.hoods[f.properties.nhood] || {}).median || 400), 170],
+    getLineWidth: 1.5, lineWidthUnits: "pixels",
     material: { ambient: 0.55, diffuse: 0.5 },
     parameters: { depthTest: show.extrude }, extensions: show.extrude ? NO_EXT : ext,
     transitions: { getElevation: 500 },
