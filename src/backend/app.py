@@ -240,6 +240,248 @@ def warm():
             data_file_gz(name)
 
 
+# ---------- answering typed what-ifs with data ----------
+KIND_MATCH = {"crash": "Traffic collision", "fire": "Fire", "medical": "Medical"}
+_HOOD_C = None
+
+
+def hood_centroid(name):
+    global _HOOD_C
+    if _HOOD_C is None:
+        _HOOD_C = {}
+        for f in json.load(open(SF / "hoods.geojson"))["features"]:
+            g = f["geometry"]
+            ring = max([g["coordinates"][0]] if g["type"] == "Polygon" else [p[0] for p in g["coordinates"]], key=len)
+            _HOOD_C[f["properties"]["nhood"]] = (sum(p[1] for p in ring) / len(ring), sum(p[0] for p in ring) / len(ring))
+    return _HOOD_C.get(name)
+
+
+def mmss(sec):
+    sec = int(round(sec))
+    return f"{sec // 60}:{sec % 60:02d}"
+
+
+def hour_label(h):
+    h = int(h) % 24
+    return "midnight" if h == 0 else "noon" if h == 12 else f"{h % 12} {'AM' if h < 12 else 'PM'}"
+
+
+def kind_of(i):
+    return call_kind(i["type"])
+
+
+def kind_stats(kind):
+    """What the real October records say about this kind of call."""
+    want = KIND_MATCH.get(kind)
+    rows = [i for i in RT["test"] if want is None or kind_of(i) == want]
+    if not rows:
+        return None
+    resp = sorted(i["real_response"] for i in rows)
+    eng = sorted(sum(u["type"] in ("ENGINE", "TRUCK") for u in i["units"]) for i in rows)
+    amb = sorted(sum(u["type"] in ("MEDIC", "PRIVATE") for u in i["units"]) for i in rows)
+    scene = sorted(u["available"] - u["onscene"] for i in rows for u in i["units"][:1]
+                   if u["available"] and u["onscene"] and 0 < u["available"] - u["onscene"] < 6 * 3600)
+    mid = lambda xs: xs[len(xs) // 2] if xs else 0
+    return {"n": len(rows), "median": mid(resp), "p90": resp[int(len(resp) * 0.9)], "engines": mid(eng),
+            "ambulances": mid(amb), "scene_min": round(mid(scene) / 60) if scene else 30,
+            "label": want or "all calls"}
+
+
+def nearest_units(lat, lng, hour, engines, ambulances, closed=()):
+    """The units most likely sent: open station engines and ambulances ranked by learned drive time at that hour."""
+    c, b = sim.cell(lat, lng), sim.band(int(datetime.combine(date.today(), time(hour)).timestamp()))
+    ranked = sorted(((RT["model"](h, c, lat, lng, b), uid, h) for uid, h in RT["homes"].items()
+                     if not (h[0][0] == "S" and h[0][1:] in set(closed))), key=lambda x: x[0])
+    eng = [(t, u, h) for t, u, h in ranked if h[3] in ("ENGINE", "TRUCK")][:max(engines, 0)]
+    amb = [(t, u, h) for t, u, h in ranked if h[3] in ("MEDIC", "PRIVATE")][:max(ambulances, 0)]
+    first = next((t for t, u, h in ranked if h[3] in ("ENGINE", "TRUCK")), None)
+    first_amb = next((t for t, u, h in ranked if h[3] in ("MEDIC", "PRIVATE")), None)
+    return eng, amb, first, first_amb
+
+
+TYPICAL = None
+
+
+def typical_delays():
+    """Median call-to-dispatch delay and turnout, from the held-out month."""
+    global TYPICAL
+    if TYPICAL is None:
+        d = sorted(i["delay"] for i in RT["test"])
+        t = sorted(u["enroute"] - u["dispatch"] for i in RT["test"] for u in i["units"][:1]
+                   if u["enroute"] and 0 <= u["enroute"] - u["dispatch"] < 600)
+        TYPICAL = (d[len(d) // 2], t[len(t) // 2])
+    return TYPICAL
+
+
+BLOCK_CACHE = OrderedDict()
+
+
+def blocked_run(block):
+    key = json.dumps(sorted(block.items()))
+    if key not in BLOCK_CACHE:
+        with LOCK:
+            BLOCK_CACHE[key] = sim.simulate(RT["test"], RT["homes"], RT["model"], offset=RT["offset"], blocked=block)
+        if len(BLOCK_CACHE) > 16:
+            BLOCK_CACHE.popitem(last=False)
+    return BLOCK_CACHE[key]
+
+
+def window_effect(block, lat, lng, h0, h1, radius_km=2.5, area=None):
+    """Calls near (lat, lng) (or in a station's first-due area) during [h0, h1) local: wait today vs with the block."""
+    run()
+    base, alt = RESP[json.dumps([[], [], 1.0])], blocked_run(block)
+    near = []
+    for i in RT["test"]:
+        hr = datetime.fromtimestamp(i["t"], sim.SF).hour
+        if not (h0 <= hr < h1) or i["id"] not in base:
+            continue
+        if (area and i.get("area") == area) or sim.km(lat, lng, i["lat"], i["lng"]) <= radius_km:
+            near.append(i["id"])
+    if not near:
+        return None
+    b, a = sorted(base[x] for x in near), sorted(alt[x] for x in near)
+    deltas = sorted(alt[x] - base[x] for x in near)
+    hit = sum(d > 15 for d in deltas)
+    return {"n": len(near), "base": b[len(b) // 2], "alt": a[len(a) // 2], "worst": deltas[-1],
+            "hit": hit, "over8_base": sum(x > 480 for x in b) / len(b), "over8_alt": sum(x > 480 for x in a) / len(a)}
+
+
+def answer(q, me=None):
+    """Turn a parsed question into an answer made of simulator/record numbers. The AI only wrote q."""
+    intent, facts, assume = q["intent"], [], []
+    out = {"intent": intent, "read_as": q["explanation"]}
+    if intent == "scenario":
+        out.update({k: q[k] for k in ("closed", "added", "volume")})
+        return out
+    if intent == "incident":
+        inc = q["incident"]
+        ks = kind_stats(inc["kind"]) or kind_stats("other")
+        if inc["near_me"] and me:
+            lat, lng, place = me["lat"], me["lng"], me.get("label") or "your address"
+        elif inc["hood"]:
+            (lat, lng), place = hood_centroid(inc["hood"]), inc["hood"]
+        elif inc["station"]:
+            lat, lng = sim.load_stations()[inc["station"]]
+            place = f"Station {inc['station']}"
+        elif me:
+            lat, lng, place = me["lat"], me["lng"], me.get("label") or "your address"
+            assume.append("No place was named, so I used the address you looked up.")
+        else:
+            out["headline"] = (f"{ks['label'].capitalize()} calls: help typically arrives in {mmss(ks['median'])} "
+                               f"(1 in 10 waits over {mmss(ks['p90'])}). Tell me where, or look up an address, and I'll simulate it.")
+            out["facts"] = [{"k": f"{ks['label']} calls in October", "v": f"{ks['n']:,}"},
+                            {"k": "Typical wait for help", "v": mmss(ks["median"])},
+                            {"k": "Units usually sent", "v": f"{ks['engines']} engine, {ks['ambulances']} ambulance"},
+                            {"k": "Typical time on scene", "v": f"{ks['scene_min']} min"}]
+            return out
+        hour = inc["hour"] if inc["hour"] >= 0 else 17
+        if inc["hour"] < 0:
+            assume.append("No time was given, so I used 5 PM, the evening rush.")
+        dur = inc["duration_min"] if inc["duration_min"] > 0 else max(20, ks["scene_min"] + (30 if inc["kind"] == "mass_casualty" else 0))
+        if inc["duration_min"] < 0:
+            assume.append(f"Scene time {dur} min: the typical time units spend at {ks['label'].lower()} calls in the data.")
+        ne = inc["engines"] if inc["engines"] >= 0 else max(1, ks["engines"] + (2 if inc["kind"] in ("fire", "mass_casualty") else 0))
+        na = inc["ambulances"] if inc["ambulances"] >= 0 else max(1, ks["ambulances"] + (2 if inc["kind"] == "mass_casualty" else 0))
+        if inc["engines"] < 0 or inc["ambulances"] < 0:
+            assume.append(f"{ne} engine{'s' * (ne != 1)} and {na} ambulance{'s' * (na != 1)} tied up, as SF usually sends to this kind of call.")
+        eng, amb, first, first_amb = nearest_units(lat, lng, hour, ne, na)
+        delay, turnout = typical_delays()
+        block = {u: (hour * 3600, hour * 3600 + dur * 60) for _, u, _ in eng + amb}
+        eff = window_effect(block, lat, lng, hour, min(24, hour + (dur + 59) // 60))
+        arrive = delay + turnout + (first or 0) + sim.offset_for(RT["offset"], int(datetime.combine(date.today(), time(hour)).timestamp()))
+        out["focus"] = {"lat": lat, "lng": lng, "label": place}
+        facts.append({"k": "First engine reaches the scene", "v": f"~{mmss(arrive)}", "note": "dispatch + turnout + learned drive time"})
+        facts.append({"k": "Units tied up", "v": ", ".join(u for _, u, _ in eng + amb)})
+        if eff:
+            d = eff["alt"] - eff["base"]
+            tone = "bad" if d >= 60 else "warn" if d >= 15 else "ok"
+            facts.append({"k": f"Other calls within 2.5 km, {hour_label(hour)}–{hour_label(hour + (dur + 59) // 60)}",
+                          "v": f"{mmss(eff['base'])} → {mmss(eff['alt'])}", "tone": tone,
+                          "note": f"{eff['n']} real calls over October; {eff['hit']} wait 15+ s longer, worst +{mmss(max(0, eff['worst']))}"})
+            facts.append({"k": "Those calls over 8 min", "v": f"{eff['over8_base']:.0%} → {eff['over8_alt']:.0%}"})
+            out["headline"] = (f"A {inc['kind'].replace('_', '-')} near {place} at {hour_label(hour)}: the first engine arrives in about "
+                               f"{mmss(arrive)}. While {len(block)} units are tied up for {dur} min, other calls nearby wait "
+                               f"{'about the same' if abs(d) < 15 else f'{mmss(abs(d))} longer' if d > 0 else f'{mmss(-d)} less'} "
+                               f"(typical {mmss(eff['base'])} → {mmss(eff['alt'])}).")
+        else:
+            out["headline"] = f"A {inc['kind']} near {place} at {hour_label(hour)}: the first engine arrives in about {mmss(arrive)}."
+    elif intent == "units_busy":
+        block, places = {}, []
+        h0 = next((b["from_hour"] for b in q["busy"] if b["from_hour"] >= 0), 17)
+        h1 = next((b["to_hour"] for b in q["busy"] if b["to_hour"] > h0), h0 + 2)
+        if all(b["from_hour"] < 0 for b in q["busy"]):
+            assume.append(f"No time was given, so I used {hour_label(h0)}–{hour_label(h1)}.")
+        stations = sim.load_stations()
+        for b in q["busy"] or []:
+            st = b["station"]
+            slat, slng = stations[st]
+            for uid, h in RT["homes"].items():
+                if h[0] == "S" + st and b["type"] in ("ENGINE", "ANY") and h[3] in ("ENGINE", "TRUCK"):
+                    block[uid] = (h0 * 3600, h1 * 3600)
+            if b["type"] in ("MEDIC", "ANY"):  # ambulances rove: take the one based nearest this station
+                med = min(((sim.km(slat, slng, h[1], h[2]), uid) for uid, h in RT["homes"].items() if h[3] == "MEDIC"))
+                block[med[1]] = (h0 * 3600, h1 * 3600)
+                assume.append(f"Ambulances aren't tied to stations, so I took {med[1]}, the one based nearest Station {st}.")
+            places.append((st, slat, slng))
+        if not block:
+            out["headline"] = "I couldn't tell which units you mean. Name a station, like: the engine at Station 43 is busy from 5 to 7 PM."
+            return out
+        st, lat, lng = places[0]
+        eff = window_effect(block, lat, lng, h0, h1, radius_km=2.0, area=st)
+        out["focus"] = {"lat": lat, "lng": lng, "label": f"Station {st}"}
+        facts.append({"k": "Out of service", "v": ", ".join(block), "note": f"{hour_label(h0)}–{hour_label(h1)}, every day of October"})
+        if eff:
+            d = eff["alt"] - eff["base"]
+            tone = "bad" if d >= 60 else "warn" if d >= 15 else "ok"
+            facts.append({"k": f"Calls in Station {st}'s area, {hour_label(h0)}–{hour_label(h1)}", "v": f"{mmss(eff['base'])} → {mmss(eff['alt'])}",
+                          "tone": tone, "note": f"{eff['n']} real calls; {eff['hit']} wait 15+ s longer, worst +{mmss(max(0, eff['worst']))}"})
+            facts.append({"k": "Those calls over 8 min", "v": f"{eff['over8_base']:.0%} → {eff['over8_alt']:.0%}"})
+            out["headline"] = (f"With {', '.join(block)} out from {hour_label(h0)} to {hour_label(h1)}, calls in Station {st}'s area wait "
+                               f"{'about the same' if abs(d) < 15 else f'{mmss(abs(d))} longer' if d > 0 else f'{mmss(-d)} less'} "
+                               f"({mmss(eff['base'])} → {mmss(eff['alt'])}); neighbors cover the rest.")
+        else:
+            out["headline"] = f"No calls in that window near Station {st} in October, so there's nothing to measure."
+    elif intent == "info":
+        info, (summary, _) = q["info"], run()
+        if info["topic"] == "call_kind":
+            ks = kind_stats(info["kind"]) or kind_stats("other")
+            out["headline"] = f"{ks['label'].capitalize()} calls: help typically arrives in {mmss(ks['median'])}; 1 in 10 waits over {mmss(ks['p90'])}."
+            facts += [{"k": "Calls in October", "v": f"{ks['n']:,}"}, {"k": "Units usually sent", "v": f"{ks['engines']} engine, {ks['ambulances']} ambulance"},
+                      {"k": "Typical time on scene", "v": f"{ks['scene_min']} min"}]
+        elif info["topic"] == "neighborhood" and info["hood"] in summary["hoods"]:
+            h = summary["hoods"][info["hood"]]
+            rank = sorted(summary["hoods"], key=lambda n: -summary["hoods"][n]["median"]).index(info["hood"]) + 1
+            lat, lng = hood_centroid(info["hood"])
+            hr = here(lng, lat)
+            slow = max((b for b in hr["by_time"] if b["today"]), key=lambda b: b["today"]["median"])
+            out["focus"] = {"lat": lat, "lng": lng, "label": info["hood"]}
+            out["headline"] = (f"{info['hood']}: help typically arrives in {mmss(h['median'])} ({'slower' if h['median'] > summary['city']['median'] else 'faster'} "
+                               f"than the city's {mmss(summary['city']['median'])}); #{rank} slowest of {len(summary['hoods'])}.")
+            facts += [{"k": "Calls over 8 min", "v": f"{h['over8']:.0%}"}, {"k": "Slowest time of day", "v": f"{slow['label']}: {mmss(slow['today']['median'])}"},
+                      {"k": "Likely first engine", "v": f"Station {hr['responders'][0]['station']}"}]
+        elif info["topic"] == "station" and info["station"]:
+            st = info["station"]
+            rows = [i for i in RT["test"] if i.get("area") == st]
+            units = [u for u, h in RT["homes"].items() if h[0] == "S" + st]
+            if rows:
+                r = sorted(i["real_response"] for i in rows)
+                busiest = max(range(24), key=lambda hh: sum(datetime.fromtimestamp(i["t"], sim.SF).hour == hh for i in rows))
+                out["headline"] = f"Station {st} is first-due for {len(rows):,} calls in October; help there typically arrives in {mmss(r[len(r) // 2])}."
+                facts += [{"k": "Units based here", "v": ", ".join(units) or "none"}, {"k": "Busiest hour", "v": hour_label(busiest)}]
+                lat, lng = sim.load_stations()[st]
+                out["focus"] = {"lat": lat, "lng": lng, "label": f"Station {st}"}
+            else:
+                out["headline"] = f"Station {st} has no first-due calls in October's records."
+        else:
+            c = summary["city"]
+            out["headline"] = f"Citywide, help typically arrives in {mmss(c['median'])}; {c['over8']:.0%} of calls wait over 8 minutes."
+    else:
+        out["headline"] = ("I can only answer questions about 911 response in San Francisco. Try: what if there's a crash near me at 5 PM, "
+                           "what if Station 43's engine is busy, or how fast do fires get help.")
+    out["facts"], out["assumptions"] = facts, assume
+    return out
+
+
 class Handler(BaseHTTPRequestHandler):
     def reply(self, body, ctype="application/json", code=200, gz=None):
         data = body if isinstance(body, bytes) else body.encode()
@@ -301,7 +543,11 @@ class Handler(BaseHTTPRequestHandler):
     def ask(self):
         try:
             n = min(int(self.headers.get("Content-Length", 0)), 4_000)
-            text = str(json.loads(self.rfile.read(n) or b"{}").get("text", ""))[:500].strip()
+            body = json.loads(self.rfile.read(n) or b"{}")
+            text = str(body.get("text", ""))[:500].strip()
+            me = body.get("me") if isinstance(body.get("me"), dict) else None
+            if me and not (-122.56 < float(me.get("lng", 0)) < -122.33 and 37.69 < float(me.get("lat", 0)) < 37.85):
+                me = None
         except (ValueError, TypeError, AttributeError):
             return self.reply('{"error": "bad request"}', code=400)
         if not text:
@@ -311,11 +557,13 @@ class Handler(BaseHTTPRequestHandler):
         except ImportError:
             return self.reply('{"error": "Typed questions are not set up on this server."}', code=503)
         try:
-            out = nl.parse_scenario(text, fleet())  # {station: {type: count}}; nl fills in addresses
-            usage = out.pop("usage", None)
+            q = nl.parse_question(text, fleet())  # the AI only reads the question; answer() computes everything
+            usage = q.pop("usage", None)
             if usage:
                 print(f"ask: {usage}")
-            self.reply(json.dumps(out), code=400 if "error" in out else 200)
+            if "error" in q:
+                return self.reply(json.dumps(q), code=400)
+            self.reply(json.dumps(answer(q, me)))
         except Exception as e:  # model or network failure: tell the page, don't crash the server
             self.reply(json.dumps({"error": f"Couldn't read that question: {e}"}), code=400)
 

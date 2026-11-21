@@ -197,12 +197,14 @@ FIRST_DUE = {"ENGINE", "TRUCK"}  # SF sends the call's own station first: 86.5% 
 
 
 def simulate(incidents, homes, travel, closed=(), added=(), volume=1.0, seed=0, offset=0.0, log=None, positions=True,
-             first_due=True):
+             first_due=True, blocked=None):
     """Returns {incident id: simulated response seconds}. closed: station numbers; added: [(station, type)].
     Units are only available on days they really worked (added units: every day).
     offset: calibration seconds added to every simulated response (number, or {band: seconds}).
     positions: units are dispatched from where they are (still at a scene, or at the hospital after a transport)
     until they've had time to drive home; False = the original model where every unit leaves from home.
+    blocked: {unit id: (from_sec, to_sec)} local time of day when that unit can't be dispatched (an incident or a
+    unit tied up), applied on every day of the month so the effect is averaged over real days.
     first_due: engines and trucks go to the call's own first-due station's unit when it's free (how SF dispatches),
     else the unit that can arrive soonest. Ambulances always go to the soonest (they rove, no home area).
     log: optional list; each dispatch appends a dict (unit, type, from, to, call, depart, arrive, free, travel, incident)."""
@@ -235,15 +237,24 @@ def simulate(incidents, homes, travel, closed=(), added=(), volume=1.0, seed=0, 
     loc, home_at = {}, defaultdict(lambda: -10**12)  # where a unit is after its last call, and when it's back home
     hospitals = load_hospitals() if positions else []
     out = {}
+    blocked = blocked or {}
+    day0 = {}
     for i in incs:
         t0 = i["t"] + i["delay"]
         b = band(t0)
+        if blocked:
+            d = i["day"]
+            if d not in day0:
+                day0[d] = int(datetime.combine(datetime.fromordinal(d).date(), datetime.min.time(), SF).timestamp())
+            tod = t0 - day0[d]
         used, arrivals = set(), []
         for u in i["units"]:
             best = None
             due = first_due and u["type"] in FIRST_DUE
             for uid in by_type[u["type"]]:
                 if uid in used or (on_duty[uid] is not None and i["day"] not in on_duty[uid]):
+                    continue
+                if uid in blocked and blocked[uid][0] <= tod < blocked[uid][1]:
                     continue
                 start = max(free[uid], t0)
                 if positions and start < home_at[uid] and uid in loc:
