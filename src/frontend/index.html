@@ -729,7 +729,8 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
 /* ---------- four tabs, what-if card, proposals, findings ---------- */
 #panel [data-pane] { display: none; }
 #panel[data-tab="whatif"] [data-pane="whatif"], #panel[data-tab="propose"] [data-pane="propose"],
-#panel[data-tab="findings"] [data-pane="findings"], #panel[data-tab="location"] [data-pane="location"] { display: block; }
+#panel[data-tab="findings"] [data-pane="findings"], #panel[data-tab="location"] [data-pane="location"],
+#panel[data-tab="breakdown"] [data-pane="breakdown"] { display: block; }
 #panel [data-pane][hidden] { display: none !important; }
 .drawer .tabs button { padding: 7px 4px; font-size: 13.5px; }
 .wi-lead { margin: 6px 0 10px; font-size: 14px; line-height: 1.5; color: var(--ink-soft); }
@@ -819,6 +820,51 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
 
 .banner-line { display: block !important; }
 .banner-line .vdot { display: inline-block; margin-right: 6px; vertical-align: 1px; }
+
+/* ---------- Breakdown ---------- */
+.bd h2 { font-size: 16px !important; }
+.bd .sub { margin: 2px 0 10px; font-size: 13px; color: var(--ink-faint); line-height: 1.45; }
+.ucard { padding: 12px 14px; border-radius: 14px; background: var(--raised); margin-bottom: 8px; }
+.ucard h3 { margin: 0 0 6px; font-size: 15px; font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; }
+.ucard h3 span { font-size: 12.5px; font-weight: 500; color: var(--ink-faint); }
+.ucard dl { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; font-size: 13.5px; }
+.ucard dt { color: var(--ink-soft); } .ucard dd { margin: 0; font-weight: 600; text-align: right; }
+.ucard .warn { margin: 8px 0 0; font-size: 12.5px; color: var(--warn); line-height: 1.4; }
+.tbl { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.tbl th { text-align: left; font-weight: 500; color: var(--ink-faint); font-size: 12px; padding: 0 0 4px; }
+.tbl td { padding: 6px 0; border-top: 1px solid var(--rule); }
+.tbl td:not(:first-child), .tbl th:not(:first-child) { text-align: right; }
+/* ---------- menu + AI activity ---------- */
+.menu-pop { position: fixed; z-index: 14; left: calc(var(--edge) + 56px); top: var(--edge); width: 270px; padding: 6px; border-radius: 16px; display: grid; gap: 2px; }
+.menu-pop[hidden] { display: none; }
+.menu-pop button { display: grid; grid-template-columns: 20px 1fr; gap: 12px; align-items: center; text-align: left; padding: 10px 12px; border: 0; border-radius: 12px; background: transparent; color: var(--ink); cursor: pointer; font: inherit; }
+.menu-pop button:hover, .menu-pop button:focus-visible { background: var(--hover); }
+.menu-pop svg { width: 20px; height: 20px; color: var(--ink-soft); }
+.menu-pop b { display: block; font-size: 14.5px; font-weight: 600; } .menu-pop small { font-size: 12.5px; color: var(--ink-faint); }
+.ai-page { position: fixed; z-index: 15; right: var(--edge); top: var(--edge); bottom: calc(var(--bar-h) + var(--edge) * 2); width: min(440px, calc(100vw - 2 * var(--edge)));
+  border-radius: 20px; padding: 16px 18px; overflow-y: auto; }
+.ai-page[hidden] { display: none; }
+.ai-page header { display: flex; justify-content: space-between; align-items: center; }
+.ai-page h2 { margin: 0; font-size: 19px; font-weight: 600; }
+.ai-flow { margin: 0 0 12px; padding-left: 20px; display: grid; gap: 4px; font-size: 13.5px; }
+.ai-flow b { font-weight: 600; margin-right: 6px; } .ai-flow span { color: var(--ink-soft); }
+.ai-totals { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 12px; }
+.ai-totals div { padding: 8px 10px; border-radius: 12px; background: var(--raised); }
+.ai-totals b { display: block; font-size: 18px; font-weight: 600; } .ai-totals span { font-size: 11.5px; color: var(--ink-faint); }
+.ai-traces { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.ai-traces > li:not(.note) { padding: 12px; border-radius: 14px; background: var(--raised); }
+.ai-traces .th { display: flex; justify-content: space-between; gap: 8px; font-size: 12.5px; color: var(--ink-faint); }
+.ai-traces .tq { margin: 4px 0 8px; font-size: 14.5px; font-weight: 600; }
+.ai-traces .st { display: inline-block; padding: 1px 8px; border-radius: 999px; font-weight: 600; background: var(--hover); color: var(--ink-soft); }
+.ai-traces .st.running { background: rgba(30, 136, 229, 0.14); color: var(--blue); } .ai-traces .st.done { background: rgba(46, 139, 87, 0.13); color: var(--ok); }
+.ai-traces .st.error { background: rgba(194, 58, 43, 0.12); color: var(--bad); }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.steps li { display: grid; grid-template-columns: 1fr auto; gap: 1px 10px; font-size: 13px; padding-left: 12px; border-left: 2px solid var(--rule-strong); }
+.steps li.ai { border-left-color: var(--accent); }
+.steps b { font-weight: 600; } .steps em { font-style: normal; color: var(--ink-faint); font-size: 12px; }
+.steps span { grid-column: 1 / -1; color: var(--ink-soft); }
+
+.bd h3 { margin: 14px 0 4px; font-size: 14px; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -832,10 +878,29 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
 </main>
 
 <nav class="rail" aria-label="Menu">
+  <button class="fab" id="menu-btn" aria-label="Menu" aria-expanded="false" title="Menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   <button class="fab" id="panel-toggle" aria-label="Open or close the panel" title="Panel" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   <button class="fab" id="help" aria-label="About Medio" title="About"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.01"/></svg></button>
   <button class="fab" id="layers-btn" aria-label="Map layers" aria-expanded="false" title="Layers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 4.5-9 4.5-9-4.5z"/><path d="M3 12l9 4.5 9-4.5M3 16.5l9 4.5 9-4.5"/></svg></button>
 </nav>
+<div class="menu-pop frost" id="menu-pop" role="menu" hidden>
+  <button type="button" role="menuitem" id="m-ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 9h6v6H9z"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg><span><b>AI activity</b><small>What the AI is doing, live</small></span></button>
+  <button type="button" role="menuitem" id="m-moves"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M3 12h18"/></svg><span><b>Getting around</b><small>Mouse and keyboard controls</small></span></button>
+  <button type="button" role="menuitem" id="m-about"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.01"/></svg><span><b>About Medio</b><small>What this is and who made it</small></span></button>
+</div>
+<section class="ai-page frost" id="ai-page" role="dialog" aria-labelledby="ai-h" hidden>
+  <header><h2 id="ai-h">AI activity</h2><button class="fab sm" id="ai-close" aria-label="Close AI activity"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
+  <p class="wi-lead">Every typed what-if runs through five steps. Two use Claude Haiku (reading your words, writing one sentence); the other three are plain code, and they produce every number. This page updates live.</p>
+  <ol class="ai-flow">
+    <li><b>Planner</b><span>Claude Haiku turns your words into simulator settings</span></li>
+    <li><b>Geocoder</b><span>OpenStreetMap finds any street or landmark you named</span></li>
+    <li><b>Simulator</b><span>Replays 13,417 real October calls with the plan</span></li>
+    <li><b>Writer</b><span>Claude Haiku writes one sentence from the measured result</span></li>
+    <li><b>Number checker</b><span>Every number in that sentence must appear in the simulator’s output, or a template is used</span></li>
+  </ol>
+  <div class="ai-totals" id="ai-totals"></div>
+  <ol class="ai-traces" id="ai-traces"><li class="note">No requests yet. Ask a what-if and watch it run here.</li></ol>
+</section>
 <div class="layer-pop frost" id="layer-pop" role="group" aria-label="Map layers" hidden>
     <label class="toggle" id="t-g3d" hidden><input type="checkbox" id="l-g3d" checked>Google 3D</label>
     <label class="toggle"><input type="checkbox" id="l-sat" checked>Satellite</label>
@@ -871,8 +936,9 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
 <aside class="drawer frost" id="panel" data-tab="findings" aria-label="Medio panel">
   <header class="drawer-head">
     <nav class="tabs" role="tablist" aria-label="Panel sections">
-      <button role="tab" data-tab="findings" aria-selected="true">Data story</button>
+      <button role="tab" data-tab="findings" aria-selected="true">Story</button>
       <button role="tab" data-tab="whatif" aria-selected="false">What if</button>
+      <button role="tab" data-tab="breakdown" aria-selected="false">Breakdown</button>
       <button role="tab" data-tab="propose" aria-selected="false">Propose</button>
       <button role="tab" data-tab="location" aria-selected="false">You</button>
     </nav>
@@ -895,6 +961,24 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
       </div>
     </details></section>
 
+    <section class="block" data-pane="breakdown">
+      <div class="verdict" id="verdict">
+        <p class="vword" id="vword">…</p>
+        <p class="vsub" id="vsub">Loading the simulator</p>
+        <div class="tiles">
+          <div class="tile"><span>Median wait for help</span><b class="num" id="t-med">—</b><i class="num flat" id="d-med">&nbsp;</i></div>
+          <div class="tile"><span>Calls over 8 min</span><b class="num" id="t-over">—</b><i class="num flat" id="d-over">&nbsp;</i></div>
+        </div>
+      </div>
+    </section>
+    <section class="block" data-pane="breakdown">
+      <h2 id="findings-title">Slowest neighborhoods</h2>
+      <div id="findings"></div>
+    </section>
+    <section class="block" data-pane="breakdown" id="bd-last"></section>
+    <section class="block bd" data-pane="breakdown" id="bd-units"><p class="note">Loading the breakdown…</p></section>
+    <section class="block bd" data-pane="breakdown" id="bd-police"></section>
+    <section class="block bd" data-pane="breakdown" id="bd-kinds"></section>
     <section class="block" data-pane="propose">
       <h2>Propose something new</h2>
       <p class="wi-lead">Think your neighborhood needs a station? Pick what to add and click where it should go. Medio replays October with it, so you see who would get help faster before you submit.</p>
@@ -956,16 +1040,7 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
       </ul>
     </section>
     <section class="block find" data-pane="findings" id="find-data"></section>
-    <section class="block" data-pane="findings" hidden>
-      <div class="verdict" id="verdict">
-        <p class="vword" id="vword">…</p>
-        <p class="vsub" id="vsub">Loading the simulator</p>
-        <div class="tiles">
-          <div class="tile"><span>Median wait for help</span><b class="num" id="t-med">—</b><i class="num flat" id="d-med">&nbsp;</i></div>
-          <div class="tile"><span>Calls over 8 min</span><b class="num" id="t-over">—</b><i class="num flat" id="d-over">&nbsp;</i></div>
-        </div>
-      </div>
-    </section>
+
     <section class="block me-block" id="me-block" data-pane="location">
       <h2>How fast would help reach you? <button class="link" id="me-clear" type="button" hidden>Clear</button></h2>
       <form class="ask loc-form" id="loc-form" autocomplete="off"><div class="me-search"><input id="loc-q" type="text" autocomplete="off" spellcheck="false" placeholder="Enter a San Francisco address" aria-label="Your address in San Francisco"
@@ -1679,9 +1754,14 @@ function layers(t, veh) {
     L.push(mesh("bar-police", veh.police, MESH.barPolice, (v) => v.state === 0 ? ((flash ^ v.blink) ? [255, 40, 40] : [60, 120, 255]) : v.state === 1 ? [60, 120, 255] : [70, 74, 80]));
   }
   const pins = [...MARKERS, ...PROPS.map((q) => ({ kind: "prop", lat: q.lat, lng: q.lng }))];
+  if (ME) pins.push({ kind: "me", lat: ME.lat, lng: ME.lng, label: (ME.label || "Your address").split(",")[0] });
   if (PROP_SPOT && !MARKERS.some((m) => m.kind === "new")) pins.push({ kind: "new", lat: PROP_SPOT.lat, lng: PROP_SPOT.lng, label: "Your spot" });
   if (pins.length) {
-    const MK = { new: [46, 139, 87], closed: [194, 58, 43], incident: [232, 98, 44], crowd: [142, 68, 173], prop: [30, 136, 229] };
+    const MK = { new: [46, 139, 87], closed: [194, 58, 43], incident: [232, 98, 44], crowd: [142, 68, 173], prop: [30, 136, 229], me: [30, 136, 229] };
+    const meP = pins.filter((m) => m.kind === "me");
+    if (meP.length) L.push(new deck.ScatterplotLayer({ id: "me-ring", data: meP, getPosition: (m) => at(m.lng, m.lat), radiusUnits: "pixels",
+      getRadius: 16 + pulse * 22, stroked: true, filled: true, getFillColor: [30, 136, 229, Math.round(70 * (1 - pulse))], getLineColor: [30, 136, 229, Math.round(220 * (1 - pulse))],
+      lineWidthMinPixels: 2, parameters: { depthTest: false }, updateTriggers: { getRadius: pulse, getFillColor: pulse, getLineColor: pulse, getPosition: zk } }));
     L.push(new deck.ScatterplotLayer({ id: "pins", data: pins, getPosition: (m) => at(m.lng, m.lat), radiusUnits: "pixels",
       getRadius: (m) => (m.kind === "prop" ? 7 : 12), stroked: true, getFillColor: (m) => [...MK[m.kind], 225], getLineColor: [255, 255, 255, 255],
       lineWidthMinPixels: 2.5, parameters: { depthTest: false }, updateTriggers: { getPosition: zk } }));
@@ -2075,7 +2155,7 @@ function setMe(lng, lat, label) {
   msg.hidden = true;
   $("#me-clear").hidden = false;
   stopFollow();
-  setView({ longitude: lng, latitude: lat, zoom: 14.6, pitch: 55 }, reduced ? 0 : 1400);
+  setView({ longitude: lng, latitude: lat, zoom: 17, pitch: 55 }, reduced ? 0 : 1400);  // close enough to see the house
   renderMine();
 }
 // Address search: Photon (komoot, OpenStreetMap data) allows search-as-you-type; results kept to San Francisco.
@@ -2343,6 +2423,7 @@ function lookupHTML(d) {
 // a simulated scenario drives the whole map: neighborhood colors, banner, replayed dispatches, pins
 function applyResult(d, fly = true) {
   RESULT = d.result; CUSTOM = d.title; MARKERS = d.markers || [];
+  LAST_OUTCOME = d; if (typeof renderLast === "function") renderLast();
   loadReplay(d.result.replay);
   renderAll();
   if (fly && d.focus) setView({ longitude: d.focus.lng, latitude: d.focus.lat, zoom: Math.max(view.zoom, 13.5), pitch: 55 }, 1400);
@@ -2553,6 +2634,64 @@ async function loadFindings() {
 }
 loadProposals();
 loadFindings();
+// ---------- Breakdown: by responder, police, call kind (real records + simulator) ----------
+let LAST_OUTCOME = null;
+function renderLast() {
+  const el = $("#bd-last");
+  el.innerHTML = LAST_OUTCOME ? `<h2>Latest what-if: predicted by the simulator</h2>${outcomeHTML(LAST_OUTCOME, true)}`
+    : `<h2>Latest what-if</h2><p class="note">Ask a what-if or preview a proposal; its predicted results show here.</p>`;
+}
+async function loadBreakdown() {
+  let B;
+  try { B = await fetch("/api/breakdown").then((r) => r.json()); } catch (e) { $("#bd-units").innerHTML = `<p class="note">Couldn’t load the breakdown.</p>`; return; }
+  $("#bd-units").innerHTML = `<h2>By responder</h2><p class="sub">Real October 2026 records, and what the simulator predicts for the same calls.</p>` + B.units.map((u) => `
+    <div class="ucard"><h3>${esc(u.name)}<span>${u.fleet} units · ${u.dispatches} dispatches</span></h3><dl>
+      <dt>Time to roll out after dispatch</dt><dd class="num">${u.turnout}</dd>
+      <dt>Drive time, real</dt><dd class="num">${u.drive_real}</dd>
+      <dt>Drive time, simulated</dt><dd class="num">${u.drive_sim}</dd>
+      <dt>Busy per call${u.transport ? " (incl. hospital)" : ""}</dt><dd class="num">${u.on_scene}</dd>
+      <dt>Arrives first at</dt><dd class="num">${u.first} of calls</dd>
+      ${u.transport ? `<dt>Takes the patient to hospital</dt><dd class="num">${u.transport}</dd>` : ""}</dl>
+      ${u.transport ? `<p class="warn">The simulator underestimates ambulance drives: real ambulances are often already out on the road, not waiting at a base. Engines, which usually lead, are close.</p>` : ""}</div>`).join("");
+  const P = B.police;
+  $("#bd-police").innerHTML = `<h2>Police</h2><p class="sub">Real SFPD dispatches, October 2026: ${P.calls} calls, typical ${P.median} from dispatch to an officer on scene. Real records only; scenarios don’t change police.</p>
+    <table class="tbl"><tr><th>Priority</th><th>Typical wait</th><th>Calls</th></tr>${P.priority.map((x) => `<tr><td>${esc(x.name)}</td><td class="num">${x.wait}</td><td class="num">${x.calls}</td></tr>`).join("")}</table>
+    <h3>Slowest districts</h3><table class="tbl">${P.districts.slice(0, 5).map((x) => `<tr><td>${esc(x.name)}</td><td class="num">${x.wait}</td><td class="num">${x.calls.toLocaleString()} calls</td></tr>`).join("")}</table>
+    <h3>Most common calls</h3><table class="tbl">${P.types.map((x) => `<tr><td>${esc(x.name)}</td><td class="num">${x.calls.toLocaleString()}</td></tr>`).join("")}</table>`;
+  $("#bd-kinds").innerHTML = `<h2>By kind of emergency</h2><p class="sub">Fire and EMS, real October records: from the 911 call to the first unit on scene.</p>
+    <table class="tbl"><tr><th>Kind</th><th>Calls</th><th>Typical wait</th><th>Over 8 min</th></tr>${B.kinds.map((k) => `<tr><td>${esc(k.name)}</td><td class="num">${k.calls}</td><td class="num">${k.wait}</td><td class="num">${k.over8}</td></tr>`).join("")}</table>`;
+}
+
+// ---------- menu + AI activity ----------
+$("#menu-btn").onclick = () => { const m = $("#menu-pop"); m.hidden = !m.hidden; $("#menu-btn").setAttribute("aria-expanded", String(!m.hidden)); };
+addEventListener("click", (e) => { const m = $("#menu-pop"); if (!m.hidden && !m.contains(e.target) && !$("#menu-btn").contains(e.target)) { m.hidden = true; $("#menu-btn").setAttribute("aria-expanded", "false"); } });
+$("#m-moves").onclick = () => { $("#menu-pop").hidden = true; showMoves(true); };
+$("#m-about").onclick = () => { $("#menu-pop").hidden = true; $("#help").click(); };
+let aiTimer = 0;
+const AI_STEP = new Set(["Planner (Claude Haiku)", "Writer (Claude Haiku)"]);
+async function pollAI() {
+  try {
+    const d = await fetch("/api/ai").then((r) => r.json()), T = d.totals || {};
+    $("#ai-totals").innerHTML = [["Requests", T.requests || 0], ["Claude Haiku calls", T.haiku_calls || 0], ["Simulations", T.simulations || 0],
+      ["Tokens read", (T.tokens_in || 0).toLocaleString()], ["Tokens written", (T.tokens_out || 0).toLocaleString()], ["Sentences rejected", T.rejected || 0]]
+      .map(([k, v]) => `<div><b class="num">${v}</b><span>${k}</span></div>`).join("");
+    $("#ai-traces").innerHTML = d.traces.length ? d.traces.map((t) => `<li>
+      <div class="th"><span>${esc(t.kind)} · ${esc(t.started)}${t.ms ? ` · ${(t.ms / 1000).toFixed(1)} s` : ""}</span><span class="st ${t.status}">${t.status === "running" ? "Running" : t.status === "done" ? "Done" : "Error"}</span></div>
+      <p class="tq">“${esc(t.text)}”</p>
+      <ol class="steps">${t.steps.map((x) => `<li class="${AI_STEP.has(x.agent) ? "ai" : ""}"><b>${esc(x.agent)}</b><em class="num">${x.ms != null ? `${x.ms} ms` : ""}${x.tokens_in ? ` · ${x.tokens_in.toLocaleString()} in / ${x.tokens_out} out` : ""}</em><span>${esc(x.what)}</span></li>`).join("")}</ol></li>`).join("")
+      : `<li class="note">No requests yet. Ask a what-if and watch it run here.</li>`;
+  } catch (e) { /* server busy: try again next tick */ }
+}
+function showAI(on) {
+  $("#ai-page").hidden = !on; $("#menu-pop").hidden = true;
+  clearInterval(aiTimer);
+  if (on) { pollAI(); aiTimer = setInterval(pollAI, 1200); }
+}
+$("#m-ai").onclick = () => showAI(true);
+$("#ai-close").onclick = () => showAI(false);
+loadBreakdown();
+renderLast();
+
 // ---------- boot ----------
 (async () => {
   const get = (u) => fetch(u).then((r) => r.json());
