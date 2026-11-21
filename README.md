@@ -2,6 +2,8 @@
 
 Acalanes Data Fest 2026 project. A 3D "what if" simulator for San Francisco's 911 fire and EMS response, built from real 911 records.
 
+**Live:** https://runnr-cbc8.onrender.com (free plan: the first load after idle takes ~50 s)
+
 ## The idea
 
 When you call 911, the minutes until help arrives matter. Runnr replays real SF 911 calls in a simulation: each call goes to the nearest free unit, and that unit drives there, stays busy, then returns to its station. We check the simulation against real recorded arrival times, then ask questions like:
@@ -64,7 +66,7 @@ Reproduce: `python3 src/backend/sim.py`. After changing the model, run `python3 
 - [x] Travel-time model and simulator
 - [x] Validation numbers
 - [x] Live 3D replay: satellite map, 3D buildings, 3D vehicles on real streets, what-if scenarios, Haiku Ask box (`src/frontend/index.html`)
-- [ ] Render deploy (`render.yaml` is ready; connect the repo in Render)
+- [x] Render deploy: https://runnr-cbc8.onrender.com (auto-deploys on push to `main`)
 - [ ] Slides
 
 The earlier idea, Runnr as a lab-protocol checker, is in git history (commit `fa7e4a4`).
