@@ -51,7 +51,7 @@ CACHE = OrderedDict()
 DAYS = Counter(i["day"] for i in RT["test"])
 DEFAULT_DAY = max(DAYS, key=DAYS.get)  # the busiest day makes the liveliest replay
 OFF = round(RT["offset"])
-DATA_FILES = {"stations.json", "hoods.geojson", "people.json", "validation.json", "buildings.json", "police_stations.json", "hospitals.json"}
+DATA_FILES = {"stations.json", "hoods.geojson", "people.json", "validation.json", "buildings.json", "police_stations.json", "hospitals.json", "elevation.json"}
 # added units (NEW*) start at a station; find its key from the start coordinates in the sim log
 STATION_AT = {(round(lng, 5), round(lat, 5)): "S" + k for k, (lat, lng) in sim.load_stations().items()}
 try:

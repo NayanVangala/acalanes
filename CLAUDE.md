@@ -27,6 +27,7 @@ python3 src/backend/sim.py --export      # rebuild data/build/runtime.pkl.gz aft
 python3 src/backend/routing.py --build   # rebuild data/build/routes.pkl.gz from data/raw/osm/roads.json
 python3 src/backend/nl.py                # live Haiku self-test (costs ~$0.0003)
 python3 scripts/fetch_data.py            # re-download DataSF datasets into data/sf/
+python3 scripts/fetch_elevation.py       # rebuild data/sf/elevation.json (ground heights for Google 3D mode)
 ```
 
 ## Rules

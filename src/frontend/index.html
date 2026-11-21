@@ -266,7 +266,7 @@ dialog p b { color: var(--ink); }
 </style>
 </head>
 <body>
-<div id="map" tabindex="0" role="application" aria-label="3D map of San Francisco with fire engines, ambulances and police responding to 911 calls. Arrow keys or WASD move, Q and E rotate, plus and minus zoom."></div>
+<div id="map" tabindex="0" role="application" aria-label="3D map of San Francisco with fire engines, ambulances and police responding to 911 calls. Arrow keys move, Shift with arrow keys rotates and tilts, plus and minus zoom."></div>
 
 <header class="glass brand">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12h4l3-7 4 14 3-7h6"/></svg>
@@ -388,20 +388,20 @@ dialog p b { color: var(--ink); }
 </section>
 
 <div class="glass zoom" role="group" aria-label="Move the map">
-  <button class="icon-btn" id="n-rl" aria-label="Rotate left (Q)" title="Rotate left (Q)">↺</button>
-  <button class="icon-btn" id="n-up" aria-label="Move north (W or ↑)" title="Move (W or ↑)">▲</button>
-  <button class="icon-btn" id="n-rr" aria-label="Rotate right (E)" title="Rotate right (E)">↻</button>
-  <button class="icon-btn" id="n-left" aria-label="Move west (A or ←)" title="Move (A or ←)">◀</button>
+  <button class="icon-btn" id="n-rl" aria-label="Rotate left (Shift ←)" title="Rotate left (Shift ←)">↺</button>
+  <button class="icon-btn" id="n-up" aria-label="Move north (↑)" title="Move (↑)">▲</button>
+  <button class="icon-btn" id="n-rr" aria-label="Rotate right (Shift →)" title="Rotate right (Shift →)">↻</button>
+  <button class="icon-btn" id="n-left" aria-label="Move west (←)" title="Move (←)">◀</button>
   <button class="icon-btn" id="n-compass" aria-label="Face north" title="Face north"><svg viewBox="0 0 24 24" id="compass-svg"><path d="M12 3l4 9h-8z" fill="#ff5a45"/><path d="M12 21l-4-9h8z" fill="currentColor"/></svg></button>
-  <button class="icon-btn" id="n-right" aria-label="Move east (D or →)" title="Move (D or →)">▶</button>
+  <button class="icon-btn" id="n-right" aria-label="Move east (→)" title="Move (→)">▶</button>
   <button class="icon-btn" id="z-in" aria-label="Zoom in (+)" title="Zoom in (+)">+</button>
-  <button class="icon-btn" id="n-down" aria-label="Move south (S or ↓)" title="Move (S or ↓)">▼</button>
+  <button class="icon-btn" id="n-down" aria-label="Move south (↓)" title="Move (↓)">▼</button>
   <button class="icon-btn" id="z-out" aria-label="Zoom out (−)" title="Zoom out (−)">−</button>
   <button class="icon-btn" id="z-tilt" aria-label="Toggle 3D tilt" title="Tilt">3D</button>
   <button class="icon-btn" id="z-drop" aria-label="Drop to street level behind a moving vehicle" title="Street level"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12M7 10l5 5 5-5M5 20h14"/></svg></button>
   <button class="icon-btn" id="z-fit" aria-label="Reset view (R)" title="Reset view (R)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
 </div>
-<div class="glass hint" id="hint" hidden>Drag to move · Scroll or pinch to zoom · Right-drag or Q/E to rotate</div>
+<div class="glass hint" id="hint" hidden>Drag or arrow keys to move · Scroll to zoom · Shift + arrows to rotate and tilt</div>
 
 <div class="glass dock">
   <button class="play" id="play" aria-label="Pause replay"><svg viewBox="0 0 24 24" fill="currentColor" id="play-icon"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg></button>
@@ -450,9 +450,11 @@ const BAY_MASK = [[[BAY[0], BAY[1]], [BAY[2], BAY[1]], [BAY[2], BAY[3]], [BAY[0]
 // keep the camera over the city: center stays near SF, can't zoom out past the Bay
 const LIMIT = { lng: [-122.56, -122.32], lat: [37.69, 37.845], minZoom: 11.2 };
 function clampView(v) {
-  return { ...v, longitude: Math.min(LIMIT.lng[1], Math.max(LIMIT.lng[0], v.longitude)),
-    latitude: Math.min(LIMIT.lat[1], Math.max(LIMIT.lat[0], v.latitude)), zoom: Math.max(LIMIT.minZoom, v.zoom) };
+  const longitude = Math.min(LIMIT.lng[1], Math.max(LIMIT.lng[0], v.longitude)), latitude = Math.min(LIMIT.lat[1], Math.max(LIMIT.lat[0], v.latitude));
+  // in Google's 3D city the ground is up to ~280 m high: pivot the camera on the ground under it, not on sea level
+  return { ...v, longitude, latitude, zoom: Math.max(LIMIT.minZoom, v.zoom), position: [0, 0, groundAt(longitude, latitude)] };
 }
+const groundAt = (lng, lat) => (typeof groundZ === "function" ? Math.max(0, groundZ(lng, lat)) : 0);
 const CELL = [0.0057, 0.0045];
 const HOME = { longitude: -122.428, latitude: 37.765, zoom: 12.6, pitch: 60, bearing: -24 };
 const EXAMPLES = {
@@ -481,6 +483,37 @@ const G_CREDITS = new Set();
 let G_LOAD = null, G_ONLOAD = null;
 const useGoogle = () => !!GOOGLE_KEY && show.g3d;
 const NO_EXT = [];
+// ---------- ground height (Google mode) ----------
+// Google's 3D city is measured from the WGS84 ellipsoid; the elevation grid is meters above sea level.
+// In San Francisco the geoid sits ~32.5 m below the ellipsoid, so ground z = elevation - 32.5.
+let ELEV = null;
+const GEOID = -32.5;   // calibration knob: raise if vehicles sink into roads, lower if they float
+const LIFT = 0.6;      // keep wheels on the road surface, not inside it
+function groundZ(lng, lat) {
+  if (!ELEV || !useGoogle()) return 0;
+  const { bbox, step, nx, ny, rows } = ELEV;
+  const fx = (lng - bbox[0]) / step[0], fy = (lat - bbox[1]) / step[1];
+  if (!(fx >= 0 && fy >= 0 && fx <= nx - 1 && fy <= ny - 1)) return 0;
+  const i = Math.floor(fx), j = Math.floor(fy), dx = fx - i, dy = fy - j, i1 = Math.min(i + 1, nx - 1), j1 = Math.min(j + 1, ny - 1);
+  const h = rows[j][i] * (1 - dx) * (1 - dy) + rows[j][i1] * dx * (1 - dy) + rows[j1][i] * (1 - dx) * dy + rows[j1][i1] * dx * dy;
+  return h + GEOID + LIFT;
+}
+const at = (lng, lat) => [lng, lat, groundZ(lng, lat)];
+function densify(pts, maxM = 25) {
+  // extra vertices along long straight segments so trails follow hills between street corners
+  const out = [pts[0]];
+  for (let i = 1; i < pts.length; i++) {
+    const [x0, y0] = pts[i - 1], [x1, y1] = pts[i];
+    const m = Math.hypot((x1 - x0) * M_LAT * Math.cos((y0 * Math.PI) / 180), (y1 - y0) * M_LAT), n = Math.ceil(m / maxM);
+    for (let k = 1; k <= n; k++) out.push([x0 + ((x1 - x0) * k) / n, y0 + ((y1 - y0) * k) / n]);
+  }
+  return out;
+}
+const lift = (pts) => pts.map(([x, y]) => at(x, y));
+async function loadElevation() {
+  if (ELEV) return;
+  try { const r = await fetch("/data/elevation.json"); if (r.ok) { ELEV = await r.json(); if (REPLAY) loadReplay0(REPLAY); } } catch (e) { /* flat ground */ }
+}
 const onTerrain = () => (useGoogle() ? TERRAIN : NO_EXT);
 let G_SSE = 16;
 const DETAIL = { bay: 15, world: 9 };  // max tile depth outside SF (SF itself goes to ~18-19)
@@ -566,7 +599,7 @@ function along(g, f) {
   while (lo < hi) { const m = (lo + hi) >> 1; c[m] < d ? (lo = m + 1) : (hi = m); }
   const a = g.pts[lo - 1], b = g.pts[lo], seg = c[lo] - c[lo - 1] || 1, k = (d - c[lo - 1]) / seg;
   const heading = (Math.atan2((b[0] - a[0]) * g.kx, (b[1] - a[1]) * M_LAT) * 180) / Math.PI;
-  return [[a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k], heading];
+  return [at(a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k), heading];
 }
 function loadReplay(r) { loadReplay0(r); drawActivity(); }
 // calls per hour behind the timeline: fire/EMS calls, with police stacked on top
@@ -605,22 +638,22 @@ function loadReplay0(r) {
   SEGS = [];
   for (const t of r.trips) {
     const [, type, fx, fy, tx, ty, dep, arr, free, back] = t;
-    const path = Array.isArray(t[13]) && t[13].length >= 2 ? t[13] : [[fx, fy], [tx, ty]];
-    const g = (t.g = geom(path)), fire = FIRE.has(type);
+    const path = densify(Array.isArray(t[13]) && t[13].length >= 2 ? t[13] : [[fx, fy], [tx, ty]]);
+    const g = (t.g = geom(path)), fire = FIRE.has(type), p3 = lift(path);
     const out = Math.max(arr - dep, 1), ret = Math.max(back - free, 1);
-    SEGS.push({ path, ts: g.cum.map((c) => dep + (out * c) / g.total), fire });
-    SEGS.push({ path: path.slice().reverse(), ts: g.cum.slice().reverse().map((c) => free + (ret * (g.total - c)) / g.total), fire });
+    SEGS.push({ path: p3, ts: g.cum.map((c) => dep + (out * c) / g.total), fire });
+    SEGS.push({ path: p3.slice().reverse(), ts: g.cum.slice().reverse().map((c) => free + (ret * (g.total - c)) / g.total), fire });
   }
   DEPARTS = r.trips.map((t) => t[6]);
   // police: replayed from real SFPD records [district, fx, fy, tx, ty, dispatch, onscene, clear, call_type, priority, path]
   POL = []; PSEGS = [];
   for (const [district, fx, fy, tx, ty, disp, on, clear, type, prio, path] of r.police || []) {
     if ([fx, fy, tx, ty, disp, on].some((x) => x == null)) continue;
-    const pts = Array.isArray(path) && path.length >= 2 ? path : [[fx, fy], [tx, ty]];
+    const pts = densify(Array.isArray(path) && path.length >= 2 ? path : [[fx, fy], [tx, ty]]), p3 = lift(pts);
     const g = geom(pts), out = Math.max(on - disp, 1), end = Math.max(clear || on, on);
     POL.push({ district, g, disp, on, clear: end, back: end + out, type, prio, blink: POL.length % 2 });
-    PSEGS.push({ path: pts, ts: g.cum.map((c) => disp + (out * c) / g.total) });
-    PSEGS.push({ path: pts.slice().reverse(), ts: g.cum.slice().reverse().map((c) => end + (out * (g.total - c)) / g.total) });
+    PSEGS.push({ path: p3, ts: g.cum.map((c) => disp + (out * c) / g.total) });
+    PSEGS.push({ path: p3.slice().reverse(), ts: g.cum.slice().reverse().map((c) => end + (out * (g.total - c)) / g.total) });
   }
   if (POL.length) { $("#t-pol").hidden = false; $("#c-pol").hidden = false; }
 }
@@ -846,7 +879,7 @@ function baseLayers() {
 }
 function layers(t, veh) {
   const pulse = (Math.sin(performance.now() / 260) + 1) / 2;
-  const L = baseLayers(), g = useGoogle(), ext = onTerrain();
+  const L = baseLayers(), g = useGoogle(), ext = onTerrain(), zk = (g ? 1 : 0) + (ELEV ? 2 : 0);
   if (show.grid) L.push(memo("grid", [ext], () => new deck.PathLayer({ id: "grid", data: GRID, getPath: (d) => d.path, getColor: [255, 255, 255, 38],
     widthUnits: "pixels", getWidth: 1, parameters: { depthTest: false }, extensions: ext })));
   if (show.bld && BUILDINGS && !g) L.push(memo("buildings", [BUILDINGS], () => new deck.SolidPolygonLayer({
@@ -867,16 +900,16 @@ function layers(t, veh) {
   })));
   const bscale = Math.round(buildingScale() * 20) / 20;  // quantized so zooming rebuilds stations rarely
   const bld = (id, data, m, extra = {}) => new deck.SimpleMeshLayer({
-    id, data, mesh: m, getPosition: (b) => [b.lng, b.lat], getOrientation: [0, 0, 0], sizeScale: bscale, getColor: [255, 255, 255], _useMeshColors: true,
-    material: { ambient: 0.5, diffuse: 0.65, shininess: 16, specularColor: [40, 40, 40] }, extensions: ext, ...extra,
+    id, data, mesh: m, getPosition: (b) => at(b.lng, b.lat), getOrientation: [0, 0, 0], sizeScale: bscale, getColor: [255, 255, 255], _useMeshColors: true,
+    material: { ambient: 0.5, diffuse: 0.65, shininess: 16, specularColor: [40, 40, 40] }, updateTriggers: { getPosition: zk }, ...extra,
   });
   const sp = stationSplit();
-  L.push(memo("stations", [sp, bscale, ext], () => bld("stations", sp.open, MESH.firehouse, { pickable: true })));
-  if (sp.shut.length) L.push(memo("stations-closed", [sp, bscale, ext], () => bld("stations-closed", sp.shut, MESH.firehouseClosed, { pickable: true })));
-  if (show.police && POLICE_ST) L.push(memo("police-stations", [POLICE_ST, bscale, ext], () => bld("police-stations", POLICE_ST, MESH.policeStation, { pickable: true })));
+  L.push(memo("stations", [sp, bscale, zk], () => bld("stations", sp.open, MESH.firehouse, { pickable: true })));
+  if (sp.shut.length) L.push(memo("stations-closed", [sp, bscale, zk], () => bld("stations-closed", sp.shut, MESH.firehouseClosed, { pickable: true })));
+  if (show.police && POLICE_ST) L.push(memo("police-stations", [POLICE_ST, bscale, zk], () => bld("police-stations", POLICE_ST, MESH.policeStation, { pickable: true })));
   if (show.hosp && HOSP) {
-    L.push(memo("hospitals", [HOSP, bscale, ext], () => bld("hospitals", HOSP.filter((h) => h.big), MESH.hospital, { pickable: true })));
-    L.push(memo("hospitals-small", [HOSP, bscale, ext], () => bld("hospitals-small", HOSP.filter((h) => !h.big), MESH.hospitalSmall, { pickable: true })));
+    L.push(memo("hospitals", [HOSP, bscale, zk], () => bld("hospitals", HOSP.filter((h) => h.big), MESH.hospital, { pickable: true })));
+    L.push(memo("hospitals-small", [HOSP, bscale, zk], () => bld("hospitals-small", HOSP.filter((h) => !h.big), MESH.hospitalSmall, { pickable: true })));
   }
   const beaconH = 70 * bscale;  // light column height in meters: tall at city zoom, modest up close
   const beacons = memo("beacon-data", [sp, show.police, POLICE_ST, show.hosp, HOSP], () => [
@@ -886,15 +919,15 @@ function layers(t, veh) {
     ...(show.hosp && HOSP ? HOSP.map((b) => ({ lng: b.lng, lat: b.lat, col: [255, 60, 70], halo: [255, 235, 235], on: true })) : []),
   ]);
   const GLOW = { depthMask: false, blendFunc: [770, 1] };  // SRC_ALPHA, ONE: additive glow
-  L.push(memo("beacon-cols", [beacons, bscale, ext], () => new deck.ColumnLayer({
-    id: "beacon-cols", data: beacons, diskResolution: 12, radius: 2.2 * bscale, extruded: true, getPosition: (b) => [b.lng, b.lat],
-    getElevation: beaconH, getFillColor: (b) => [...b.col, b.on ? 95 : 40], material: false, parameters: GLOW, extensions: ext,
+  L.push(memo("beacon-cols", [beacons, bscale, zk], () => new deck.ColumnLayer({
+    id: "beacon-cols", data: beacons, diskResolution: 12, radius: 2.2 * bscale, extruded: true, getPosition: (b) => at(b.lng, b.lat),
+    getElevation: beaconH, getFillColor: (b) => [...b.col, b.on ? 95 : 40], material: false, parameters: GLOW, updateTriggers: { getPosition: zk },
   })));
   const ph = reduced ? 0.5 : (Math.sin((performance.now() / 1500) * 2 * Math.PI) + 1) / 2;  // slow 1.5 s pulse
-  const halo = memo("beacon-halo", [beacons, bscale, ext], () => new deck.ScatterplotLayer({
-    id: "beacon-halo", data: beacons.filter((b) => b.on), getPosition: (b) => [b.lng, b.lat, beaconH], billboard: true,
+  const halo = memo("beacon-halo", [beacons, bscale, zk], () => new deck.ScatterplotLayer({
+    id: "beacon-halo", data: beacons.filter((b) => b.on), getPosition: (b) => [b.lng, b.lat, groundZ(b.lng, b.lat) + beaconH], billboard: true,
     radiusUnits: "pixels", getRadius: 7, stroked: true, lineWidthUnits: "pixels", getLineWidth: 2,
-    getFillColor: (b) => [...b.col, 70], getLineColor: (b) => [...(b.halo || b.col), 200], parameters: GLOW, extensions: ext,
+    getFillColor: (b) => [...b.col, 70], getLineColor: (b) => [...(b.halo || b.col), 200], parameters: GLOW, updateTriggers: { getPosition: zk },
   }));
   L.push(halo.clone({ radiusScale: 1 + 0.6 * ph, opacity: 0.55 + 0.45 * (1 - ph) }));
   if (ME) {
@@ -905,29 +938,29 @@ function layers(t, veh) {
       parameters: { depthTest: false },
     }));
     L.push(new deck.ScatterplotLayer({
-      id: "me", data: [ME, ME], pickable: true, getPosition: (d) => [d.lng, d.lat], radiusUnits: "pixels",
+      id: "me", data: [ME, ME], pickable: true, getPosition: (d) => at(d.lng, d.lat), radiusUnits: "pixels",
       getRadius: (d, { index }) => (index ? 8 : 14 + pulse * 16), stroked: true, filled: true, lineWidthUnits: "pixels",
       getFillColor: (d, { index }) => (index ? [255, 255, 255, 255] : [243, 154, 43, 70]),
       getLineColor: (d, { index }) => (index ? [243, 154, 43, 255] : [243, 154, 43, 200]), getLineWidth: (d, { index }) => (index ? 4 : 2),
-      parameters: { depthTest: false }, extensions: ext, updateTriggers: { getRadius: pulse },
+      parameters: { depthTest: false }, updateTriggers: { getRadius: pulse, getPosition: zk },
     }));
   }
   L.push(new deck.TripsLayer({
     id: "trails", data: SEGS, getPath: (d) => d.path, getTimestamps: (d) => d.ts, currentTime: t, trailLength: 240,
     fadeTrail: true, widthMinPixels: 2, capRounded: true, jointRounded: true,
-    getColor: (d) => (d.fire ? [...RGB.engine, 150] : [...RGB.medic, 150]), parameters: { depthTest: false }, extensions: ext,
+    getColor: (d) => (d.fire ? [...RGB.engine, 150] : [...RGB.medic, 150]), parameters: { depthTest: false },
   }));
   if (show.police && PSEGS.length) L.push(new deck.TripsLayer({
     id: "police-trails", data: PSEGS, getPath: (d) => d.path, getTimestamps: (d) => d.ts, currentTime: t, trailLength: 180,
-    fadeTrail: true, widthMinPixels: 1.5, capRounded: true, getColor: [90, 140, 255, 130], parameters: { depthTest: false }, extensions: ext,
+    fadeTrail: true, widthMinPixels: 1.5, capRounded: true, getColor: [90, 140, 255, 130], parameters: { depthTest: false },
   }));
   const waiting = REPLAY.calls.filter((c) => c[2] <= t && t < c[3] + 90);
   L.push(new deck.ScatterplotLayer({
-    id: "calls", data: waiting, pickable: true, getPosition: (c) => [c[0], c[1]], radiusUnits: "pixels",
+    id: "calls", data: waiting, pickable: true, getPosition: (c) => at(c[0], c[1]), radiusUnits: "pixels",
     getRadius: (c) => (t < c[3] ? 9 + pulse * 9 : 6), stroked: true, filled: true,
     getFillColor: (c) => (t < c[3] ? [...RGB.call, 60] : [...RGB.ok, 120]),
     getLineColor: (c) => (t < c[3] ? [...RGB.call, 255] : [...RGB.ok, 200]), lineWidthMinPixels: 2,
-    parameters: { depthTest: false }, extensions: ext, updateTriggers: { getRadius: [t, pulse], getFillColor: t, getLineColor: t },
+    parameters: { depthTest: false }, updateTriggers: { getRadius: [t, pulse], getFillColor: t, getLineColor: t, getPosition: zk },
   }));
   const flash = Math.floor(performance.now() / 260) % 2;
   const vs = vehicleScale();
@@ -935,7 +968,7 @@ function layers(t, veh) {
   const mesh = (id, data, m, getColor, extra = {}) => new deck.SimpleMeshLayer({
     id, data, mesh: m, getPosition: (v) => v.p, getOrientation: (v) => [0, -v.h, 0], sizeScale: vs, getColor, _useMeshColors: true,
     material: { ambient: 0.55, diffuse: 0.6, shininess: 40, specularColor: [80, 80, 80] },
-    updateTriggers: { getColor: [flash] }, extensions: ext, ...extra,
+    updateTriggers: { getColor: [flash] }, ...extra,
   });
   const groups = { engine: [], truck: [], amb: [] };
   for (const v of veh.list) groups[v.type === "TRUCK" ? "truck" : v.fire ? "engine" : "amb"].push(v);
@@ -985,7 +1018,7 @@ function initDeck() {
     onViewStateChange: ({ viewState, interactionState }) => {
       const user = interactionState && (interactionState.isDragging || interactionState.isPanning || interactionState.isZooming || interactionState.isRotating);
       if (user) { if (followUnit) stopFollow(); hideHint(); }
-      view = viewState.transitionDuration ? viewState : clampView(viewState);  // don't fight fly-to animations
+      view = (interactionState && interactionState.inTransition) || viewState.transitionDuration ? viewState : clampView(viewState);  // don't fight fly-to animations
       deckgl.setProps({ viewState: view });
     },
     layers: [], getTooltip: tooltip,
@@ -1034,13 +1067,14 @@ function frame(now) {
   const dt = Math.min(0.1, (now - lastFrame) / 1000);
   lastFrame = now;
   if (playing) { simT += dt * speed; if (simT >= 86400) simT -= 86400; }
+  if (window.G_TILESET) window.G_TILESET.options.maximumScreenSpaceError = view.zoom > 15.5 ? 6 : G_SSE;
   const veh = vehiclesAt(simT);
   if (followUnit) {
     const v = veh.list.find((x) => x.unit === followUnit);
     if (!v) stopFollow();
     else if (now > followUntil) {  // let the fly-to finish before locking the camera on
       const turn = dropIn ? (((v.h - view.bearing + 540) % 360) - 180) * 0.08 : 0;  // ease the camera round behind the vehicle
-      view = { ...view, longitude: v.p[0], latitude: v.p[1], bearing: view.bearing + turn, transitionDuration: 0 };
+      view = { ...view, longitude: v.p[0], latitude: v.p[1], bearing: view.bearing + turn, position: [0, 0, Math.max(0, v.p[2] || 0)], transitionDuration: 0 };
       deckgl.setProps({ viewState: view });
     }
   }
@@ -1370,7 +1404,7 @@ $("#day").onchange = async (e) => {
   if (r.ok) { const d = await r.json(); RESULT = d; loadReplay(d.replay); renderAll(); }
 };
 const bind = (id, k) => ($(id).onchange = (e) => { show[k] = e.target.checked; });
-bind("#l-sat", "sat"); bind("#l-grid", "grid"); bind("#l-hoods", "hoods"); bind("#l-3d", "extrude"); bind("#l-bld", "bld"); bind("#l-g3d", "g3d"); $("#l-g3d").addEventListener("change", () => { if (!useGoogle() && !BUILDINGS) loadBuildings(); }); bind("#l-pol", "police"); bind("#l-hosp", "hosp");
+bind("#l-sat", "sat"); bind("#l-grid", "grid"); bind("#l-hoods", "hoods"); bind("#l-3d", "extrude"); bind("#l-bld", "bld"); bind("#l-g3d", "g3d"); $("#l-g3d").addEventListener("change", () => { if (!useGoogle() && !BUILDINGS) loadBuildings(); if (useGoogle()) loadElevation(); if (REPLAY) loadReplay0(REPLAY); }); bind("#l-pol", "police"); bind("#l-hosp", "hosp");
 $("#follow-stop").onclick = stopFollow;
 $("#ask-form").onsubmit = async (e) => {
   e.preventDefault();
@@ -1401,9 +1435,10 @@ addEventListener("keydown", (e) => {
   else if (e.metaKey || e.ctrlKey || e.altKey) return;
   else {
     const k = e.key.toLowerCase();
-    const act = { arrowup: () => pan(0, -0.2), w: () => pan(0, -0.2), arrowdown: () => pan(0, 0.2), s: () => pan(0, 0.2),
-      arrowleft: () => pan(-0.2, 0), a: () => pan(-0.2, 0), arrowright: () => pan(0.2, 0), d: () => pan(0.2, 0),
-      q: () => rotateBy(-15), e: () => rotateBy(15), r: () => nav(HOME, 900) }[k];
+    // arrows move; Shift+arrows rotate (left/right) and tilt (up/down); R resets
+    const act = e.shiftKey
+      ? { arrowleft: () => rotateBy(-15), arrowright: () => rotateBy(15), arrowup: () => setView({ pitch: Math.min(80, view.pitch + 10) }, 250), arrowdown: () => setView({ pitch: Math.max(0, view.pitch - 10) }, 250) }[k]
+      : { arrowup: () => pan(0, -0.2), arrowdown: () => pan(0, 0.2), arrowleft: () => pan(-0.2, 0), arrowright: () => pan(0.2, 0), r: () => nav(HOME, 900) }[k];
     if (act) { e.preventDefault(); act(); }
   }
 });
@@ -1427,7 +1462,7 @@ addEventListener("keydown", (e) => {
   renderAll();
   setPlaying(playing);
   requestAnimationFrame(frame);
-  if (!useGoogle()) loadBuildings();  // Google's tiles already include buildings; skip our 2.8 MB file
+  if (!useGoogle()) loadBuildings(); else loadElevation();  // Google's tiles already include buildings; skip our 2.8 MB file
   loadPoliceStations();
   loadHospitals();
 })();
