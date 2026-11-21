@@ -865,6 +865,33 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
 .steps span { grid-column: 1 / -1; color: var(--ink-soft); }
 
 .bd h3 { margin: 14px 0 4px; font-size: 14px; font-weight: 600; }
+
+/* ---------- route card + map opacity ---------- */
+.route-card { position: fixed; z-index: 13; right: calc(var(--edge) + 60px); top: var(--edge); width: min(340px, calc(100vw - 2 * var(--edge))); max-height: calc(100vh - var(--bar-h) - 3 * var(--edge) - 70px);
+  overflow-y: auto; padding: 14px 16px; border-radius: 18px; }
+.route-card[hidden] { display: none; }
+.route-card header { display: flex; justify-content: space-between; align-items: flex-start; }
+.rc-k { margin: 0; font-size: 12.5px; color: var(--ink-faint); } .route-card h2 { margin: 0; font-size: 22px; font-weight: 600; }
+.rc-call { margin: 6px 0 4px; font-size: 14px; line-height: 1.45; }
+.route-card h3 { margin: 12px 0 6px; font-size: 13.5px; font-weight: 600; }
+.rc-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.rc-log li { display: grid; grid-template-columns: 66px 1fr; gap: 10px; padding: 6px 0; border-top: 1px solid var(--rule); font-size: 13.5px; }
+.rc-log li span { color: var(--ink-faint); } .rc-log b { font-weight: 600; display: block; } .rc-log em { font-style: normal; font-size: 12.5px; color: var(--ink-soft); }
+.rc-others { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }
+.rc-others li { display: flex; justify-content: space-between; gap: 8px; } .rc-others b { font-weight: 600; }
+.rc-actions { display: flex; gap: 6px; margin-top: 12px; } .rc-actions .btn { flex: 1; }
+.opacity-row { flex-basis: 100%; display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 4px 6px 8px; font-size: 13.5px; font-weight: 500; color: var(--ink-soft); }
+.opacity-row output { min-width: 36px; text-align: right; }
+
+/* ---------- settings ---------- */
+.set-page h3 { margin: 16px 0 6px; font-size: 13px; font-weight: 600; color: var(--ink-faint); }
+.set-row { display: grid; grid-template-columns: 1fr 44px; gap: 4px 12px; align-items: center; padding: 8px 0; border-top: 1px solid var(--rule); }
+.set-row span, .set-check span { font-size: 14.5px; font-weight: 500; color: var(--ink); }
+.set-row small, .set-check small { display: block; font-size: 12.5px; font-weight: 400; color: var(--ink-faint); line-height: 1.4; }
+.set-row input { grid-column: 1; accent-color: var(--ink); } .set-row output { grid-row: 1 / span 2; grid-column: 2; text-align: right; font-weight: 600; }
+.set-check { display: grid; grid-template-columns: 20px 1fr; gap: 10px; align-items: start; padding: 10px 0; border-top: 1px solid var(--rule); cursor: pointer; }
+.set-check input { margin-top: 3px; width: 16px; height: 16px; accent-color: var(--ink); }
+.set-reset { margin-top: 14px; width: 100%; }
 </style>
 </head>
 <body>
@@ -886,9 +913,24 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
 <div class="menu-pop frost" id="menu-pop" role="menu" hidden>
   <button type="button" role="menuitem" id="m-story"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19V5M4 19h16M8 15l3-4 3 2 4-6"/></svg><span><b>Data story</b><small>The question, data, method, proof, findings</small></span></button>
   <button type="button" role="menuitem" id="m-ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 9h6v6H9z"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg><span><b>AI activity</b><small>What the AI is doing, live</small></span></button>
+  <button type="button" role="menuitem" id="m-settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span><b>Settings</b><small>Map look, routes, vehicles</small></span></button>
   <button type="button" role="menuitem" id="m-moves"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M3 12h18"/></svg><span><b>Getting around</b><small>Mouse and keyboard controls</small></span></button>
   <button type="button" role="menuitem" id="m-about"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.01"/></svg><span><b>About Medio</b><small>What this is and who made it</small></span></button>
 </div>
+<section class="route-card frost" id="route-card" role="dialog" aria-labelledby="rc-h" hidden></section>
+<section class="ai-page set-page frost" id="set-page" role="dialog" aria-labelledby="set-h" hidden>
+  <header><h2 id="set-h">Settings</h2><button class="fab sm" id="set-close" aria-label="Close settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
+  <h3>Map</h3>
+  <label class="set-row" for="s-translucency"><span>Translucency<small>0% is the full map; 100% hides it so only routes, vehicles and stations show</small></span><input type="range" id="s-translucency" min="0" max="100" step="5"><output class="num"></output></label>
+  <label class="set-row" for="s-grey"><span>Greyscale<small>Drains the color from the map so routes stand out</small></span><input type="range" id="s-grey" min="0" max="100" step="5"><output class="num"></output></label>
+  <h3>Replay</h3>
+  <label class="set-row" for="s-routes"><span>Route lines<small>How strongly every drive so far today shows; 0% hides them</small></span><input type="range" id="s-routes" min="0" max="100" step="5"><output class="num"></output></label>
+  <label class="set-row" for="s-vehicle"><span>Vehicle size</span><input type="range" id="s-vehicle" min="50" max="200" step="10"><output class="num"></output></label>
+  <h3>Interface</h3>
+  <label class="set-check"><input type="checkbox" id="s-labels"><span>Labels on map pins<small>Names next to crashes, new stations and your address</small></span></label>
+  <label class="set-check"><input type="checkbox" id="s-smooth"><span>Smooth camera moves<small>Off: the map jumps instead of flying</small></span></label>
+  <button class="btn set-reset" type="button" id="s-reset">Reset to defaults</button>
+</section>
 <section class="ai-page frost" id="ai-page" role="dialog" aria-labelledby="ai-h" hidden>
   <header><h2 id="ai-h">AI activity</h2><button class="fab sm" id="ai-close" aria-label="Close AI activity"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
   <p class="wi-lead">Every typed what-if runs through five steps. Two use Claude Haiku (reading your words, writing one sentence); the other three are plain code, and they produce every number. This page updates live.</p>
@@ -1201,6 +1243,25 @@ const RGB = { engine: [255, 90, 69], medic: [76, 201, 255], call: [255, 176, 32]
 let META, HOODS, STATIONS, PEOPLE, VALID, BASE, RESULT, REPLAY, SEGS = [], DEPARTS = [], BUILDINGS = null, followUnit = null;
 let POLICE_ST = null, POL = [], PSEGS = [], HOSP = null;
 let ME = null;  // the visitor's chosen spot: { lng, lat, label, hood }
+let ROUTES = [], SEL_ROUTE = null;  // every trip's route, and the clicked one
+// Settings (menu > Settings), kept per browser. translucency/grey/routes 0-100, vehicle 50-200 (%).
+const SET_DEFAULT = { translucency: 35, grey: 0, routes: 45, vehicle: 100, labels: true, smooth: true };
+let SET = { ...SET_DEFAULT };
+try { SET = { ...SET_DEFAULT, ...JSON.parse(localStorage.getItem("medio-settings") || "{}") }; } catch (e) { /* storage blocked */ }
+const mapOpacity = () => Math.max(0, 1 - SET.translucency / 100);
+// Greyscale for the map imagery only (Google 3D city): mixes each pixel toward its luminance in the shader, so routes stay in color.
+class GreyExtension extends deck.LayerExtension {
+  getShaders() {
+    return { modules: [{ name: "grey", fs: "uniform float greyAmount;" }],
+      inject: { "fs:DECKGL_FILTER_COLOR": "float lum = dot(color.rgb, vec3(0.299, 0.587, 0.114)); color.rgb = mix(color.rgb, vec3(lum), greyAmount);" } };
+  }
+  draw(params) {
+    params.uniforms.greyAmount = this.props.greyAmount || 0;
+    for (const m of this.getModels()) m.setUniforms({ greyAmount: this.props.greyAmount || 0 });
+  }
+}
+GreyExtension.defaultProps = { greyAmount: 0 };
+const GREY_EXT = [new GreyExtension()];
 let scenario = { closed: [], added: [], volume: 1 };
 let lastRun = JSON.stringify(scenario);
 let CUSTOM = null, MARKERS = [], PROPS = [], PICKING = false, PROP_KIND = "fire", PROP_SPOT = null;  // typed scenario title, map pins, proposals
@@ -1398,13 +1459,14 @@ $("#feed-toggle").onclick = () => {
 };
 function loadReplay0(r) {
   REPLAY = r;
-  SEGS = [];
+  SEGS = []; ROUTES = []; SEL_ROUTE = null; if ($("#route-card")) $("#route-card").hidden = true;
   for (const t of r.trips) {
     const [, type, fx, fy, tx, ty, dep, arr, free, back] = t;
     const path = densify(Array.isArray(t[13]) && t[13].length >= 2 ? t[13] : [[fx, fy], [tx, ty]]);
     const g = (t.g = geom(path)), fire = FIRE.has(type), p3 = lift(path);
     const out = Math.max(arr - dep, 1), ret = Math.max(back - free, 1);
     SEGS.push({ path: p3, ts: g.cum.map((c) => dep + (out * c) / g.total), fire });
+    ROUTES.push({ path: p3, fire, trip: t });
     SEGS.push({ path: p3.slice().reverse(), ts: g.cum.slice().reverse().map((c) => free + (ret * (g.total - c)) / g.total), fire });
   }
   DEPARTS = r.trips.map((t) => t[6]);
@@ -1567,7 +1629,7 @@ function hospital(big) {
 MESH.hospital = hospital(true);
 MESH.hospitalSmall = hospital(false);
 const buildingScale = () => Math.max(1, Math.pow(2, (16.5 - view.zoom) * 0.65));  // legible at city zoom (~6x), life size from zoom 16.5
-const vehicleScale = () => Math.max(1, Math.pow(2, (17.5 - view.zoom) * 0.75));  // ~150 m long at zoom 12, ~20 m at 16, life size from 17.5
+const vehicleScale = () => Math.max(1, Math.pow(2, (17.5 - view.zoom) * 0.75)) * SET.vehicle / 100;  // ~150 m long at zoom 12, ~20 m at 16, life size from 17.5
 
 
 // ---------- police stations ----------
@@ -1618,22 +1680,22 @@ function memo(id, deps, make) {
 function baseLayers() {
   const L = [], g = useGoogle();
   if (g) {
-    L.push(memo("google3d", [G_LOAD], () => new deck.Tile3DLayer({
+    L.push(memo("google3d", [G_LOAD, SET.translucency, SET.grey], () => new deck.Tile3DLayer({
       id: "google3d", data: "https://tile.googleapis.com/v1/3dtiles/root.json", loadOptions: G_LOAD,
-      onTilesetLoad: G_ONLOAD, operation: "terrain+draw",
+      onTilesetLoad: G_ONLOAD, operation: "terrain+draw", opacity: mapOpacity(), extensions: GREY_EXT, greyAmount: SET.grey / 100,
     })));
     L.push(memo("bay-dim-g", [], () => bayDim(TERRAIN)));  // draped on Google's terrain
   }
   else if (!show.sat) L.push(memo("slab", [], () => new deck.SolidPolygonLayer({ id: "slab", data: SLAB, getPolygon: (d) => d, extruded: true, getElevation: 895,
     getFillColor: [22, 34, 44], material: { ambient: 0.5, diffuse: 0.5 } })));
   if (!g && show.sat) {
-    L.push(memo("sat", [], () => new deck.TileLayer({
+    L.push(memo("sat", [SET.translucency, SET.grey], () => new deck.TileLayer({
       id: "sat", data: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
       minZoom: 9, maxZoom: 18, tileSize: 256, extent: BAY,
       renderSubLayers: (props) => {
         const b = props.tile.bbox;
         return new deck.BitmapLayer(props, { data: null, image: props.data, bounds: [b.west, b.south, b.east, b.north],
-          desaturate: 0.15, tintColor: [235, 240, 245] });
+          desaturate: Math.max(0.15, SET.grey / 100), tintColor: [235, 240, 245], opacity: mapOpacity() });
       },
     })));
     // the rest of the Bay stays visible but dimmed, so San Francisco reads as the focus
@@ -1718,6 +1780,19 @@ function layers(t, veh) {
       parameters: { depthTest: false }, updateTriggers: { getRadius: pulse, getPosition: zk },
     }));
   }
+  // every route driven so far today stays on the map, faint; click one for the vehicle and the call log
+  let nDone = 0;
+  while (nDone < ROUTES.length && ROUTES[nDone].trip[6] <= t) nDone++;
+  const nKey = Math.floor(nDone / 4) * 4;  // rebuild every few departures, not every frame
+  if (SET.routes > 0) L.push(memo("routes", [ROUTES, nKey, zk, SET.routes], () => new deck.PathLayer({
+    id: "routes", data: ROUTES.slice(0, nKey), getPath: (d) => d.path, widthUnits: "pixels", getWidth: 3, widthMinPixels: 2,
+    capRounded: true, jointRounded: true, pickable: true, autoHighlight: true, highlightColor: [255, 255, 255, 200],
+    getColor: (d) => (d.fire ? [...RGB.engine, Math.round(SET.routes * 1.6)] : [...RGB.medic, Math.round(SET.routes * 1.6)]), parameters: { depthTest: false },
+  })));
+  if (SEL_ROUTE) L.push(memo("route-sel", [SEL_ROUTE, zk], () => new deck.PathLayer({
+    id: "route-sel", data: [SEL_ROUTE], getPath: (d) => d.path, widthUnits: "pixels", getWidth: 6, capRounded: true, jointRounded: true,
+    getColor: (d) => (d.fire ? [...RGB.engine, 255] : [...RGB.medic, 255]), parameters: { depthTest: false },
+  })));
   L.push(new deck.TripsLayer({
     id: "trails", data: SEGS, getPath: (d) => d.path, getTimestamps: (d) => d.ts, currentTime: t, trailLength: 240,
     fadeTrail: true, widthMinPixels: 2, capRounded: true, jointRounded: true,
@@ -1765,7 +1840,7 @@ function layers(t, veh) {
     L.push(new deck.ScatterplotLayer({ id: "pins", data: pins, getPosition: (m) => at(m.lng, m.lat), radiusUnits: "pixels",
       getRadius: (m) => (m.kind === "prop" ? 7 : 12), stroked: true, getFillColor: (m) => [...MK[m.kind], 225], getLineColor: [255, 255, 255, 255],
       lineWidthMinPixels: 2.5, parameters: { depthTest: false }, updateTriggers: { getPosition: zk } }));
-    L.push(new deck.TextLayer({ id: "pin-labels", data: pins.filter((m) => m.label), getPosition: (m) => at(m.lng, m.lat), getText: (m) => m.label,
+    if (SET.labels) L.push(new deck.TextLayer({ id: "pin-labels", data: pins.filter((m) => m.label), getPosition: (m) => at(m.lng, m.lat), getText: (m) => m.label,
       characterSet: "auto", getSize: 13, getPixelOffset: [0, -24], getColor: [20, 20, 20, 255], background: true, getBackgroundColor: [255, 255, 255, 235],
       backgroundPadding: [6, 3], fontFamily: "Jost, system-ui, sans-serif", fontWeight: 600, parameters: { depthTest: false }, updateTriggers: { getPosition: zk } }));
   }
@@ -1797,6 +1872,7 @@ function tooltip({ object, layer }) {
 }
 
 function setView(v, ms = 700) {
+  if (!SET.smooth) ms = 0;
   view = { ...clampView({ ...view, ...v }), transitionDuration: ms, transitionInterpolator: new deck.FlyToInterpolator() };
   deckgl.setProps({ viewState: view });
 }
@@ -1823,8 +1899,11 @@ function initDeck() {
       if (PICKING && info.coordinate) { pickSpot(info.coordinate[0], info.coordinate[1]); return; }
       const { object, layer } = info;
       if (!object || !layer) return;
-      if (layer.id.startsWith("stations")) toggleClosed(object.station);
+      if (layer.id.startsWith("stations")) showStation(object);
+      else if (layer.id === "police-stations") showPoliceStation(object);
+      else if (layer.id.startsWith("hospitals")) showHospital(object);
       else if (layer.id.startsWith("vehicles")) startFollow(object.unit);
+      else if (layer.id === "routes") showRoute(object);
       else if (layer.id === "hoods") focusHood(object.properties.nhood);
     },
   });
@@ -2474,6 +2553,88 @@ addEventListener("keydown", (e) => {
 });
 
 
+
+// ---------- a clicked route: the vehicle and its call log ----------
+const UNIT_KIND = { ENGINE: "Fire engine", TRUCK: "Ladder truck", MEDIC: "Ambulance", PRIVATE: "Ambulance (private)" };
+const clockOf = (sec) => { sec = Math.max(0, Math.round(sec)) % 86400; const h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60;
+  return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`; };
+function showRoute(r) {
+  SEL_ROUTE = r;
+  const [unit, type, , , tx, ty, dep, arr, free, back, hood, callT, callType] = r.trip;
+  const km = r.trip.g ? (r.trip.g.total / 1000).toFixed(1) : null;
+  const others = REPLAY.trips.filter((x) => x !== r.trip && x[11] === callT && x[4] === tx && x[5] === ty).sort((a, b) => a[7] - b[7]);
+  const firstArr = Math.min(arr, ...others.map((x) => x[7]));
+  const log = [[callT, "911 call received", `${callType || "Call"} in ${hood}`], [dep, `${unit} leaves`, km ? `${km} km to drive` : ""],
+    [arr, `${unit} on scene`, `${mmss(arr - dep)} drive · ${mmss(arr - callT)} after the call`], [free, `${unit} clears the scene`, `${mmss(free - arr)} on the call`],
+    [back, `${unit} back at base`, ""]];
+  $("#route-card").innerHTML = `<header><div><p class="rc-k">${esc(UNIT_KIND[type] || type)}</p><h2 id="rc-h">${esc(unit)}</h2></div>
+      <button class="fab sm" id="rc-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
+    <p class="rc-call">${esc(callType || "Call")} in ${esc(hood)}, ${clockOf(callT)}. Help arrived after <b class="num">${mmss(firstArr - callT)}</b>.</p>
+    <h3>Call log</h3><ol class="rc-log">${log.map(([tm, what, note]) => `<li><span class="num">${clockOf(tm)}</span><div><b>${esc(what)}</b>${note ? `<em>${esc(note)}</em>` : ""}</div></li>`).join("")}</ol>
+    ${others.length ? `<h3>Also sent to this call</h3><ul class="rc-others">${others.map((x) => `<li><span>${esc(x[0])} · ${esc(UNIT_KIND[x[1]] || x[1])}</span><b class="num">on scene ${clockOf(x[7])}</b></li>`).join("")}</ul>` : ""}
+    <div class="rc-actions"><button class="btn" type="button" id="rc-jump">Replay this call</button><button class="btn" type="button" id="rc-follow">Follow ${esc(unit)}</button></div>
+    <p class="oc-note">A real 911 call from ${esc(REPLAY && REPLAY.day ? $("#day").selectedOptions[0]?.textContent.split(" · ")[0] || "this day" : "this day")}; which unit went and its times are Medio’s simulation of it.</p>`;
+  $("#route-card").hidden = false;
+  $("#rc-close").onclick = () => { $("#route-card").hidden = true; SEL_ROUTE = null; };
+  $("#rc-jump").onclick = () => { simT = Math.max(0, callT - 30); $("#scrub").value = simT; setPlaying(true); };
+  $("#rc-follow").onclick = () => { if (simT < dep || simT > back) { simT = dep; $("#scrub").value = simT; } setPlaying(true); setTimeout(() => startFollow(unit), 60); };
+}
+
+// ---------- settings ----------
+function saveSettings() { try { localStorage.setItem("medio-settings", JSON.stringify(SET)); } catch (e) { /* storage blocked */ } }
+function syncSettings() {
+  for (const k of ["translucency", "grey", "routes", "vehicle"]) { const el = $(`#s-${k}`); el.value = SET[k]; el.nextElementSibling.textContent = `${SET[k]}%`; }
+  $("#s-labels").checked = SET.labels; $("#s-smooth").checked = SET.smooth;
+}
+for (const k of ["translucency", "grey", "routes", "vehicle"]) $(`#s-${k}`).oninput = (e) => { SET[k] = +e.target.value; e.target.nextElementSibling.textContent = `${SET[k]}%`; saveSettings(); };
+$("#s-labels").onchange = (e) => { SET.labels = e.target.checked; saveSettings(); };
+$("#s-smooth").onchange = (e) => { SET.smooth = e.target.checked; saveSettings(); };
+$("#s-reset").onclick = () => { SET = { ...SET_DEFAULT }; saveSettings(); syncSettings(); };
+$("#m-settings").onclick = () => { $("#menu-pop").hidden = true; syncSettings(); $("#set-page").hidden = false; };
+$("#set-close").onclick = () => { $("#set-page").hidden = true; };
+syncSettings();
+
+// ---------- clicking a fire station, police station or hospital: what it is and today's log ----------
+const near = (ax, ay, bx, by, m) => Math.abs(ax - bx) * 88000 < m && Math.abs(ay - by) * 111000 < m;
+function infoCard(kind, title, body) {
+  SEL_ROUTE = null;
+  $("#route-card").innerHTML = `<header><div><p class="rc-k">${esc(kind)}</p><h2 id="rc-h">${esc(title)}</h2></div>
+    <button class="fab sm" id="rc-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>${body}`;
+  $("#route-card").hidden = false;
+  $("#rc-close").onclick = () => { $("#route-card").hidden = true; };
+}
+function showStation(st) {
+  const fleet = META.fleet[st.station] || {};
+  const units = Object.entries(fleet).map(([t, n]) => `${n} ${(UNIT_KIND[t] || t).toLowerCase()}${n > 1 ? "s" : ""}`).join(", ") || "no units on record";
+  const trips = REPLAY.trips.filter((x) => near(x[2], x[3], st.lng, st.lat, 150) && x[6] <= simT).sort((a, b) => b[6] - a[6]);
+  const closed = scenario.closed.includes(st.station);
+  infoCard("Fire station", `Station ${st.station}`, `<p class="rc-call">${esc((st.address || "").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()))} · ${esc(units)}${closed ? " · <b>closed in this scenario</b>" : ""}</p>
+    <h3>Left from here today, up to ${clockOf(simT)} <span class="num">(${trips.length})</span></h3>
+    ${trips.length ? `<ol class="rc-log">${trips.slice(0, 12).map((x) => `<li><span class="num">${clockOf(x[6])}</span><div><b>${esc(x[0])} to ${esc(x[10])}</b><em>${esc(x[12] || "Call")} · help arrived after ${mmss(x[7] - x[11])}</em></div></li>`).join("")}</ol>`
+      : `<p class="oc-note">No dispatches from here yet today. Press play, or drag the timeline later.</p>`}
+    <div class="rc-actions"><button class="btn" type="button" id="st-close">${closed ? "Reopen this station" : "What if it closed?"}</button></div>
+    <p class="oc-note">Real 911 calls; which unit went and its times are Medio’s simulation.</p>`);
+  $("#st-close").onclick = () => { toggleClosed(st.station); run(); $("#route-card").hidden = true; };
+}
+function showPoliceStation(ps) {
+  const calls = POL.filter((c) => c.district === ps.district && c.disp <= simT).sort((a, b) => b.disp - a.disp);
+  const all = POL.filter((c) => c.district === ps.district).map((c) => c.on - c.disp).filter((d) => d > 0).sort((a, b) => a - b);
+  infoCard("Police station", ps.name || ps.district, `<p class="rc-call">${esc(ps.address || "")} · ${esc((ps.district || "").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()))} district.
+      ${all.length ? `Today: ${all.length} dispatches, typical <b class="num">${mmss(all[all.length >> 1])}</b> from dispatch to an officer on scene.` : ""}</p>
+    <h3>Dispatched today, up to ${clockOf(simT)} <span class="num">(${calls.length})</span></h3>
+    ${calls.length ? `<ol class="rc-log">${calls.slice(0, 12).map((c) => `<li><span class="num">${clockOf(c.disp)}</span><div><b>${esc(c.type || "Call")}</b><em>Priority ${esc(c.prio || "?")} · on scene after ${mmss(Math.max(0, c.on - c.disp))}</em></div></li>`).join("")}</ol>`
+      : `<p class="oc-note">No dispatches yet today. Press play, or drag the timeline later.</p>`}
+    <p class="oc-note">Real SFPD dispatch records (DataSF). Scenarios don’t change police.</p>`);
+}
+function showHospital(h) {
+  const amb = REPLAY.trips.filter((x) => (x[1] === "MEDIC" || x[1] === "PRIVATE") && x[6] <= simT && near(x[4], x[5], h.lng, h.lat, 1500)).length;
+  infoCard("Hospital", h.short || h.name, `<p class="rc-call">${esc(h.name)}<br>${esc((h.address || "").toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()))}${h.approx_location ? " (approximate location)" : ""}</p>
+    <h3>Last 12 months</h3><ol class="rc-log">
+      <li><span class="num">${(h.diversions_12mo ?? 0).toLocaleString()}</span><div><b>Ambulance diversions</b><em>Times it told ambulances to go elsewhere (full)</em></div></li>
+      <li><span class="num">${Math.round(h.diversion_hours_12mo ?? 0).toLocaleString()} h</span><div><b>Hours on diversion</b><em>${h.diversion_hours_12mo ? `${(h.diversion_hours_12mo / 87.6).toFixed(0)}% of the year` : ""}</em></div></li>
+      <li><span class="num">${amb}</span><div><b>Ambulance calls nearby today</b><em>Within 1.5 km, up to ${clockOf(simT)}</em></div></li></ol>
+    <p class="oc-note">Diversions: DataSF EMS hospital diversion records; location: California HHS.</p>`);
+}
 // ---------- What if examples ----------
 document.querySelectorAll(".wi-ex button").forEach((b) => (b.onclick = () => { $("#ask").value = b.textContent; $("#ask-form").requestSubmit(); }));
 
