@@ -897,6 +897,24 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
 .timeline .scrubwrap { cursor: ew-resize; }
 
 .set-perf { display: flex; margin: 4px 0 6px; } .set-perf button { flex: 1; }
+
+/* ---------- community: welcome, make the case, share ---------- */
+.welcome { position: fixed; z-index: 21; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(560px, calc(100vw - 32px)); padding: 26px 26px 18px; border-radius: 22px; }
+.welcome[hidden] { display: none; }
+.wel-k { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--accent-strong); }
+.welcome h2 { margin: 0 0 8px; font-size: 24px; line-height: 1.25; font-weight: 600; letter-spacing: -0.01em; }
+.wel-go { display: grid; gap: 8px; margin: 14px 0 10px; }
+.wel-go button { display: grid; gap: 2px; text-align: left; padding: 13px 16px; border: 0; border-radius: 14px; background: var(--raised); color: var(--ink); cursor: pointer; font: inherit; }
+.wel-go button:hover, .wel-go button:focus-visible { background: var(--frost-solid); box-shadow: inset 0 0 0 2px var(--ink); }
+.wel-go b { font-size: 16px; font-weight: 600; } .wel-go span { font-size: 13.5px; color: var(--ink-soft); }
+.wel-skip { display: block; margin: 4px auto 0; font-size: 13.5px; }
+.speak { margin-top: 12px; padding: 14px; border-radius: 14px; background: var(--raised); }
+.speak h3 { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
+.speak blockquote { margin: 0 0 10px; padding: 10px 12px; border-radius: 10px; background: var(--hover); font-size: 13.5px; line-height: 1.5; color: var(--ink); white-space: pre-line; }
+.speak .rc-actions { margin-top: 0; flex-wrap: wrap; }
+.share { font-size: 12.5px; padding: 0 10px; height: 30px; border-radius: 999px; border: 1px solid var(--rule-strong); background: var(--frost-solid); color: var(--ink); cursor: pointer; font-family: var(--font); }
+
+a.btn { display: inline-grid; place-items: center; text-decoration: none; color: var(--ink); }
 </style>
 </head>
 <body>
@@ -916,6 +934,7 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
   <button class="fab" id="layers-btn" aria-label="Map layers" aria-expanded="false" title="Layers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 4.5-9 4.5-9-4.5z"/><path d="M3 12l9 4.5 9-4.5M3 16.5l9 4.5 9-4.5"/></svg></button>
 </nav>
 <div class="menu-pop frost" id="menu-pop" role="menu" hidden>
+  <button type="button" role="menuitem" id="m-welcome"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span><b>Start here</b><small>What you can do with Medio</small></span></button>
   <button type="button" role="menuitem" id="m-story"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19V5M4 19h16M8 15l3-4 3 2 4-6"/></svg><span><b>Data story</b><small>The question, data, method, proof, findings</small></span></button>
   <button type="button" role="menuitem" id="m-ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 9h6v6H9z"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg><span><b>AI activity</b><small>What the AI is doing, live</small></span></button>
   <button type="button" role="menuitem" id="m-settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span><b>Settings</b><small>Map look, routes, vehicles</small></span></button>
@@ -991,7 +1010,7 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
       <button role="tab" data-tab="whatif" aria-selected="true">What if</button>
       <button role="tab" data-tab="breakdown" aria-selected="false">Breakdown</button>
       <button role="tab" data-tab="propose" aria-selected="false">Propose</button>
-      <button role="tab" data-tab="location" aria-selected="false">You</button>
+      <button role="tab" data-tab="location" aria-selected="false">My block</button>
     </nav>
     <button class="fab sm" id="panel-close" aria-label="Close the panel" title="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </header>
@@ -1099,6 +1118,7 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
       <p class="me-privacy" id="me-empty">Start typing and pick your address from the list, or use where you are now. Addresses are looked up with Photon (OpenStreetMap data) and never saved.</p>
       <button class="btn me-geo-btn" id="me-geo2" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Use my current location</button>
       <div class="me-card" id="me-card" hidden></div>
+      <div class="speak" id="speak" hidden></div>
     </section>
 
 
@@ -1189,6 +1209,18 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
     <button class="fab" id="z-fit" aria-label="Reset view (R)" title="Reset view (R)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
   </div>
 <button id="panel-open" hidden></button>
+<section class="welcome frost" id="welcome" role="dialog" aria-labelledby="wel-h" hidden>
+  <p class="wel-k">A community tool built on San Francisco’s own 911 records</p>
+  <h2 id="wel-h">How fast does help reach your block, and what would make it faster?</h2>
+  <p class="wi-lead">Medio replays 300,081 real fire and medical 911 calls. Look up your address, test any what-if, and propose a new station where your neighborhood needs one. Every number comes from the city’s data, checked against a month of real arrivals.</p>
+  <div class="wel-go">
+    <button type="button" data-go="location"><b>Check my block</b><span>Your typical wait, by time of day and kind of emergency</span></button>
+    <button type="button" data-go="whatif"><b>Ask a what-if</b><span>A crash, a closed station, a heat wave, in your own words</span></button>
+    <button type="button" data-go="propose"><b>Propose a station</b><span>See who it would help, then rally your neighbors to vote</span></button>
+  </div>
+  <p class="cap">On the map: drag to move, scroll to zoom, right-drag to tilt. More in the menu, top left.</p>
+  <button class="link wel-skip" type="button" id="wel-skip">Just show me the map</button>
+</section>
 <section class="moves frost" id="moves" role="dialog" aria-labelledby="moves-h" hidden>
   <h2 id="moves-h">Getting around the map</h2>
   <dl>
@@ -1205,6 +1237,7 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
 </div>
 <dialog id="about">
   <h2>Medio</h2>
+  <p><b>For the people who call 911.</b> The city publishes every fire and medical 911 call. Medio turns those records into answers residents can use: how long help takes on your block, why some neighborhoods wait longer, and what would change it. Use it to ask better questions at community meetings, and to back a proposal with evidence.</p>
   <p>When you call 911, the minutes until help arrives matter. <b>Medio replays a real day of San Francisco 911 calls</b>: fire engines, ambulances and police. Each fire or medical call goes to the engine or ambulance that can get there soonest. Travel times are learned from 333,000 real trips, so hills and traffic are already in them.</p>
   <p>Vehicles follow San Francisco’s street centerlines (DataSF); how long each trip takes comes from the model. Police cars are replayed from real SFPD dispatch records, not simulated. Hospitals show how many hours each spent on ambulance diversion (not accepting ambulances) in the last 12 months. Click an engine or ambulance to follow it. Change the city on the left, then run it again.</p>
   <p><b>Limits:</b> no crew staffing changes, no help from nearby cities, no hospital wait times. Use it to compare neighborhoods and options, not to close a real station on its own.</p>
@@ -2199,6 +2232,7 @@ function renderHere(d) {
     <p class="note">${d.calls} real calls within ${d.radius_m} m of this spot, October 2026${scen ? `, re-simulated under your scenario (changes vs today in color)` : ""}. Bars compare times of day.</p>`;
 }
 function renderMine() {
+  if (typeof renderSpeak === "function") renderSpeak();
   const card = $("#me-card");
   if (!ME || !RESULT) { card.hidden = true; return; }
   const scen = isScenario(), r = RESULT.hoods[ME.hood], b = BASE.hoods[ME.hood];
@@ -2448,7 +2482,7 @@ function showMoves(on) {
 }
 $("#moves-btn").onclick = () => showMoves($("#moves").hidden);
 $("#moves-ok").onclick = () => { showMoves(false); $("#map").focus(); };
-try { if (!localStorage.getItem("medio-moves-seen")) setTimeout(() => showMoves(true), 2600); } catch (e) { /* storage blocked: skip */ }
+try { if (!localStorage.getItem("medio-moves-seen") && localStorage.getItem("medio-welcome-seen")) setTimeout(() => showMoves(true), 2600); } catch (e) { /* storage blocked: skip */ }
 const ask = $("#ask"), sugg = $("#ask-suggest");
 const syncSugg = () => { sugg.hidden = !(document.activeElement === ask && !ask.value.trim()); };
 ask.addEventListener("focus", syncSugg); ask.addEventListener("input", syncSugg);
@@ -2658,6 +2692,68 @@ function showHospital(h) {
       <li><span class="num">${amb}</span><div><b>Ambulance calls nearby today</b><em>Within 1.5 km, up to ${clockOf(simT)}</em></div></li></ol>
     <p class="oc-note">Diversions: DataSF EMS hospital diversion records; location: California HHS.</p>`);
 }
+
+// ---------- community: welcome, make the case, share links ----------
+let FINDINGS = null;
+function showWelcome(on) {
+  $("#welcome").hidden = !on;
+  if (on) $("#welcome [data-go]").focus();
+  else try { localStorage.setItem("medio-welcome-seen", "1"); } catch (e) { /* storage blocked */ }
+}
+document.querySelectorAll("#welcome [data-go]").forEach((b) => (b.onclick = () => {
+  showWelcome(false); openPanel(b.dataset.go);
+  if (b.dataset.go === "location") setTimeout(() => $("#loc-q") && $("#loc-q").focus(), 50);
+  if (b.dataset.go === "whatif") setTimeout(() => $("#ask").focus(), 50);
+}));
+$("#wel-skip").onclick = () => showWelcome(false);
+$("#m-welcome").onclick = () => { $("#menu-pop").hidden = true; showWelcome(true); };
+const shareURL = (params) => `${location.origin}${location.pathname}?${new URLSearchParams(params)}`;
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); const t = btn.textContent; btn.textContent = "Copied"; setTimeout(() => (btn.textContent = t), 1500); }
+  catch (e) { prompt("Copy this:", text); }
+}
+// After an address lookup: a plain-language case for the neighborhood, ready to send to a supervisor or a neighborhood group
+function renderSpeak() {
+  const el = $("#speak");
+  if (!el) return;
+  if (!ME || !BASE || !BASE.hoods[ME.hood]) { el.hidden = true; return; }
+  const h = BASE.hoods[ME.hood], city = BASE.city;
+  const rows = Object.entries(BASE.hoods).filter(([, v]) => v.calls >= 30).sort((a, b) => b[1].median - a[1].median);
+  const rank = rows.findIndex(([n]) => n === ME.hood) + 1;
+  const spot = FINDINGS && FINDINGS.best_spots.find((x) => x.hood === ME.hood);
+  const nearProps = PROPS.filter((q) => Math.abs(q.lat - ME.lat) < 0.015 && Math.abs(q.lng - ME.lng) < 0.018);
+  const lines = [
+    `In ${ME.hood}, help typically takes ${mmss(h.median)} to arrive after a 911 call; citywide it’s ${mmss(city.median)}.`,
+    `${pct(h.over8)} of calls here wait more than 8 minutes${rank ? ` (#${rank} slowest of ${rows.length} neighborhoods)` : ""}.`,
+    spot ? `A new fire station here would bring that to about ${spot.after} (${spot.change}), Medio’s simulation of October 2026 shows.` : "",
+    nearProps.length ? `${nearProps.length} resident proposal${nearProps.length > 1 ? "s" : ""} for a station nearby already, with ${nearProps.reduce((n, q) => n + q.votes, 0)} vote${nearProps.reduce((n, q) => n + q.votes, 0) === 1 ? "" : "s"}.` : "",
+    `Source: San Francisco Fire Department 911 records (DataSF), analyzed with Medio.`,
+  ].filter(Boolean);
+  const text = lines.join(" ");
+  const link = shareURL({ at: `${ME.lat.toFixed(5)},${ME.lng.toFixed(5)}`, label: ME.label || ME.hood });
+  el.innerHTML = `<h3>Make the case for ${esc(ME.hood)}</h3>
+    <blockquote>${esc(text)}</blockquote>
+    <div class="rc-actions"><button class="btn" type="button" id="speak-copy">Copy</button>
+      <a class="btn" id="speak-mail" href="mailto:?subject=${encodeURIComponent(`911 response times in ${ME.hood}`)}&body=${encodeURIComponent(`${text}\n\nSee it on the map: ${link}`)}">Email it</a>
+      <button class="btn" type="button" id="speak-link">Share link</button></div>
+    <p class="oc-note">Send it to your district supervisor, a neighborhood association or a community meeting. Medio doesn’t send anything for you.</p>`;
+  el.hidden = false;
+  $("#speak-copy").onclick = (e) => copyText(`${text}\n\n${link}`, e.target);
+  $("#speak-link").onclick = (e) => copyText(link, e.target);
+}
+// shared links: ?at=lat,lng&label=... opens that block; ?proposal=id opens that proposal
+function openShared() {
+  const q = new URLSearchParams(location.search);
+  const at = (q.get("at") || "").split(",").map(Number);
+  if (at.length === 2 && at.every(Number.isFinite)) { setMe(at[1], at[0], q.get("label") || "Shared spot"); showWelcome(false); }
+  const pid = q.get("proposal");
+  if (pid) {
+    const tryOpen = () => { const p = PROPS.find((x) => x.id === pid); if (!p) return false;
+      openPanel("propose"); setView({ longitude: p.lng, latitude: p.lat, zoom: 15, pitch: 55 }, 1200); showWelcome(false);
+      setTimeout(() => { const el = document.querySelector(`.vote[data-id="${CSS.escape(pid)}"]`); el && el.closest("li").scrollIntoView({ block: "center" }); }, 300); return true; };
+    if (!tryOpen()) setTimeout(tryOpen, 1500);
+  }
+}
 // ---------- What if examples ----------
 document.querySelectorAll(".wi-ex button").forEach((b) => (b.onclick = () => { $("#ask").value = b.textContent; $("#ask-form").requestSubmit(); }));
 
@@ -2717,8 +2813,10 @@ function renderProposals() {
     <div><b>${esc(q.kind_label)} in ${esc(q.hood)}</b>
       ${q.effect ? `<p class="eff">${q.effect.before} → ${q.effect.after} typical wait nearby (${esc(q.effect.change)})</p>` : `<p class="note">Not simulated: fire and EMS only</p>`}
       ${q.note ? `<p>“${esc(q.note)}”</p>` : ""}<p class="note">${esc(q.name || "A resident")}, ${esc(q.created)}</p></div>
-    <button class="vote ${v.has(q.id) ? "on" : ""}" type="button" data-id="${esc(q.id)}" aria-label="Vote for this proposal">${q.votes}<small>vote${q.votes === 1 ? "" : "s"}</small></button></li>`).join("")
+    <button class="vote ${v.has(q.id) ? "on" : ""}" type="button" data-id="${esc(q.id)}" aria-label="Vote for this proposal">${q.votes}<small>vote${q.votes === 1 ? "" : "s"}</small></button>
+    <div><button class="share" type="button" data-share="${esc(q.id)}">Share with neighbors</button></div></li>`).join("")
     : `<li class="note">No proposals yet. Be the first.</li>`;
+  document.querySelectorAll("[data-share]").forEach((b) => (b.onclick = () => copyText(shareURL({ proposal: b.dataset.share }), b)));
   document.querySelectorAll(".vote").forEach((b) => (b.onclick = async () => {
     if (b.classList.contains("on")) return;
     const r = await fetch("/api/vote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: b.dataset.id, client: CLIENT }) });
@@ -2787,6 +2885,7 @@ function driveChart(D) {
 async function loadFindings() {
   let F;
   try { F = await fetch("/api/findings").then((r) => r.json()); } catch (e) { $("#find-equity").innerHTML = `<p class="note">Couldn’t load findings.</p>`; return; }
+  FINDINGS = F; renderSpeak();
   renderStory(F.story);
   const e = F.equity, pts = e.points;
   const ws = pts.map((p) => p.wait_s), lo = Math.min(...ws) - 15, hi = Math.max(...ws) + 15;
@@ -2816,8 +2915,9 @@ async function loadFindings() {
     <p class="wi-lead">Checked against reality: on October 2026, a month the model never saw, neighborhood medians match real arrival times with r = ${F.accuracy.r} (typical miss ${F.accuracy.hood_err} per neighborhood).</p>
     <ul class="datasets">${F.datasets.map((x) => `<li><b>${esc(x.name)}</b><span>${esc(x.source)}</span><p>${esc(x.use)}</p></li>`).join("")}</ul>`;
 }
-loadProposals();
+loadProposals().then(openShared);
 loadFindings();
+try { if (!localStorage.getItem("medio-welcome-seen") && !location.search) setTimeout(() => showWelcome(true), 1800); } catch (e) { /* storage blocked */ }
 // ---------- Breakdown: by responder, police, call kind (real records + simulator) ----------
 let LAST_OUTCOME = null;
 function renderLast() {

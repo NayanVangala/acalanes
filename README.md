@@ -1,8 +1,14 @@
 # Medio
 
-**When someone in San Francisco calls 911, how long until help arrives, which neighborhoods wait longest, and what would change if the city moved stations or ambulances?**
+**A community tool for San Francisco residents: how fast does help reach your block after a 911 call, why do some neighborhoods wait longer, and what would make it faster?**
 
-Medio is a simulator of San Francisco's fire and EMS response, built from 300,081 real 911 incidents and tested against a month of real arrival times it never saw. You can close a station, add an ambulance or double the call volume, and see each neighborhood's wait change. The results are shown as a live 3D replay of a real day: engines, ambulances and police driving San Francisco's streets.
+Medio turns the city's own published 911 records (300,081 real fire and medical incidents) into answers residents can use:
+- **Check your block.** Your typical wait, by time of day and kind of emergency.
+- **Make the case.** Turn that into a plain, sourced paragraph to send to a district supervisor or a neighborhood group.
+- **Test any what-if** in your own words.
+- **Propose a station** where your neighborhood needs one, see who it would help, and rally neighbors to vote.
+
+Under the hood is a simulator of San Francisco's fire and EMS response, tested against a month of real arrival times it never saw (neighborhood r = 0.94). It's shown as a live 3D replay of a real day.
 
 - **Live:** https://runnr-cbc8.onrender.com. It's on Render's free plan, so the first load after 15 idle minutes takes 30–50 s while the server wakes.
 - **Event:** Acalanes Data Fest 2026, a student data science and AI hackathon (Nov 21, 2026, BRIDGEGOOD Studio, Oakland). Each team presents for 5 minutes.

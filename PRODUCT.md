@@ -2,6 +2,8 @@
 
 **What it is:** a simulator of San Francisco's fire and EMS response, built from 300,081 real 911 incidents and validated against a held-out month (neighborhood r = 0.94). It's shown as a live 3D replay of a real day, with what-if scenarios.
 
+**Positioning:** a community tool. It gives residents the city's own 911 data in a form they can act on: check their block, make the case to officials, propose and vote on fixes.
+
 **Who uses it:**
 - Today: hackathon judges and mentors at Acalanes Data Fest, during a 5-minute demo, on a laptop and projector.
 - Next: residents ("how fast would help reach me?"), journalists, and city budget staff comparing station and ambulance decisions.
