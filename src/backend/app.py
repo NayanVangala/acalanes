@@ -1006,6 +1006,9 @@ class Handler(BaseHTTPRequestHandler):
         path = self.path.split("?")[0]
         if path in ("/", "/index.html"):
             self.reply((FRONTEND / "index.html").read_bytes(), "text/html; charset=utf-8")
+        elif path in ("/favicon.svg", "/favicon-32.png", "/favicon.ico", "/apple-touch-icon.png", "/icon-512.png"):
+            name = "favicon-32.png" if path == "/favicon.ico" else path[1:]
+            self.reply((FRONTEND / "public" / name).read_bytes(), "image/svg+xml" if name.endswith(".svg") else "image/png")
         elif path == "/api/proposals":
             ps = sorted(load_proposals(), key=lambda p: (-p["votes"], p["id"]))
             self.reply(json.dumps([{k: v for k, v in p.items() if k != "voters"} for p in ps]))
