@@ -233,20 +233,38 @@ def here(lng, lat, closed=(), added=(), volume=1.0):
     return out
 
 
-def first_engine_route(lng, lat, closed=()):
-    """The open station whose engine the learned model says arrives first (midday), with its street path. Milliseconds:
-    the map's route to a looked-up address uses this instead of waiting on the full /api/here breakdown."""
+def first_engine_route(lng, lat, closed=(), kind="fire"):
+    """Who reaches (lng, lat) first, with the street path it drives. Milliseconds: no simulation.
+    fire: the open fire station whose engine the learned model says arrives first (midday).
+    ambulance: the ambulance the learned model says arrives first, from its usual base (ambulances rove).
+    police: the SFPD district station with the shortest estimated drive (fire/EMS distance-by-hour travel times,
+    since there is no police-specific model)."""
     c, closed_set, best = sim.cell(lat, lng), set(closed), None
-    for st, (slat, slng) in sim.load_stations().items():
-        if st in closed_set or not st.isdigit():
-            continue
-        t = RT["model"](("S" + st, slat, slng, "ENGINE"), c, lat, lng, 2)
-        if best is None or t < best[0]:
-            best = (t, st)
+    if kind == "ambulance":
+        for uid, h in RT["homes"].items():
+            if h[3] != "MEDIC" or (h[0][0] == "S" and h[0][1:] in closed_set):
+                continue
+            t = RT["model"](h, c, lat, lng, 2)
+            if best is None or t < best[0]:
+                best = (t, h[0], uid, f"Ambulance {uid}")
+    elif kind == "police":
+        for d, st in POLICE_STATIONS.items():
+            t = RT["model"].from_point(st["lat"], st["lng"], lat, lng, 2)
+            if best is None or t < best[0]:
+                best = (t, "P" + d, d, f"Police, {d.title()} station")
+    else:
+        kind = "fire"
+        for st, (slat, slng) in sim.load_stations().items():
+            if st in closed_set or not st.isdigit():
+                continue
+            t = RT["model"](("S" + st, slat, slng, "ENGINE"), c, lat, lng, 2)
+            if best is None or t < best[0]:
+                best = (t, "S" + st, st, f"Engine from Station {st}")
     if best is None:
-        return {"station": None, "path": None}
-    path = routing.route("S" + best[1], lng, lat) if routing is not None else None
-    return {"station": best[1], "drive_s": round(best[0]), "path": path if path and len(path) >= 2 else None}
+        return {"kind": kind, "station": None, "path": None}
+    path = routing.route(best[1], lng, lat) if routing is not None else None
+    return {"kind": kind, "station": best[2], "label": best[3], "drive_s": round(best[0]),
+            "estimate": kind == "police", "path": path if path and len(path) >= 2 else None}
 
 
 def replay(log, ordinal):
@@ -1034,7 +1052,8 @@ class Handler(BaseHTTPRequestHandler):
             except (KeyError, ValueError, TypeError):
                 return self.reply('{"error": "lng/lat must be inside San Francisco"}', code=400)
             if self.path == "/api/route":  # fast: no simulation, just the first engine and its street path
-                return self.reply(json.dumps(first_engine_route(lng, lat, closed)))
+                kind = req.get("kind") if req.get("kind") in ("fire", "ambulance", "police") else "fire"
+                return self.reply(json.dumps(first_engine_route(lng, lat, closed, kind)))
             return self.reply(json.dumps(here(lng, lat, closed, added, volume)))
         summary, log = run(closed, added, volume)
         self.reply(json.dumps({**summary, "by_band": by_band(scenario_key(closed, added, volume)), "replay": replay(log, day)}))

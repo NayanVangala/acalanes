@@ -623,6 +623,10 @@ body:has(#panel:not(.hidden)) .drawer-tab .chev { transform: rotate(180deg); }
 .drawer .loc-form .me-list { width: 100%; max-width: none; background: var(--frost-solid); border: 1px solid var(--rule); border-radius: 14px; box-shadow: 0 12px 28px rgba(10, 20, 30, 0.18); }
 .drawer .loc-form .me-list li[aria-selected="true"], .drawer .loc-form .me-list li:hover { background: var(--hover); }
 .drawer .loc-form input { height: 40px; border-radius: 10px; padding: 0 12px; font-size: 14.5px; }
+.resp-pick { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.resp-pick > span { font-size: 13px; color: var(--ink-soft); }
+.route-line { margin: 0; font-size: 13px; color: var(--ink-soft); }
+.route-line b { color: var(--ink); }
 .me-geo-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; }
 .me-geo-btn svg { width: 16px; height: 16px; }
 .me-block:has(#me-card:not([hidden])) #me-empty, .me-block:has(#me-card:not([hidden])) .me-geo-btn { display: none; }
@@ -1162,6 +1166,8 @@ a.btn { display: inline-grid; place-items: center; text-decoration: none; color:
       <h2>How fast would help reach you? <button class="link" id="me-clear" type="button" hidden>Clear</button></h2>
       <form class="ask loc-form" id="loc-form" autocomplete="off"><div class="me-search"><input id="loc-q" type="text" autocomplete="off" spellcheck="false" placeholder="Enter a San Francisco address" aria-label="Your address in San Francisco"
         role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="loc-list"><ul class="me-list" id="loc-list" role="listbox" aria-label="Address suggestions" hidden></ul></div><button class="btn" type="submit" id="loc-go">Find</button></form>
+      <div class="resp-pick"><span>Who’s coming?</span><div class="lb-seg" role="group" aria-label="Who is coming"><button type="button" data-resp="fire" class="on" aria-pressed="true">Fire engine</button><button type="button" data-resp="ambulance" aria-pressed="false">Ambulance</button><button type="button" data-resp="police" aria-pressed="false">Police</button></div></div>
+      <p class="me-line route-line" id="route-line" hidden></p>
       <p class="me-privacy" id="me-empty">Start typing and pick your address from the list, or use where you are now. Addresses are looked up with Photon (OpenStreetMap data) and never saved.</p>
       <button class="btn me-geo-btn" id="me-geo2" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Use my current location</button>
       <div class="me-card" id="me-card" hidden></div>
@@ -1957,9 +1963,10 @@ function layers(t, veh) {
     const k = ((performance.now() - ME_ROUTE.t0) % 7000) / 5600;  // ~5.6 s on the road, a short stop at the door, repeat
     const [pos, hd] = along(ME_ROUTE.g, Math.min(1, k)), eng = [{ p: at(pos[0], pos[1]), h: hd }], fl = Math.floor(performance.now() / 260) % 2;
     const engMat = { ambient: 0.55, diffuse: 0.6, shininess: 40, specularColor: [80, 80, 80] };
-    L.push(new deck.SimpleMeshLayer({ id: "me-engine", data: eng, mesh: MESH.engine, getPosition: (d) => d.p, getOrientation: (d) => [0, -d.h, 0],
+    const VM = { fire: [MESH.engine, MESH.barEngine], ambulance: [MESH.amb, MESH.barAmb], police: [MESH.police, MESH.barPolice] }[ME_ROUTE.kind] || [MESH.engine, MESH.barEngine];
+    L.push(new deck.SimpleMeshLayer({ id: "me-engine", data: eng, mesh: VM[0], getPosition: (d) => d.p, getOrientation: (d) => [0, -d.h, 0],
       sizeScale: vehicleScale(), getColor: [255, 255, 255], _useMeshColors: true, material: engMat }));
-    L.push(new deck.SimpleMeshLayer({ id: "me-engine-bar", data: eng, mesh: MESH.barEngine, getPosition: (d) => d.p, getOrientation: (d) => [0, -d.h, 0],
+    L.push(new deck.SimpleMeshLayer({ id: "me-engine-bar", data: eng, mesh: VM[1], getPosition: (d) => d.p, getOrientation: (d) => [0, -d.h, 0],
       sizeScale: vehicleScale(), getColor: fl ? [255, 40, 40] : [60, 120, 255], _useMeshColors: true, material: engMat, updateTriggers: { getColor: fl } }));
   }
   // every route driven so far today stays on the map, faint; click one for the vehicle and the call log
@@ -2373,18 +2380,20 @@ async function loadHere() {
   } catch (e) { if ($("#here")) $("#here").innerHTML = `<p class="note">Couldn’t reach the server for the breakdown.</p>`; }
 }
 // the map route has its own fast request (/api/route: no simulation), made whenever a spot is set or the closed stations change
-let ROUTE_KEY = null;
+let ROUTE_KEY = null, ME_KIND = "fire";  // who drives to the spot: fire engine, ambulance or police
 async function loadRoute() {
   if (!ME) return;
-  const closed = (JSON.parse(lastRun).closed || []).slice().sort(), key = JSON.stringify([ME.lng, ME.lat, closed]);
+  const closed = (JSON.parse(lastRun).closed || []).slice().sort(), key = JSON.stringify([ME.lng, ME.lat, closed, ME_KIND]);
   if (ME_ROUTE && ME_ROUTE.key === key) return;
   ROUTE_KEY = key;
   try {
-    const r = await fetch("/api/route", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lng: ME.lng, lat: ME.lat, closed }) });
+    const r = await fetch("/api/route", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lng: ME.lng, lat: ME.lat, closed, kind: ME_KIND }) });
     const d = await r.json();
     if (key !== ROUTE_KEY || !ME || !r.ok || !d.path) return;  // moved on, or no street path
     const fresh = !ME_ROUTE;
-    ME_ROUTE = { key, path: d.path, g: geom(d.path), station: d.station, drive: d.drive_s, t0: performance.now() };
+    ME_ROUTE = { key, kind: d.kind, path: d.path, g: geom(d.path), station: d.station, drive: d.drive_s, t0: performance.now() };
+    const line = $("#route-line");
+    if (line) { line.hidden = false; line.innerHTML = `<b>${esc(d.label)}</b> · ${(ME_ROUTE.g.total / 1000).toFixed(1)} km on streets · about <b class="num">${mmss(d.drive_s)}</b> at midday${d.estimate ? " (estimate)" : ""}`; }
     if (fresh) fitRoute(d.path);
   } catch (e) { /* offline: the pin still shows */ }
 }
@@ -2582,10 +2591,15 @@ $("#me-geo").onclick = () => {
     () => { msg.className = "toast err"; msg.textContent = "Location access was blocked or timed out. Type an address instead."; },
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
 };
-$("#me-clear").onclick = () => { ME = null; ME_ROUTE = null; for (const el of ADDRESS_INPUTS) el.value = ""; $("#me-msg").hidden = true; $("#me-clear").hidden = true; renderMine(); };
+$("#me-clear").onclick = () => { ME = null; ME_ROUTE = null; $("#route-line").hidden = true; for (const el of ADDRESS_INPUTS) el.value = ""; $("#me-msg").hidden = true; $("#me-clear").hidden = true; renderMine(); };
 
 // ---------- wiring ----------
-$("#me-geo2").onclick = () => $("#me-geo").click();  // the Location tab's button uses the bottom bar's locate flow
+$("#me-geo2").onclick = () => $("#me-geo").click();
+document.querySelectorAll("[data-resp]").forEach((b) => (b.onclick = () => {
+  ME_KIND = b.dataset.resp;
+  document.querySelectorAll("[data-resp]").forEach((x) => { x.classList.toggle("on", x === b); x.setAttribute("aria-pressed", String(x === b)); });
+  if (ME) { ME_ROUTE = null; ROUTE_KEY = null; loadRoute(); }  // re-route with the new responder
+}));  // the Location tab's button uses the bottom bar's locate flow
 document.querySelectorAll("[data-ex]").forEach((b) => (b.onclick = () => { scenario = JSON.parse(JSON.stringify(EXAMPLES[b.dataset.ex])); renderScenario(); run(); }));
 $("#run").onclick = run;
 $("#panel-toggle").onclick = () => $("#panel").classList.toggle("hidden");
