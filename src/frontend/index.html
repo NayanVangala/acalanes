@@ -946,6 +946,8 @@ a.btn { display: inline-grid; place-items: center; text-decoration: none; color:
 .sw[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
 .sw[aria-pressed="true"]::before { background: var(--accent); border-color: var(--accent); }
 @media (max-width: 820px) { .tl-sw { display: none; } }
+
+@media (min-width: 1200px) { .timeline { transform: translateX(calc(-50% + 90px)) !important; } }  /* nudged right, clear of the side panel */
 </style>
 </head>
 <body>
