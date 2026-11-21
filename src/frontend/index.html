@@ -111,7 +111,7 @@ input[type=range] { width: 100%; accent-color: var(--accent); }
 .toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 7px 9px; border-radius: 9px; border: 1px solid var(--line); cursor: pointer; user-select: none; }
 .toggle input { accent-color: var(--accent); margin: 0; }
-.ramp { height: 8px; border-radius: 4px; background: linear-gradient(90deg, #4c8dff, #ffc24b, #ff4d3d); }
+.ramp { height: 8px; border-radius: 4px; background: linear-gradient(90deg, #1a9850, #91cf60, #fad648, #f28026, #c41e22); }
 .ramp-labels { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-faint); }
 .legend-row { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-soft); }
 .legend-row span { display: inline-flex; align-items: center; gap: 6px; }
@@ -539,6 +539,29 @@ body, button, input, select, textarea { font-family: var(--font); }
 .rail { position: fixed; z-index: 12; left: var(--edge); top: var(--edge); display: flex; flex-direction: column; gap: 10px; }
 .layer-pop { position: fixed; z-index: 13; left: calc(var(--edge) + 56px); top: calc(var(--edge) + 108px); display: flex; flex-wrap: wrap; gap: 6px; max-width: 340px; padding: 10px; border-radius: 16px; }
 .layer-pop[hidden] { display: none; }
+/* leaderboard: neighborhoods ranked by typical wait for help */
+.lb-pop { position: fixed; z-index: 13; left: calc(var(--edge) + 56px); top: calc(var(--edge) + 108px); width: 372px; max-height: calc(100vh - var(--edge) * 2 - 230px); display: flex; flex-direction: column; padding: 14px 10px 8px 14px; border-radius: 20px; }
+.lb-pop[hidden] { display: none; }
+.lb-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding-right: 4px; }
+.lb-k { margin: 0; font-size: 11.5px; font-weight: 700; letter-spacing: 0.12em; color: var(--ink-faint); }
+.lb-head h2 { margin: 2px 0 0; font-size: 17px; font-weight: 600; color: var(--ink); }
+.lb-seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: 999px; background: var(--hover); flex: none; }
+.lb-seg button { border: 0; background: transparent; border-radius: 999px; padding: 5px 10px; font-size: 12.5px; color: var(--ink-soft); cursor: pointer; }
+.lb-seg button.on { background: var(--frost-solid); color: var(--ink); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.lb-sub { margin: 6px 4px 8px 0; font-size: 12.5px; color: var(--ink-faint); }
+.lb-list { list-style: none; margin: 0; padding: 0 4px 0 0; overflow-y: auto; scrollbar-width: thin; }
+.lb-row { width: 100%; display: grid; grid-template-columns: 26px 1fr auto; gap: 10px; align-items: center; padding: 8px 8px; border: 0; border-radius: 10px; background: transparent; text-align: left; cursor: pointer; color: var(--ink); }
+.lb-row:hover, .lb-row:focus-visible { background: var(--hover); }
+.lb-rank { font-size: 13px; font-weight: 700; color: var(--ink-faint); text-align: right; }
+.lb-name { min-width: 0; display: grid; }
+.lb-name b { font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-name em { font-style: normal; font-size: 12px; color: var(--ink-faint); }
+.lb-val { display: grid; justify-items: end; gap: 3px; min-width: 96px; }
+.lb-val b { font-size: 14px; font-weight: 600; }
+.lb-val i { font-style: normal; font-size: 11.5px; font-weight: 600; }
+.lb-bar { width: 96px; height: 6px; border-radius: 3px; background: var(--hover); overflow: hidden; }
+.lb-bar span { display: block; height: 100%; border-radius: 3px; }
+.lg-note { margin: 4px 0 0; font-size: 12px; color: var(--ink-faint); }
 .layer-pop .toggle { position: relative; display: inline-flex; padding: 7px 12px; border-radius: 999px; background: var(--raised); color: var(--ink-soft); font-size: 13.5px; font-weight: 500; cursor: pointer; border: 1px solid var(--rule); }
 .layer-pop .toggle input { position: absolute; opacity: 0; pointer-events: none; }
 .layer-pop .toggle:has(input:checked) { background: var(--ink); color: #fff; border-color: var(--ink); }
@@ -932,6 +955,7 @@ a.btn { display: inline-grid; place-items: center; text-decoration: none; color:
   <button class="fab" id="panel-toggle" aria-label="Open or close the panel" title="Panel" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   <button class="fab" id="help" aria-label="About Medio" title="About"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.01"/></svg></button>
   <button class="fab" id="layers-btn" aria-label="Map layers" aria-expanded="false" title="Layers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 4.5-9 4.5-9-4.5z"/><path d="M3 12l9 4.5 9-4.5M3 16.5l9 4.5 9-4.5"/></svg></button>
+  <button class="fab" id="lb-btn" aria-label="Neighborhood leaderboard: slowest to fastest" aria-expanded="false" aria-controls="lb-pop" title="Leaderboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4z"/><path d="M7 6H4v2a3 3 0 0 0 3 3M17 6h3v2a3 3 0 0 1-3 3"/></svg></button>
 </nav>
 <div class="menu-pop frost" id="menu-pop" role="menu" hidden>
   <button type="button" role="menuitem" id="m-welcome"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span><b>Start here</b><small>What you can do with Medio</small></span></button>
@@ -971,6 +995,12 @@ a.btn { display: inline-grid; place-items: center; text-decoration: none; color:
   <div class="ai-totals" id="ai-totals"></div>
   <ol class="ai-traces" id="ai-traces"><li class="note">No requests yet. Ask a what-if and watch it run here.</li></ol>
 </section>
+<div class="lb-pop frost" id="lb-pop" role="dialog" aria-label="Neighborhood leaderboard" hidden>
+  <header class="lb-head"><div><p class="lb-k">LEADERBOARD</p><h2>Who gets help fastest</h2></div>
+    <div class="lb-seg" role="group" aria-label="Sort"><button type="button" data-lb="slow" class="on">Slowest</button><button type="button" data-lb="fast">Fastest</button></div></header>
+  <p class="lb-sub" id="lb-sub"></p>
+  <ol class="lb-list" id="lb-list"></ol>
+</div>
 <div class="layer-pop frost" id="layer-pop" role="group" aria-label="Map layers" hidden>
     <label class="toggle" id="t-g3d" hidden><input type="checkbox" id="l-g3d" checked>Google 3D</label>
     <label class="toggle"><input type="checkbox" id="l-sat" checked>Satellite</label>
@@ -1144,7 +1174,7 @@ a.btn { display: inline-grid; place-items: center; text-decoration: none; color:
     <section class="block" data-pane="findings">
       <h2>Legend</h2>
       <div class="legend" aria-label="Map legend">
-    <div class="lg-ramp"><span>Wait for help</span><div class="ramp" aria-hidden="true"></div><span class="num">6 → 10+ min</span></div>
+    <div class="lg-ramp"><span>Fast</span><div class="ramp" aria-hidden="true"></div><span>Slow</span></div><p class="lg-note num">typical wait: 6:50 → 9:30+</p>
     <div class="lg-row">
       <span><i class="dot" style="background:var(--engine)"></i>Engine</span>
       <span><i class="dot" style="background:var(--medic)"></i>Ambulance</span>
@@ -1429,7 +1459,8 @@ function initGoogle(key) {
 }
 
 // ---------- color ----------
-const STOPS = [[390, [76, 141, 255]], [480, [255, 194, 75]], [600, [255, 77, 61]]];
+// tuned to the real spread of neighborhood medians (6:41 to 9:54): green = help arrives fast, dark red = slowest
+const STOPS = [[410, [26, 152, 80]], [440, [145, 207, 96]], [465, [250, 214, 72]], [510, [242, 128, 38]], [570, [196, 30, 34]]];
 function ramp(sec) {
   if (sec <= STOPS[0][0]) return STOPS[0][1];
   for (let k = 1; k < STOPS.length; k++) {
@@ -1776,9 +1807,9 @@ function layers(t, veh) {
   if (show.hoods) L.push(memo("hoods", [RESULT, show.extrude, ext], () => new deck.GeoJsonLayer({
     id: "hoods", data: HOODS, pickable: true, stroked: true, filled: true, extruded: show.extrude,
     getElevation: (f) => Math.max(40, (((RESULT.hoods[f.properties.nhood] || {}).median || 400) - 330) * 4),
-    getFillColor: (f) => [...ramp((RESULT.hoods[f.properties.nhood] || {}).median || 400), show.extrude ? 150 : 40],  // light wash: the city shows through
-    getLineColor: (f) => [...ramp((RESULT.hoods[f.properties.nhood] || {}).median || 400), 210],
-    getLineWidth: 2, lineWidthUnits: "pixels",
+    getFillColor: (f) => [...ramp((RESULT.hoods[f.properties.nhood] || {}).median || 400), show.extrude ? 205 : 118],  // strong enough to read the slowness at a glance
+    getLineColor: (f) => [...ramp((RESULT.hoods[f.properties.nhood] || {}).median || 400), 245],
+    getLineWidth: 2.5, lineWidthUnits: "pixels",
     material: { ambient: 0.55, diffuse: 0.5 },
     parameters: { depthTest: show.extrude }, extensions: show.extrude ? NO_EXT : ext,
     transitions: { getElevation: 500 },
@@ -2159,7 +2190,31 @@ async function run() {
   }
   renderAll();
 }
-function renderAll() { renderScenario(); renderVerdict(); renderFindings(); renderMine(); }
+function renderAll() { renderScenario(); renderVerdict(); renderFindings(); renderMine(); renderLeaderboard(); }
+// ---------- leaderboard: every neighborhood ranked by typical wait, following the current what-if ----------
+let LB_ORDER = "slow";
+function renderLeaderboard() {
+  const list = $("#lb-list");
+  if (!list || !RESULT || $("#lb-pop").hidden) return;
+  const scen = isScenario();
+  const rows = Object.entries(RESULT.hoods).filter(([, r]) => r.calls >= 30).map(([name, r]) => ({ name, r, b: BASE.hoods[name] }));
+  rows.sort((a, b) => (LB_ORDER === "slow" ? b.r.median - a.r.median : a.r.median - b.r.median));
+  const meds = rows.map((x) => x.r.median), lo = Math.min(...meds), hi = Math.max(...meds);
+  list.innerHTML = rows.map((x, i) => {
+    const d = scen && x.b ? x.r.median - x.b.median : 0, w = 18 + (82 * (x.r.median - lo)) / Math.max(1, hi - lo);
+    const chg = scen && Math.abs(d) >= 5 ? `<i class="num ${d > 0 ? "up" : "down"}">${signed(d)} vs today</i>` : "";
+    return `<li><button class="lb-row" type="button" data-hood="${esc(x.name)}" title="Fly to ${esc(x.name)}"><span class="lb-rank num">${i + 1}</span>`
+      + `<span class="lb-name"><b>${esc(x.name)}</b><em>${pct(x.r.over8)} of calls over 8 min</em></span>`
+      + `<span class="lb-val"><b class="num">${mmss(x.r.median)}</b>${chg}<span class="lb-bar" aria-hidden="true"><span style="width:${w.toFixed(0)}%; background:rgb(${ramp(x.r.median).join(",")})"></span></span></span></button></li>`;
+  }).join("");
+  $("#lb-sub").textContent = scen ? "Typical wait for help with your what-if (change vs today)" : `Typical wait for help, ${rows.length} neighborhoods · October 2026’s real 911 calls`;
+  list.querySelectorAll(".lb-row").forEach((b) => (b.onclick = () => focusHood(b.dataset.hood)));
+}
+function setLeaderboard(open) {
+  $("#lb-pop").hidden = !open;
+  $("#lb-btn").setAttribute("aria-expanded", String(open));
+  if (open) { $("#layer-pop").hidden = true; $("#layers-btn").setAttribute("aria-expanded", "false"); renderLeaderboard(); }
+}
 function focusHood(name) {
   const f = HOODS.features.find((x) => x.properties.nhood === name);
   if (!f) return;
@@ -2456,7 +2511,11 @@ tabEl.addEventListener("pointerup", endTabDrag);
 tabEl.addEventListener("pointercancel", endTabDrag);
 tabEl.addEventListener("click", (e) => { if (e.detail === 0) panelEl.classList.toggle("hidden"); });  // Enter / Space
 $("#scen-btn").onclick = () => { const p = $("#panel"); p.classList.contains("hidden") || p.dataset.tab !== "whatif" ? openPanel("whatif") : p.classList.add("hidden"); };
-$("#layers-btn").onclick = () => { const pop = $("#layer-pop"); pop.hidden = !pop.hidden; $("#layers-btn").setAttribute("aria-expanded", String(!pop.hidden)); };
+$("#layers-btn").onclick = () => { const pop = $("#layer-pop"); pop.hidden = !pop.hidden; $("#layers-btn").setAttribute("aria-expanded", String(!pop.hidden)); if (!pop.hidden) setLeaderboard(false); };
+$("#lb-btn").onclick = () => setLeaderboard($("#lb-pop").hidden);
+document.querySelectorAll("[data-lb]").forEach((b) => (b.onclick = () => { LB_ORDER = b.dataset.lb; document.querySelectorAll("[data-lb]").forEach((x) => x.classList.toggle("on", x === b)); renderLeaderboard(); }));
+addEventListener("click", (e) => { if (!$("#lb-pop").hidden && !$("#lb-pop").contains(e.target) && !$("#lb-btn").contains(e.target)) setLeaderboard(false); });
+addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#lb-pop").hidden) setLeaderboard(false); });
 addEventListener("click", (e) => { const pop = $("#layer-pop"); if (!pop.hidden && !pop.contains(e.target) && !$("#layers-btn").contains(e.target)) { pop.hidden = true; $("#layers-btn").setAttribute("aria-expanded", "false"); } });
 $("#help").onclick = () => $("#about").showModal();
 function nav(v, ms = 300) { if (followUnit) stopFollow(); setView(v, ms); }
