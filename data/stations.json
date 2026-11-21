@@ -1,0 +1,310 @@
+[
+ {
+  "station": "1",
+  "name": "Fire Station #1",
+  "address": "935 FOLSOM ST",
+  "lat": 37.77945652500006,
+  "lng": -122.40412015999999
+ },
+ {
+  "station": "2",
+  "name": "Fire Station #2",
+  "address": "1340 POWELL ST",
+  "lat": 37.79703411300005,
+  "lng": -122.40987916099999
+ },
+ {
+  "station": "3",
+  "name": "Fire Station #3",
+  "address": "1067 POST ST",
+  "lat": 37.786641204000034,
+  "lng": -122.41932098399997
+ },
+ {
+  "station": "4",
+  "name": "Fire Station #4",
+  "address": "449 MISSION ROCK ST",
+  "lat": 37.77272154900004,
+  "lng": -122.38913875099996
+ },
+ {
+  "station": "6",
+  "name": "Fire Station #6",
+  "address": "135 SANCHEZ ST",
+  "lat": 37.76707870700005,
+  "lng": -122.43087415499997
+ },
+ {
+  "station": "8",
+  "name": "Fire Station #8",
+  "address": "36 BLUXOME ST",
+  "lat": 37.77730564400008,
+  "lng": -122.39671009299997
+ },
+ {
+  "station": "9",
+  "name": "Fire Station #9",
+  "address": "2245 JERROLD AVE",
+  "lat": 37.745262342000046,
+  "lng": -122.40123558199997
+ },
+ {
+  "station": "10",
+  "name": "Fire Station #10",
+  "address": "655 PRESIDIO AVE",
+  "lat": 37.78562525800004,
+  "lng": -122.44672328899998
+ },
+ {
+  "station": "11",
+  "name": "Fire Station #11",
+  "address": "3880 26TH ST",
+  "lat": 37.748782317000064,
+  "lng": -122.426485507
+ },
+ {
+  "station": "12",
+  "name": "Fire Station #12",
+  "address": "1145 STANYAN ST",
+  "lat": 37.76344992600008,
+  "lng": -122.45258644499995
+ },
+ {
+  "station": "13",
+  "name": "Fire Station #13",
+  "address": "530 SANSOME ST",
+  "lat": 37.79551871100006,
+  "lng": -122.40135015599998
+ },
+ {
+  "station": "14",
+  "name": "Fire Station #14",
+  "address": "551 26TH AVE",
+  "lat": 37.77899264900003,
+  "lng": -122.48606162099998
+ },
+ {
+  "station": "15",
+  "name": "Fire Station #15",
+  "address": "1000 OCEAN AVE",
+  "lat": 37.723488631000066,
+  "lng": -122.45292662899999
+ },
+ {
+  "station": "16",
+  "name": "Fire Station #16",
+  "address": "2251 GREENWICH ST",
+  "lat": 37.798581854000076,
+  "lng": -122.43672029099997
+ },
+ {
+  "station": "17",
+  "name": "Fire Station #17",
+  "address": "1295 SHAFTER AVE",
+  "lat": 37.72752662100004,
+  "lng": -122.38506673499995
+ },
+ {
+  "station": "18",
+  "name": "Fire Station #18",
+  "address": "1935 32ND AVE",
+  "lat": 37.75098636300004,
+  "lng": -122.49054390699996
+ },
+ {
+  "station": "19",
+  "name": "Fire Station #19",
+  "address": "390 BUCKINGHAM WAY",
+  "lat": 37.727811615000064,
+  "lng": -122.47890289799994
+ },
+ {
+  "station": "20",
+  "name": "Fire Station #20",
+  "address": "285 OLYMPIA WAY",
+  "lat": 37.75117124500008,
+  "lng": -122.45607669299994
+ },
+ {
+  "station": "21",
+  "name": "Fire Station #21",
+  "address": "1443 GROVE ST",
+  "lat": 37.775409721000074,
+  "lng": -122.44027176799995
+ },
+ {
+  "station": "22",
+  "name": "Fire Station #22",
+  "address": "1290 16TH AVE",
+  "lat": 37.76393036800005,
+  "lng": -122.47368711699994
+ },
+ {
+  "station": "23",
+  "name": "Fire Station #23",
+  "address": "1348 45TH AVE",
+  "lat": 37.76140573300006,
+  "lng": -122.50471003499996
+ },
+ {
+  "station": "24",
+  "name": "Fire Station #24",
+  "address": "100 HOFFMAN AVE",
+  "lat": 37.75312934900006,
+  "lng": -122.44110498099997
+ },
+ {
+  "station": "25",
+  "name": "Fire Station #25",
+  "address": "3305 3RD ST",
+  "lat": 37.74663929800005,
+  "lng": -122.38685250599997
+ },
+ {
+  "station": "26",
+  "name": "Fire Station #26",
+  "address": "80 DIGBY ST",
+  "lat": 37.740283058000045,
+  "lng": -122.43339969399995
+ },
+ {
+  "station": "28",
+  "name": "Fire Station #28",
+  "address": "1814 STOCKTON ST",
+  "lat": 37.80254787500007,
+  "lng": -122.40935150799999
+ },
+ {
+  "station": "29",
+  "name": "Fire Station #29",
+  "address": "299 VERMONT ST",
+  "lat": 37.766156471000045,
+  "lng": -122.40429579299996
+ },
+ {
+  "station": "31",
+  "name": "Fire Station #31",
+  "address": "441 12TH AVE",
+  "lat": 37.77984010500006,
+  "lng": -122.47091141499999
+ },
+ {
+  "station": "32",
+  "name": "Fire Station #32",
+  "address": "194 PARK ST",
+  "lat": 37.736322751000046,
+  "lng": -122.42116606999997
+ },
+ {
+  "station": "33",
+  "name": "Fire Station #33",
+  "address": "8 CAPITOL AVE",
+  "lat": 37.71085947800003,
+  "lng": -122.45858070099996
+ },
+ {
+  "station": "34",
+  "name": "Fire Station #34",
+  "address": "499 41ST AVE",
+  "lat": 37.779438629000026,
+  "lng": -122.50261909499994
+ },
+ {
+  "station": "36",
+  "name": "Fire Station #36",
+  "address": "109 OAK ST",
+  "lat": 37.77493240600006,
+  "lng": -122.42121127999997
+ },
+ {
+  "station": "37",
+  "name": "Fire Station #37",
+  "address": "798 WISCONSIN ST",
+  "lat": 37.75741778200006,
+  "lng": -122.399243851
+ },
+ {
+  "station": "38",
+  "name": "Fire Station #38",
+  "address": "2150 CALIFORNIA ST",
+  "lat": 37.789718675000074,
+  "lng": -122.42988021399998
+ },
+ {
+  "station": "39",
+  "name": "Fire Station #39",
+  "address": "1091 PORTOLA DR",
+  "lat": 37.740039839000076,
+  "lng": -122.45863496599998
+ },
+ {
+  "station": "40",
+  "name": "Fire Station #40",
+  "address": "2155 18TH AVE",
+  "lat": 37.74761093800004,
+  "lng": -122.47526939799997
+ },
+ {
+  "station": "41",
+  "name": "Fire Station #41",
+  "address": "1325 LEAVENWORTH ST",
+  "lat": 37.793376858000045,
+  "lng": -122.41649515599994
+ },
+ {
+  "station": "42",
+  "name": "Fire Station #42",
+  "address": "2430 SAN BRUNO AVE",
+  "lat": 37.73158521200003,
+  "lng": -122.40542499599997
+ },
+ {
+  "station": "43",
+  "name": "Fire Station #43",
+  "address": "720 MOSCOW ST",
+  "lat": 37.71634867300003,
+  "lng": -122.43167870699995
+ },
+ {
+  "station": "44",
+  "name": "Fire Station #44",
+  "address": "1298 GIRARD ST",
+  "lat": 37.71662053600005,
+  "lng": -122.40043363899997
+ },
+ {
+  "station": "48",
+  "name": "Fire Station #48",
+  "address": "800 AVENUE I",
+  "lat": 37.82666830100004,
+  "lng": -122.36921098199997
+ },
+ {
+  "station": "5 - Division 2 Headquarters",
+  "name": "Fire Station #5 - Division 2 Headquarters",
+  "address": "1301 TURK ST",
+  "lat": 37.78051537400006,
+  "lng": -122.43073467999994
+ },
+ {
+  "station": "7/DOT-2 Bngl/Class/Office",
+  "name": "Fire Station #7/DOT-2 Bngl/Class/Office",
+  "address": "2300 FOLSOM ST",
+  "lat": 37.759832069000026,
+  "lng": -122.41534850699998
+ },
+ {
+  "station": "7 - Division 3 Headquarters",
+  "name": "Fire Station #7 - Division 3 Headquarters",
+  "address": "2300 FOLSOM ST",
+  "lat": 37.76025539700004,
+  "lng": -122.41504181999994
+ },
+ {
+  "station": "35 - Fireboat Headquarters",
+  "name": "Fire Station #35 - Fireboat Headquarters",
+  "address": "PIER 22 1/2",
+  "lat": 37.79022102600004,
+  "lng": -122.38844006899996
+ }
+]

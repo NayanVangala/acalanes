@@ -1,63 +1,99 @@
-"""Download SF Fire Department calls for service (DataSF nuek-vuh3) -> data/calls.csv.gz
+"""Download every dataset Runnr uses into data/. Run once; outputs are committed so deploys don't need it.
 
-One row per incident: the first unit dispatched. Run once; the output is committed so deploys don't need it.
+- calls.csv.gz      SF Fire Dept calls for service, every unit dispatched (DataSF nuek-vuh3)
+- stations.json     SF fire station locations (DataSF wt27-4jim, City-owned facilities)
+- hoods.geojson     SF Analysis Neighborhood boundaries (DataSF j2bu-swwd)
+- people.json       population by neighborhood, ACS 2019-2023 (DataSF 4qbq-hvtt)
 """
 import csv
 import gzip
 import io
+import json
+import subprocess
 import urllib.parse
-import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-URL = "https://data.sf.gov/resource/nuek-vuh3.csv"
-START, END = "2026-05-01", "2026-11-01"
-FIELDS = ["incident_number", "received_dttm", "response_dttm", "on_scene_dttm", "available_dttm", "unit_id",
-          "unit_type", "station_area", "case_location", "neighborhoods_analysis_boundaries", "call_type",
-          "call_type_group", "final_priority"]
-OUT = Path(__file__).parent / "data/calls.csv.gz"
+OUT = Path(__file__).parent / "data"
+START, END = "2024-11-01", "2026-11-01"
+
+
+def get(dataset, fmt="json", **params):
+    # curl, not urllib: python.org builds on macOS often can't verify certificates
+    url = f"https://data.sf.gov/resource/{dataset}.{fmt}?" + urllib.parse.urlencode(params)
+    return subprocess.run(["curl", "-sfL", "--max-time", "600", url], capture_output=True, check=True).stdout.decode()
 
 
 def ts(s):
-    return datetime.fromisoformat(s).timestamp() if s else None
+    return int(datetime.fromisoformat(s).timestamp()) if s else ""
 
 
-def main():
-    rows, offset, page = [], 0, 50000
-    while True:
-        q = urllib.parse.urlencode({
-            "$select": ",".join(FIELDS),
-            "$where": f"received_dttm >= '{START}' AND received_dttm < '{END}' AND unit_sequence_in_call_dispatch='1' "
-                      "AND on_scene_dttm IS NOT NULL AND case_location IS NOT NULL",
-            "$order": "received_dttm", "$limit": page, "$offset": offset})
-        text = urllib.request.urlopen(f"{URL}?{q}", timeout=300).read().decode()
-        batch = list(csv.DictReader(io.StringIO(text)))
-        rows += batch
-        print(len(rows), "rows")
-        if len(batch) < page:
-            break
-        offset += page
-
-    OUT.parent.mkdir(exist_ok=True)
-    kept = 0
-    with gzip.open(OUT, "wt", newline="") as f:
+def calls():
+    fields = ["incident_number", "unit_sequence_in_call_dispatch", "received_dttm", "dispatch_dttm", "response_dttm",
+              "on_scene_dttm", "available_dttm", "unit_id", "unit_type", "station_area", "case_location",
+              "neighborhoods_analysis_boundaries", "call_type", "call_type_group", "final_priority"]
+    path = OUT / "calls.csv.gz"
+    n = 0
+    with gzip.open(path, "wt", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["t", "dispatch_s", "travel_s", "busy_s", "lat", "lng", "unit", "unit_type", "station",
-                    "hood", "call_type", "group", "priority"])
-        for r in rows:
-            rec, resp, on, avail = (ts(r[k]) for k in ["received_dttm", "response_dttm", "on_scene_dttm", "available_dttm"])
-            lng, lat = map(float, r["case_location"].removeprefix("POINT (").rstrip(")").split())
-            if not (resp and on and avail) or not (37.6 < lat < 37.85 and -122.55 < lng < -122.3):
-                continue
-            travel, busy = on - resp, avail - resp
-            if not (0 < travel < 3600 and 0 < busy < 6 * 3600 and 0 <= resp - rec < 3600):
-                continue
-            w.writerow([int(rec), int(resp - rec), int(travel), int(busy), f"{lat:.5f}", f"{lng:.5f}", r["unit_id"],
-                        r["unit_type"], r["station_area"], r["neighborhoods_analysis_boundaries"], r["call_type"],
-                        r["call_type_group"], r["final_priority"]])
-            kept += 1
-    print(f"kept {kept} of {len(rows)} -> {OUT} ({OUT.stat().st_size / 1e6:.1f} MB)")
+        w.writerow(["incident", "seq", "received", "dispatch", "enroute", "onscene", "available", "unit", "unit_type",
+                    "station", "lat", "lng", "hood", "call_type", "group", "priority"])
+        offset, page = 0, 100000
+        while True:
+            text = get("nuek-vuh3", "csv", **{
+                "$select": ",".join(fields),
+                "$where": f"received_dttm >= '{START}' AND received_dttm < '{END}' AND case_location IS NOT NULL",
+                "$order": "received_dttm, incident_number, unit_sequence_in_call_dispatch",
+                "$limit": page, "$offset": offset})
+            batch = list(csv.DictReader(io.StringIO(text)))
+            for r in batch:
+                lng, lat = map(float, r["case_location"].removeprefix("POINT (").rstrip(")").split())
+                w.writerow([r["incident_number"], r["unit_sequence_in_call_dispatch"],
+                            *(ts(r[k]) for k in ["received_dttm", "dispatch_dttm", "response_dttm", "on_scene_dttm",
+                                                 "available_dttm"]),
+                            r["unit_id"], r["unit_type"], r["station_area"], f"{lat:.5f}", f"{lng:.5f}",
+                            r["neighborhoods_analysis_boundaries"], r["call_type"], r["call_type_group"],
+                            r["final_priority"]])
+            n += len(batch)
+            print(f"calls: {n}")
+            if len(batch) < page:
+                break
+            offset += page
+    print(f"calls -> {path} ({path.stat().st_size / 1e6:.1f} MB)")
+
+
+def stations():
+    rows = json.loads(get("wt27-4jim", **{"$where": "common_name like 'Fire Station #%'", "$limit": 200}))
+    out = sorted(({"station": r["common_name"].split("#")[1].strip(), "name": r["common_name"], "address": r["address"],
+                   "lat": float(r["latitude"]), "lng": float(r["longitude"])} for r in rows),
+                 key=lambda s: int(s["station"]) if s["station"].isdigit() else 999)
+    json.dump(out, open(OUT / "stations.json", "w"), indent=1)
+    print(f"stations: {len(out)}")
+
+
+def hoods():
+    (OUT / "hoods.geojson").write_text(get("j2bu-swwd", "geojson", **{"$limit": 100}))
+    print("hoods:", len(json.loads((OUT / "hoods.geojson").read_text())["features"]))
+
+
+def people():
+    rows = json.loads(get("4qbq-hvtt", **{
+        "$where": "geography='neighborhood' AND end_year='2023' AND unit='population count'",
+        "$select": "geography_name, demographic_category, demographic_category_label, estimate", "$limit": 5000}))
+    out = {}
+    for r in rows:
+        h = out.setdefault(r["geography_name"], {})
+        label = "total" if r["demographic_category"] == "all" else r["demographic_category_label"].rstrip(":")
+        h[label] = round(float(r["estimate"]))
+    for h in out.values():
+        h["age_65_plus"] = h.get("65 to 74 years", 0) + h.get("75 years and over", 0)
+    json.dump(out, open(OUT / "people.json", "w"), indent=1)
+    print(f"people: {len(out)} neighborhoods")
 
 
 if __name__ == "__main__":
-    main()
+    OUT.mkdir(exist_ok=True)
+    stations()
+    hoods()
+    people()
+    calls()
