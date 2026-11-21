@@ -929,7 +929,7 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
   <label class="set-row" for="s-translucency"><span>Translucency<small>0% is the full map; 100% hides it so only routes, vehicles and stations show</small></span><input type="range" id="s-translucency" min="0" max="100" step="5"><output class="num"></output></label>
   <label class="set-row" for="s-grey"><span>Greyscale<small>Drains the color from the map so routes stand out</small></span><input type="range" id="s-grey" min="0" max="100" step="5"><output class="num"></output></label>
   <h3>Replay</h3>
-  <label class="set-row" for="s-routes"><span>Route lines<small>How strongly every drive so far today shows; 0% hides them</small></span><input type="range" id="s-routes" min="0" max="100" step="5"><output class="num"></output></label>
+  <label class="set-row" for="s-routes"><span>Route lines<small>Drives from the last 2 hours, faint; 0% hides them</small></span><input type="range" id="s-routes" min="0" max="100" step="5"><output class="num"></output></label>
   <label class="set-row" for="s-vehicle"><span>Vehicle size</span><input type="range" id="s-vehicle" min="50" max="200" step="10"><output class="num"></output></label>
   <h3>Performance</h3>
   <div class="seg set-perf" role="group" aria-label="Performance"><button type="button" data-perf="quality">Quality</button><button type="button" data-perf="balanced">Balanced</button><button type="button" data-perf="fast">Fast</button></div>
@@ -1476,8 +1476,11 @@ function loadReplay0(r) {
   SEGS = []; ROUTES = []; SEL_ROUTE = null; if ($("#route-card")) $("#route-card").hidden = true;
   for (const t of r.trips) {
     const [, type, fx, fy, tx, ty, dep, arr, free, back] = t;
-    const path = densify(Array.isArray(t[13]) && t[13].length >= 2 ? t[13] : [[fx, fy], [tx, ty]]);
-    const g = (t.g = geom(path)), fire = FIRE.has(type), p3 = lift(path);
+    const raw = Array.isArray(t[13]) && t[13].length >= 2 ? t[13] : [[fx, fy], [tx, ty]];
+    const path = densify(raw);  // fine (25 m) path: vehicles ride this, on the ground
+    t.g = geom(path);
+    // lines drawn on the map use a 150 m split: ~6x fewer points to draw every frame, still following the hills
+    const lite = densify(raw, 150), g = geom(lite), fire = FIRE.has(type), p3 = lift(lite);
     const out = Math.max(arr - dep, 1), ret = Math.max(back - free, 1);
     SEGS.push({ path: p3, ts: g.cum.map((c) => dep + (out * c) / g.total), fire });
     ROUTES.push({ path: p3, fire, trip: t });
@@ -1488,11 +1491,12 @@ function loadReplay0(r) {
   POL = []; PSEGS = [];
   for (const [district, fx, fy, tx, ty, disp, on, clear, type, prio, path] of r.police || []) {
     if ([fx, fy, tx, ty, disp, on].some((x) => x == null)) continue;
-    const pts = densify(Array.isArray(path) && path.length >= 2 ? path : [[fx, fy], [tx, ty]]), p3 = lift(pts);
-    const g = geom(pts), out = Math.max(on - disp, 1), end = Math.max(clear || on, on);
+    const raw = Array.isArray(path) && path.length >= 2 ? path : [[fx, fy], [tx, ty]];
+    const pts = densify(raw), lite = densify(raw, 150), p3 = lift(lite);
+    const g = geom(pts), gl = geom(lite), out = Math.max(on - disp, 1), end = Math.max(clear || on, on);
     POL.push({ district, g, disp, on, clear: end, back: end + out, type, prio, blink: POL.length % 2 });
-    PSEGS.push({ path: p3, ts: g.cum.map((c) => disp + (out * c) / g.total) });
-    PSEGS.push({ path: p3.slice().reverse(), ts: g.cum.slice().reverse().map((c) => end + (out * (g.total - c)) / g.total) });
+    PSEGS.push({ path: p3, ts: gl.cum.map((c) => disp + (out * c) / gl.total) });
+    PSEGS.push({ path: p3.slice().reverse(), ts: gl.cum.slice().reverse().map((c) => end + (out * (gl.total - c)) / gl.total) });
   }
   if (POL.length) { $("#t-pol").hidden = false; $("#c-pol").hidden = false; }
 }
@@ -1800,7 +1804,7 @@ function layers(t, veh) {
     extensions: ROUTE_FILTER, getFilterValue: (d) => d.trip[6], filterRange: [-1, 0],
     capRounded: true, jointRounded: true, pickable: true, autoHighlight: true, highlightColor: [255, 255, 255, 200],
     getColor: (d) => (d.fire ? [...RGB.engine, Math.round(SET.routes * 1.6)] : [...RGB.medic, Math.round(SET.routes * 1.6)]), parameters: { depthTest: false },
-  })).clone({ filterRange: [-1, t] }));
+  })).clone({ filterRange: [t - 7200, t] }));  // drives that started in the last 2 hours
   if (SEL_ROUTE) L.push(memo("route-sel", [SEL_ROUTE, zk], () => new deck.PathLayer({
     id: "route-sel", data: [SEL_ROUTE], getPath: (d) => d.path, widthUnits: "pixels", getWidth: 6, capRounded: true, jointRounded: true,
     getColor: (d) => (d.fire ? [...RGB.engine, 255] : [...RGB.medic, 255]), parameters: { depthTest: false },
