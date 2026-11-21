@@ -938,6 +938,14 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
 .share { font-size: 12.5px; padding: 0 10px; height: 30px; border-radius: 999px; border: 1px solid var(--rule-strong); background: var(--frost-solid); color: var(--ink); cursor: pointer; font-family: var(--font); }
 
 a.btn { display: inline-grid; place-items: center; text-decoration: none; color: var(--ink); }
+
+.timeline { grid-template-columns: auto auto minmax(0, 1fr) auto auto !important; width: min(860px, calc(100vw - 2 * var(--edge))) !important; }
+.tl-sw { display: flex; gap: 4px; }
+.sw { height: 30px; padding: 0 11px 0 26px; border-radius: 999px; border: 1px solid var(--rule-strong); background: transparent; color: var(--ink-soft); font: 500 13px var(--font); cursor: pointer; position: relative; }
+.sw::before { content: ""; position: absolute; left: 10px; top: 50%; width: 9px; height: 9px; margin-top: -4.5px; border-radius: 50%; border: 1.5px solid currentColor; }
+.sw[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+.sw[aria-pressed="true"]::before { background: var(--accent); border-color: var(--accent); }
+@media (max-width: 820px) { .tl-sw { display: none; } }
 </style>
 </head>
 <body>
@@ -984,9 +992,9 @@ a.btn { display: inline-grid; place-items: center; text-decoration: none; color:
 </section>
 <section class="ai-page frost" id="ai-page" role="dialog" aria-labelledby="ai-h" hidden>
   <header><h2 id="ai-h">AI activity</h2><button class="fab sm" id="ai-close" aria-label="Close AI activity"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
-  <p class="wi-lead">Every typed what-if runs through five steps. Two use Claude Haiku (reading your words, writing one sentence); the other three are plain code, and they produce every number. This page updates live.</p>
+  <p class="wi-lead">Every typed what-if runs through these steps. Claude Haiku agents read your words and write one sentence; plain code finds places, runs the simulation and checks every number. This page updates live.</p>
   <ol class="ai-flow">
-    <li><b>Planner</b><span>Claude Haiku turns your words into simulator settings</span></li>
+    <li><b>Five planner agents, in parallel</b><span>Claude Haiku specialists each read your words for their own levers: Router (what and where), Stations, Demand (calls, traffic, dispatch), Events (crashes, busy units), Records (fact questions)</span></li>
     <li><b>Geocoder</b><span>OpenStreetMap finds any street or landmark you named</span></li>
     <li><b>Simulator</b><span>Replays 13,417 real October calls with the plan</span></li>
     <li><b>Writer</b><span>Claude Haiku writes one sentence from the measured result</span></li>
@@ -1008,7 +1016,8 @@ a.btn { display: inline-grid; place-items: center; text-decoration: none; color:
     <label class="toggle"><input type="checkbox" id="l-hoods" checked>Response</label>
     <label class="toggle"><input type="checkbox" id="l-3d">Response 3D</label>
     <label class="toggle"><input type="checkbox" id="l-grid">Grid</label>
-    <label class="toggle"><input type="checkbox" id="l-traffic">Live traffic</label>
+    <label class="toggle"><input type="checkbox" id="l-traffic">Dispatches</label>
+    <label class="toggle"><input type="checkbox" id="l-routes">Route lines</label>
     <label class="toggle" id="t-pol" hidden><input type="checkbox" id="l-pol" checked>Police</label>
     <label class="toggle" id="t-hosp" hidden><input type="checkbox" id="l-hosp" checked>Hospitals</label>
 </div>
@@ -1198,6 +1207,7 @@ a.btn { display: inline-grid; place-items: center; text-decoration: none; color:
         <input type="range" id="scrub" min="0" max="86340" step="60" value="28800" aria-label="Time of day" title="Drag to any time of the day"></div>
       <div class="hours num" aria-hidden="true"><span>0:00</span><span>6:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
     </div>
+    <div class="tl-sw" role="group" aria-label="Show on the map"><button type="button" class="sw" data-sw="l-traffic" aria-pressed="false">Dispatches</button><button type="button" class="sw" data-sw="l-routes" aria-pressed="false">Routes</button></div>
     <div class="speed"><div class="seg" role="group" aria-label="Replay speed"><button data-speed="60">1 min/s</button><button class="on" data-speed="300">5 min/s</button><button data-speed="900">15 min/s</button></div></div>
 </div>
 
@@ -1346,7 +1356,7 @@ let CUSTOM = null, MARKERS = [], PROPS = [], PICKING = false, PROP_KIND = "fire"
 let addType = "MEDIC";
 let view = { maxPitch: 80, ...HOME, zoom: LIMIT.minZoom, minZoom: LIMIT.minZoom, maxZoom: LIMIT.maxZoom, pitch: 0, bearing: 0 };
 let deckgl, simT = 8 * 3600, speed = 300, playing = !reduced, lastFrame = performance.now();
-const show = { sat: true, grid: false, hoods: true, extrude: false, bld: true, g3d: true, police: true, hosp: true, traffic: false };  // traffic: the replay's moving vehicles, trails, routes and call pulses (heavy on the GPU, off by default)
+const show = { sat: true, grid: false, hoods: true, extrude: false, bld: true, g3d: true, police: true, hosp: true, traffic: false, routes: false };  // traffic: the replay's moving vehicles, trails, routes and call pulses (heavy on the GPU, off by default)
 // ---------- Google Photorealistic 3D Tiles (only when the server has a key) ----------
 let GOOGLE_KEY = null, dropIn = false;
 const TERRAIN = deck._TerrainExtension ? [new deck._TerrainExtension()] : [];
@@ -1878,7 +1888,7 @@ function layers(t, veh) {
       sizeScale: vehicleScale(), getColor: fl ? [255, 40, 40] : [60, 120, 255], _useMeshColors: true, material: engMat, updateTriggers: { getColor: fl } }));
   }
   // every route driven so far today stays on the map, faint; click one for the vehicle and the call log
-  if (show.traffic && SET.routes > 0) L.push(memo("routes", [ROUTES, zk, SET.routes], () => new deck.PathLayer({
+  if (show.routes && SET.routes > 0) L.push(memo("routes", [ROUTES, zk, SET.routes], () => new deck.PathLayer({
     id: "routes", data: ROUTES, getPath: (d) => d.path, widthUnits: "pixels", getWidth: 3, widthMinPixels: 2,
     extensions: ROUTE_FILTER, getFilterValue: (d) => d.trip[6], filterRange: [-1, 0],
     capRounded: true, jointRounded: true, pickable: true, autoHighlight: true, highlightColor: [255, 255, 255, 200],
@@ -2595,7 +2605,7 @@ $("#day").onchange = async (e) => {
   if (r.ok) { const d = await r.json(); RESULT = d; loadReplay(d.replay); renderAll(); }
 };
 const bind = (id, k) => ($(id).onchange = (e) => { show[k] = e.target.checked; });
-bind("#l-sat", "sat"); bind("#l-grid", "grid"); bind("#l-traffic", "traffic"); bind("#l-hoods", "hoods"); bind("#l-3d", "extrude"); bind("#l-bld", "bld"); bind("#l-g3d", "g3d"); $("#l-g3d").addEventListener("change", () => { if (!useGoogle() && !BUILDINGS) loadBuildings(); if (useGoogle()) loadElevation(); if (REPLAY) loadReplay0(REPLAY); }); bind("#l-pol", "police"); bind("#l-hosp", "hosp");
+bind("#l-sat", "sat"); bind("#l-grid", "grid"); bind("#l-traffic", "traffic"); bind("#l-routes", "routes"); bind("#l-hoods", "hoods"); bind("#l-3d", "extrude"); bind("#l-bld", "bld"); bind("#l-g3d", "g3d"); $("#l-g3d").addEventListener("change", () => { if (!useGoogle() && !BUILDINGS) loadBuildings(); if (useGoogle()) loadElevation(); if (REPLAY) loadReplay0(REPLAY); }); bind("#l-pol", "police"); bind("#l-hosp", "hosp");
 $("#follow-stop").onclick = stopFollow;
 // what the AI actually set, in plain words, so it's clear it only filled in the controls
 function readAs(sc) {
@@ -2621,7 +2631,9 @@ function outcomeHTML(d, typed = true) {
     <div class="oc-v"><span class="num">${o.before}</span><span aria-hidden="true">→</span><b class="num">${o.after}</b><i class="num chip">${esc(o.change)}</i></div>
     <div class="oc-sub">${o.calls} real calls · over 8 min: ${o.over8_before} → ${o.over8_after}</div></div>`;
   const rows = [...(d.facts || []).map((f) => [f.k, f.v]), ...(local ? [["Citywide", `${c.before} → ${c.after} (${c.change})`]] : []),
-    ["Calls 30+ s slower", o.slower_30s], ["Calls 30+ s faster", o.faster_30s]];
+    ["Calls 30+ s slower", o.slower_30s + (o.slower_by && o.slower_by !== "—" ? ` (by ${o.slower_by} on average)` : "")],
+    ["Calls 30+ s faster", o.faster_30s + (o.faster_by && o.faster_by !== "—" ? ` (by ${o.faster_by} on average)` : "")],
+    ...(o.worst && o.worst !== "no change" ? [["Hardest-hit call", o.worst]] : [])];
   const mx = Math.max(1, ...o.neighborhoods.map((n) => Math.abs(n.change_s)));
   const bars = o.neighborhoods.length ? `<h3>Neighborhoods that change most</h3><ul class="bars">${o.neighborhoods.map((n) =>
     `<li><span>${esc(n.name)}</span><b class="num">${n.before} → ${n.after} (${esc(n.change)})</b><i class="${n.change_s > 0 ? "up" : "down"}" style="width:${Math.max(4, Math.abs(n.change_s) / mx * 100)}%"></i></li>`).join("")}</ul>` : "";
@@ -2671,7 +2683,7 @@ $("#ask-form").onsubmit = async (e) => {
       applyResult(d);
     }
   } catch (err) {
-    out.className = "toast err"; out.textContent = "Couldn’t reach the server. Check your connection and try again.";
+    out.className = "toast err"; out.textContent = "The server didn’t answer. It may be restarting (free hosting plan): wait about 30 seconds and try again.";
   } finally { $("#ask-go").disabled = false; }
 };
 addEventListener("keydown", (e) => {
@@ -2843,6 +2855,12 @@ function openShared() {
     if (!tryOpen()) setTimeout(tryOpen, 1500);
   }
 }
+
+// replay-bar switches mirror the layer checkboxes (Dispatches, Route lines)
+const syncSw = () => document.querySelectorAll("[data-sw]").forEach((b) => b.setAttribute("aria-pressed", String($("#" + b.dataset.sw).checked)));
+document.querySelectorAll("[data-sw]").forEach((b) => (b.onclick = () => { const c = $("#" + b.dataset.sw); c.checked = !c.checked; c.dispatchEvent(new Event("change")); syncSw(); }));
+["#l-traffic", "#l-routes"].forEach((id) => $(id).addEventListener("change", syncSw));
+syncSw();
 // ---------- What if examples ----------
 document.querySelectorAll(".wi-ex button").forEach((b) => (b.onclick = () => { $("#ask").value = b.textContent; $("#ask-form").requestSubmit(); }));
 
@@ -3042,7 +3060,7 @@ $("#m-moves").onclick = () => { $("#menu-pop").hidden = true; showMoves(true); }
 $("#m-story").onclick = () => { $("#menu-pop").hidden = true; openPanel("findings"); document.querySelector("#panel .scroll").scrollTop = 0; };
 $("#m-about").onclick = () => { $("#menu-pop").hidden = true; $("#help").click(); };
 let aiTimer = 0;
-const AI_STEP = new Set(["Planner (Claude Haiku)", "Writer (Claude Haiku)"]);
+const AI_STEP = { has: (a) => /Claude Haiku/.test(a) };
 async function pollAI() {
   try {
     const d = await fetch("/api/ai").then((r) => r.json()), T = d.totals || {};

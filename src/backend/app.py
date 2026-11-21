@@ -165,7 +165,7 @@ def run(closed=(), added=(), volume=1.0):
                                offset=RT["offset"], log=log)
             CACHE[key] = (sim.summarize(RT["test"], out), log)
             RESP[key] = out
-            if len(CACHE) > 24:  # ponytail: tiny LRU, raise if demo traffic grows
+            if len(CACHE) > 6:  # ponytail: each run holds a month of dispatches; Render's free plan has 512 MB
                 CACHE.popitem(last=False)
     CACHE.move_to_end(key)
     for k in list(RESP):
@@ -506,20 +506,25 @@ def build_run(plan, me):
         types = ["ENGINE", "MEDIC"] if n["kind"] == "fire" else ["MEDIC"]
         new_homes += [(r[0], r[1], t) for t in types]
         did.append(f"New {'fire station (an engine and an ambulance)' if n['kind'] == 'fire' else 'ambulance post'} at {r[2]}")
+        where_when.append((r, None))
         marks.append({"kind": "new", "lat": r[0], "lng": r[1], "label": f"Proposed {'fire station' if n['kind'] == 'fire' else 'ambulance post'}"})
-    volume, area = plan.get("call_volume", 1.0), None
+    volume, area, vhours, where_when = plan.get("call_volume", 1.0), None, None, []
     if abs(volume - 1) > 0.01:
         r = resolve_place(plan.get("volume_place"), me)
+        vhours = window(plan.get("volume_from_hour", -1), plan.get("volume_to_hour", -1))
         if r:
             area = (r[0], r[1], FOCUS_KM)
-            marks.append({"kind": "crowd", "lat": r[0], "lng": r[1], "label": f"{volume:g}× calls"})
-        did.append(f"{volume:g}× the usual 911 calls" + (f" within {FOCUS_KM:g} km of {r[2]}" if r else " citywide"))
+            marks.append({"kind": "crowd", "lat": r[0], "lng": r[1], "label": f"{volume:g}x calls"})
+        did.append(f"{volume:g}× the usual 911 calls" + (f" within {FOCUS_KM:g} km of {r[2]}" if r else " citywide")
+                   + (f", {hour_label(vhours[0])}–{hour_label(vhours[1])}" if vhours else ", all day"))
+        where_when.append((r, vhours))
     slow, bands = plan.get("slowdown", 1.0), set(range(5))
     if slow > 1.01:
         w = window(plan.get("slow_from_hour", -1), plan.get("slow_to_hour", -1))
         if w:
             bands = {band_of_hour(h) for h in range(w[0], w[1])}
         did.append(f"Driving {round((slow - 1) * 100)}% slower" + (f", {hour_label(w[0])}–{hour_label(w[1])}" if w else ", all day"))
+        where_when.append((None, w))
     delay = plan.get("dispatch_delay_s", 0)
     if delay:
         did.append(f"Units sent {delay} s later than usual")
@@ -536,6 +541,7 @@ def build_run(plan, me):
             blocked[u] = (w[0] * 3600, w[1] * 3600)
         if units:
             did.append(f"{', '.join(units)} out of service, {hour_label(w[0])}–{hour_label(w[1])}")
+            where_when.append(((slat, slng, f"Station {st}'s area", None), w))
     first_focus = None
     for inc in plan.get("incidents", []):
         r = resolve_place(inc["place"], me) or resolve_place(plan.get("focus", {}).get("place"), me)
@@ -557,9 +563,12 @@ def build_run(plan, me):
         extra.append({"k": f"First engine reaches the {label}", "v": f"~{mmss(arrive)}", "note": "typical dispatch + turnout + learned drive time"})
         marks.append({"kind": "incident", "lat": r[0], "lng": r[1], "label": f"{label.capitalize()}, {hour_label(hour)}"})
         first_focus = first_focus or (r, (hour, min(24, hour + max(1, (dur + 59) // 60))))
-    kw = {"closed": closed, "added": added, "volume": volume, "new_homes": new_homes, "volume_area": area,
+        where_when.append(first_focus)
+    kw = {"closed": closed, "added": added, "volume": volume, "new_homes": new_homes, "volume_area": area, "volume_hours": vhours,
           "slow": slow, "bands": sorted(bands), "delay": delay, "blocked": blocked}
-    return kw, did, marks, notes, extra, first_focus
+    # where and when the change acts: the first lever that names a place, and the first that names hours
+    auto = (next((p for p, _ in where_when if p), None), next((h for _, h in where_when if h), None))
+    return kw, did, marks, notes, extra, auto
 
 
 PLAN_CACHE = OrderedDict()
@@ -574,9 +583,9 @@ def run_plan(kw):
         with LOCK:
             out = sim.simulate(RT["test"], RT["homes"], travel, closed=kw["closed"], added=kw["added"], volume=kw["volume"],
                                offset=RT["offset"], log=log, blocked=kw["blocked"] or None, new_homes=kw["new_homes"],
-                               volume_area=kw["volume_area"], extra_delay=kw["delay"])
+                               volume_area=kw["volume_area"], extra_delay=kw["delay"], volume_hours=kw["volume_hours"])
         PLAN_CACHE[key] = (out, log)
-        if len(PLAN_CACHE) > 8:  # ponytail: tiny LRU, each entry holds a month of dispatches
+        if len(PLAN_CACHE) > 3:  # ponytail: each entry holds a month of dispatches; Render's free plan has 512 MB
             PLAN_CACHE.popitem(last=False)
     PLAN_CACHE.move_to_end(key)
     step("Simulator", f"Replayed all {len(RT['test']):,} October calls with the plan" + (" (already cached)" if hit else ""), (perf_counter() - t0) * 1000)
@@ -609,6 +618,8 @@ def measure(alt, focus, hours):
     movers = sorted((x for x in hoods if abs(x[0]) >= 3), key=lambda x: -abs(x[0]))[:5]
     slow5 = sorted(hoods, key=lambda x: -x[2])[:5]
     deltas = [a - b for b, a in zip(fb, fa)]
+    slower = [d for d in deltas if d >= 30]
+    faster = [d for d in deltas if d <= -30]
     sb, sa, cb, ca = spread(fb), spread(fa), spread(city_b), spread(city_a)
     return {
         "where": focus[2] if focus else "Citywide",
@@ -618,7 +629,11 @@ def measure(alt, focus, hours):
         "change": signed_s(sa["median"] - sb["median"]) if sb else "no change",
         "change_s": (sa["median"] - sb["median"]) if sb else 0,
         "over8_before": pct(sb["over8"]) if sb else "—", "over8_after": pct(sa["over8"]) if sa else "—",
-        "slower_30s": f"{sum(d >= 30 for d in deltas):,}", "faster_30s": f"{sum(d <= -30 for d in deltas):,}",
+        "slower_30s": f"{len(slower):,}", "faster_30s": f"{len(faster):,}",
+        "slower_by": mmss(sum(slower) / len(slower)) if slower else "—", "faster_by": mmss(-sum(faster) / len(faster)) if faster else "—",
+        "worst": signed_s(max(deltas)) if deltas else "no change",
+        "affected_share": pct((len(slower) + len(faster)) / len(deltas)) if deltas else "0%",
+        "affected_n": len(slower) - len(faster),
         "citywide": {"before": mmss(cb["median"]), "after": mmss(ca["median"]), "change": signed_s(ca["median"] - cb["median"]),
                      "over8_before": pct(cb["over8"]), "over8_after": pct(ca["over8"])},
         "neighborhoods": [{"name": h, "before": mmss(b), "after": mmss(a), "change": signed_s(d), "change_s": round(d)} for d, h, b, a in movers],
@@ -630,7 +645,9 @@ def measure(alt, focus, hours):
 def template_headline(o, extra=()):
     lead = "".join(f"{f['k']}: {f['v']}. " for f in extra)
     where = o["where"][:1].upper() + o["where"][1:] + ("" if o["when"] == "all day" else f", {o['when']}")
-    if o["change"] == "no change":
+    if o["change"] == "no change" and o["slower_30s"] != "0":
+        s = f"{where}: the typical wait stays {o['after']}, but {o['slower_30s']} of {o['calls']} real calls wait 30+ s longer, by {o['slower_by']} on average."
+    elif o["change"] == "no change":
         s = f"{where}: help still arrives in about {o['after']}; nearby stations absorb the change."
     else:
         n, how = (o["faster_30s"], "get help 30+ s sooner") if o["change_s"] < 0 else (o["slower_30s"], "wait 30+ s longer")
@@ -642,16 +659,15 @@ def template_headline(o, extra=()):
 
 def simulate_plan(plan, me, question=None, day=None):
     """The full what-if: plan -> simulation -> outcome card + everything the map needs."""
-    kw, did, marks, notes, extra, inc_focus = build_run(plan, me)
+    kw, did, marks, notes, extra, auto = build_run(plan, me)
     if not did:
         return {"error": "Nothing in that changes how help gets around. Try naming what happens: a crash, a closed station, more calls, slower traffic."}
     out, log = run_plan(kw)
     focus = resolve_place(plan.get("focus", {}).get("place"), me)
     hours = window(plan.get("focus", {}).get("from_hour", -1), plan.get("focus", {}).get("to_hour", -1))
-    if not focus and inc_focus:
-        focus, hours = inc_focus[0], hours or inc_focus[1]
+    focus, hours = focus or auto[0], hours or auto[1]  # measure where and when the change actually happens
     o = measure(out, focus, hours)
-    told = {**{k: v for k, v in o.items() if not k.endswith("_s")}, "simulated": did, "facts": extra}
+    told = {**{k: v for k, v in o.items() if not k.endswith("_s") and k != "affected_n"}, "simulated": did, "facts": extra}
     head = None
     if question and nl:
         info, t0 = {}, perf_counter()
@@ -664,7 +680,10 @@ def simulate_plan(plan, me, question=None, day=None):
             AI_TOTALS["rejected"] += 1
             step("Number checker", f"Rejected the sentence ({', '.join(info.get('bad', [])) or 'unusable'} not in the output); used a fixed template instead")
     head = head or template_headline(o, extra)
-    tone = "bad" if o["change_s"] >= 30 else "warn" if o["change_s"] >= 10 else "good" if o["change_s"] <= -10 else "flat"
+    n = max(1, int(o["calls"].replace(",", "")))
+    hit, helped = int(o["slower_30s"].replace(",", "")) / n, int(o["faster_30s"].replace(",", "")) / n
+    tone = ("bad" if o["change_s"] >= 30 or hit >= 0.15 else "warn" if o["change_s"] >= 10 or hit >= 0.03
+            else "good" if o["change_s"] <= -10 or helped >= 0.03 else "flat")
     summary = sim.summarize(RT["test"], out)
     return {"mode": "simulate", "title": plan.get("title") or "Your scenario", "headline": head, "tone": tone,
             "simulated": did, "assumptions": plan.get("assumptions", []) + notes, "not_modeled": plan.get("not_modeled", []),
@@ -1000,18 +1019,32 @@ class Handler(BaseHTTPRequestHandler):
         try:
             # nl._context expects {station: {"units": ...}}
             trace_start("What if", text)
-            step("Planner (Claude Haiku)", "Reading your words and choosing simulator levers…")
+            step("Planner", "Five Claude Haiku agents read your words in parallel: Router, Stations, Demand, Events, Records…")
             t0 = perf_counter()
             plan = nl.plan_scenario(text, {st: {"units": u} for st, u in fleet().items()}, (me or {}).get("label"))
             usage = plan.pop("usage", None)
+            for ag in plan.pop("agents", []):
+                o = ag.get("out") or {}
+                what = ag["error"] and f"Failed: {ag['error']}" or {
+                    "Router": lambda: f"Mode {o.get('mode')}, title “{o.get('title')}”",
+                    "Stations": lambda: ", ".join(x for x in [o.get("close_stations") and f"close {', '.join(o['close_stations'])}",
+                                                               o.get("add_units") and f"{len(o['add_units'])} unit change(s)",
+                                                               o.get("new_stations") and f"{len(o['new_stations'])} new station(s)"] if x) or "no station changes",
+                    "Demand": lambda: ", ".join(x for x in [o.get("call_volume", 1) != 1 and f"{o['call_volume']:g}x calls",
+                                                             o.get("slowdown", 1) != 1 and f"driving x{o['slowdown']:g}",
+                                                             o.get("dispatch_delay_s") and f"+{o['dispatch_delay_s']} s dispatch"] if x) or "no demand changes",
+                    "Events": lambda: f"{len(o.get('incidents', []))} incident(s), {len(o.get('units_busy', []))} busy unit group(s)",
+                    "Records": lambda: f"filters: {(o.get('lookup') or {}).get('kind', 'any')}, group by {(o.get('lookup') or {}).get('group_by', 'none')}",
+                }[ag["name"]]()
+                step(f"{ag['name']} agent (Claude Haiku)", what, ag["ms"], **usage_tokens(ag.get("usage")))
             if "error" in plan:
                 step("Planner (Claude Haiku)", plan["error"], (perf_counter() - t0) * 1000)
                 trace_end("error", plan["error"])
                 return self.reply(json.dumps(plan), code=400)
             levers = [k for k in ("close_stations", "add_units", "new_stations", "units_busy", "incidents") if plan.get(k)]
             levers += [k for k, neutral in (("call_volume", 1.0), ("slowdown", 1.0), ("dispatch_delay_s", 0)) if plan.get(k) != neutral]
-            step("Planner (Claude Haiku)", f"Plan “{plan['title']}” ({plan['mode']}): " + (", ".join(x.replace("_", " ") for x in levers) or "no levers"),
-                 (perf_counter() - t0) * 1000, **usage_tokens(usage))
+            step("Planner", f"Merged plan “{plan['title']}” ({plan['mode']}): " + (", ".join(x.replace("_", " ") for x in levers) or "no levers"),
+                 (perf_counter() - t0) * 1000)
             if plan["mode"] == "off_topic":
                 trace_end("done", "Off topic")
                 return self.reply(json.dumps({"error": "Medio answers questions about 911 fire and ambulance response in San Francisco. Try: what if there's a big crash on 6th Street at rush hour?"}), code=400)

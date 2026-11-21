@@ -197,7 +197,7 @@ FIRST_DUE = {"ENGINE", "TRUCK"}  # SF sends the call's own station first: 86.5% 
 
 
 def simulate(incidents, homes, travel, closed=(), added=(), volume=1.0, seed=0, offset=0.0, log=None, positions=True,
-             first_due=True, blocked=None, new_homes=(), volume_area=None, extra_delay=0):
+             first_due=True, blocked=None, new_homes=(), volume_area=None, extra_delay=0, volume_hours=None):
     """Returns {incident id: simulated response seconds}. closed: station numbers; added: [(station, type)].
     Units are only available on days they really worked (added units: every day).
     offset: calibration seconds added to every simulated response (number, or {band: seconds}).
@@ -210,7 +210,8 @@ def simulate(incidents, homes, travel, closed=(), added=(), volume=1.0, seed=0, 
     log: optional list; each dispatch appends a dict (unit, type, from, to, call, depart, arrive, free, travel, incident).
     new_homes: [(lat, lng, type)] units based anywhere (a proposed station); drive times come from the distance model.
     volume_area: (lat, lng, km): extra calls (volume > 1) are copies of real calls from inside that circle only.
-    extra_delay: seconds added between the 911 call and dispatch (a slower dispatch center)."""
+    extra_delay: seconds added between the 911 call and dispatch (a slower dispatch center).
+    volume_hours: (h0, h1) local hours: extra calls come from, and land in, that window of each day (a game, rush hour)."""
     on_duty = duty_days(incidents)
     stations = load_stations()
     fleet = {uid: h for uid, h in homes.items() if h[0][1:] not in set(map(str, closed)) or h[0][0] != "S"}
@@ -227,13 +228,20 @@ def simulate(incidents, homes, travel, closed=(), added=(), volume=1.0, seed=0, 
     if volume != 1.0:  # resample: extra calls are copies of real calls shifted to a random time in the window
         rng = random.Random(seed)
         lo, hi = incs[0]["t"], incs[-1]["t"]
-        pool = [i for i in incs if km(volume_area[0], volume_area[1], i["lat"], i["lng"]) <= volume_area[2]] if volume_area else incs
+        hour = lambda i: datetime.fromtimestamp(i["t"], SF).hour
+        pool = [i for i in incs if (not volume_area or km(volume_area[0], volume_area[1], i["lat"], i["lng"]) <= volume_area[2])
+                and (not volume_hours or volume_hours[0] <= hour(i) < volume_hours[1])]
         extra = int(len(pool) * (volume - 1))
         if extra > 0 and pool:
             for k in range(extra):
                 c = dict(rng.choice(pool))
-                shift = rng.randint(lo, hi) - c["t"]
+                if volume_hours:  # same day, a random moment inside the window
+                    tod = (datetime.fromtimestamp(c["t"], SF) - datetime.fromtimestamp(c["t"], SF).replace(hour=0, minute=0, second=0)).seconds
+                    shift = rng.randint(volume_hours[0] * 3600, volume_hours[1] * 3600 - 1) - tod
+                else:
+                    shift = rng.randint(lo, hi) - c["t"]
                 c["id"], c["t"] = f"{c['id']}+{k}", c["t"] + shift
+                c["day"] = day(c["t"])  # the copy may land on another day: duty rosters and blocked windows use it
                 c["units"] = [{**u, **{f: u[f] + shift if u[f] else None for f in ("dispatch", "enroute", "onscene", "available")}}
                               for u in c["units"]]
                 incs.append(c)

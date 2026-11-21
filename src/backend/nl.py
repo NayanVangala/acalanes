@@ -12,6 +12,7 @@ import os
 import ssl
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -45,48 +46,55 @@ def _obj(**props):
 
 
 PLACE = _obj(hood=STR, station=STR, near_me=BOOL, text=STR)
-PLAN_SCHEMA = _obj(
-    mode={"type": "string", "enum": ["simulate", "lookup", "off_topic"]},
-    title=STR,
-    close_stations={"type": "array", "items": STR},
-    add_units={"type": "array", "items": _obj(station=STR, type={"type": "string", "enum": ["MEDIC", "ENGINE"]}, count=INT)},
-    new_stations={"type": "array", "items": _obj(place=PLACE, kind={"type": "string", "enum": ["fire", "ambulance"]})},
-    call_volume=NUMBER,
-    volume_place=PLACE,
-    slowdown=NUMBER,
-    slow_from_hour=INT,
-    slow_to_hour=INT,
-    dispatch_delay_s=INT,
-    units_busy={"type": "array", "items": _obj(station=STR, type={"type": "string", "enum": ["MEDIC", "ENGINE", "ANY"]},
-                                               from_hour=INT, to_hour=INT)},
-    incidents={"type": "array", "items": _obj(kind={"type": "string", "enum": KINDS}, place=PLACE, hour=INT,
-                                              duration_min=INT, engines=INT, ambulances=INT)},
-    focus=_obj(place=PLACE, from_hour=INT, to_hour=INT),
-    lookup=_obj(kind={"type": "string", "enum": KINDS + ["any"]}, place=PLACE, hour_from=INT, hour_to=INT,
-                days={"type": "string", "enum": ["any", "weekday", "weekend"]},
-                group_by={"type": "string", "enum": ["none", "hour", "neighborhood", "kind", "weekday", "priority"]}),
-    assumptions={"type": "array", "items": STR},
-    not_modeled={"type": "array", "items": STR},
-)
+NOTES = {"type": "array", "items": STR}
+UNIT = {"type": "string", "enum": ["MEDIC", "ENGINE"]}
 
-PLAN_SYSTEM = """You turn anything a person types about emergencies in San Francisco into a plan for Medio's simulator. The simulator replays all 13,417 real fire/EMS 911 calls from October 2026 with your changes and measures how long help takes. You never produce result numbers; the simulator does.
+COMMON = """You are one of five specialist agents reading the same text a person typed about emergencies in San Francisco. Together you turn it into a plan for Medio's simulator, which replays all 13,417 real fire/EMS 911 calls from October 2026 and measures how long help takes. Fill ONLY your own fields. When the text doesn't call for your levers, leave them neutral (empty lists, 1.0, 0, -1). You never produce result numbers.
+Places: hood = an exact neighborhood name from the list; station = a station number from the list; near_me = the person's looked-up address ("near me", "my house", "here"); text = anything else to find on a map (a street, intersection, landmark or address, e.g. "6th St and Market St", "Oracle Park"). Fill at most one of the four.
+Hours are 0-23 local; -1 = not given. Time words: tonight = 19 to 23, rush hour / evening rush = 16 to 19, morning = 7 to 10, overnight = 0 to 6, afternoon = 12 to 17.
+notes: plain one-sentence assumptions you made (amounts, places, hours), only for your own levers."""
 
-Levers (leave a lever at its neutral value when unused):
-- close_stations: station numbers taken out of service (budget cuts, a station flooded, staffing shortage).
-- add_units: extra ambulances (MEDIC) or engines (ENGINE) based at an existing station, with a count.
-- new_stations: a brand-new station at a place ("fire" = an engine plus an ambulance, "ambulance" = an ambulance post).
-- call_volume (1.0 = normal, 0.5 to 3.0) and volume_place (empty place = citywide): more 911 calls. Game, concert, parade, festival, protest = 1.3 to 1.6 at that place. Heat wave, flu season = 1.4 to 1.8 citywide. Earthquake or big disaster = 2.5 citywide.
-- slowdown (1.0 = normal, up to 2.0) for the hours slow_from_hour to slow_to_hour (-1 and -1 = all day): slower driving from rain, fog, traffic, rush hour, construction, a closed bridge or road nearby. Rain about 1.15, heavy traffic about 1.25, earthquake about 1.5.
-- dispatch_delay_s: extra seconds before units are sent (911 center outage, phone system down, fewer dispatchers). Usually 30 to 120.
-- units_busy: specific units out of service for hours (station number, MEDIC/ENGINE/ANY, from_hour, to_hour; -1 if not given).
-- incidents: one event at a place that ties up units (crash, fire, medical, mass_casualty) with hour, duration_min, engines, ambulances; -1 for anything not given.
-- focus: where and when the person cares. A named place, or the incident's place, or near_me if they talk about themselves; empty place = citywide. Hours -1 = all day; if they give a time, use a window around it.
-
-Places: hood = an exact neighborhood name from the list, station = a station number, near_me = the person's looked-up address ("near me", "my house", "here"), text = anything else to look up on a map (a street, intersection, landmark, address), for example "6th St and Market St" or "Oracle Park". Fill at most one; leave the others empty/false.
-
-Be generous: every situation maps to some lever. Vague is fine; pick sensible amounts and say so in assumptions (plain words, one short sentence each). Put parts that the simulator truly can't represent (police, hospitals' capacity, a specific road closure's exact detour, injuries) in not_modeled, still simulating the closest lever.
-mode: simulate for any situation or change; lookup only for a plain factual question with nothing changing ("which hours are slowest for fires") and then fill lookup; off_topic if it isn't about emergencies, safety, response or the city.
-title: 3 to 7 words naming the scenario, like "Giants game at Oracle Park" or "Rainy evening rush"."""
+AGENTS = {
+    "Router": ("""Your job: what kind of request this is and where/when it matters.
+mode: simulate for any situation or change to the city; lookup only for a plain factual question where nothing changes ("which hours are slowest for fires", "how is the Mission doing"); off_topic if it isn't about emergencies, safety, response times or the city.
+title: 3 to 7 words naming it ("Giants game at Oracle Park", "Rainy evening rush").
+focus: the place and hours the person cares about (the named place, the incident's place, near_me if they talk about themselves); empty place = citywide.
+not_modeled: parts the simulator can't represent (police response, hospital capacity, injuries, exact road detours), one short sentence each.""",
+               _obj(mode={"type": "string", "enum": ["simulate", "lookup", "off_topic"]}, title=STR,
+                    focus=_obj(place=PLACE, from_hour=INT, to_hour=INT), not_modeled=NOTES, notes=NOTES)),
+    "Stations": ("""Your levers: fire stations and units.
+close_stations: station numbers taken out of service (budget cuts, a station flooded or damaged, staffing shortage). "Near X" means X's nearest stations from the list.
+add_units: extra ambulances (MEDIC) or engines (ENGINE) based at an existing station, with a count.
+new_stations: a brand-new station at a place; kind "fire" = an engine plus an ambulance, "ambulance" = an ambulance post.""",
+                 _obj(close_stations={"type": "array", "items": STR},
+                      add_units={"type": "array", "items": _obj(station=STR, type=UNIT, count=INT)},
+                      new_stations={"type": "array", "items": _obj(place=PLACE, kind={"type": "string", "enum": ["fire", "ambulance"]})},
+                      notes=NOTES)),
+    "Demand": ("""Your levers: how many calls come in, how fast units drive, how fast they're sent.
+call_volume 1.0 = normal (0.5 to 3.0), with volume_place (empty = citywide) and volume_from_hour/volume_to_hour (-1 = all day). A game, concert, parade, festival or protest = 2.0 to 3.0 at that place during the event (a Giants night game: 19 to 23). Heat wave or flu season = 1.4 to 1.8 citywide all day. Earthquake or big disaster = 2.5 citywide.
+slowdown 1.0 = normal (up to 2.0) for slow_from_hour to slow_to_hour (-1 = all day): rain about 1.15, fog 1.1, heavy traffic or rush hour 1.25, a closed bridge or big road closure 1.3, earthquake 1.5.
+dispatch_delay_s: extra seconds before units are sent (911 center outage, phones down, fewer dispatchers), usually 30 to 120.
+Stay in your lane: a single crash, fire or emergency is the Events agent's job, so leave slowdown at 1.0 for it unless the text also names a city-wide condition (weather, rush-hour traffic, a closed bridge). Closures and new stations belong to the Stations agent.""",
+               _obj(call_volume=NUMBER, volume_place=PLACE, volume_from_hour=INT, volume_to_hour=INT,
+                    slowdown=NUMBER, slow_from_hour=INT, slow_to_hour=INT, dispatch_delay_s=INT, notes=NOTES)),
+    "Events": ("""Your levers: things that tie up units.
+incidents: one event at a place that ties up responders: kind crash, fire, medical, mass_casualty or other; hour; duration_min; engines; ambulances (-1 for anything not given). A big fire or a multi-car crash on a freeway = more units.
+units_busy: specific units out of service for hours: station number, MEDIC / ENGINE / ANY, from_hour, to_hour (-1 if not given).
+Stay in your lane: closing or opening a station, or adding units, is the Stations agent's job, so don't repeat it here. Only fill units_busy when the text says specific units are tied up or unavailable for a while.""",
+               _obj(incidents={"type": "array", "items": _obj(kind={"type": "string", "enum": KINDS}, place=PLACE, hour=INT,
+                                                              duration_min=INT, engines=INT, ambulances=INT)},
+                    units_busy={"type": "array", "items": _obj(station=STR, type={"type": "string", "enum": ["MEDIC", "ENGINE", "ANY"]},
+                                                               from_hour=INT, to_hour=INT)},
+                    notes=NOTES)),
+    "Records": ("""Your job: if this is a plain factual question about past response, the filters to answer it from the real records; otherwise fill neutral values (kind any, empty place, -1, any, none).
+kind; place; hour_from/hour_to; days any/weekday/weekend; group_by none/hour/neighborhood/kind/weekday/priority (pick the grouping that answers "which" or "when" questions).""",
+                _obj(lookup=_obj(kind={"type": "string", "enum": KINDS + ["any"]}, place=PLACE, hour_from=INT, hour_to=INT,
+                                 days={"type": "string", "enum": ["any", "weekday", "weekend"]},
+                                 group_by={"type": "string", "enum": ["none", "hour", "neighborhood", "kind", "weekday", "priority"]}))),
+}
+NEUTRAL = {"close_stations": [], "add_units": [], "new_stations": [], "call_volume": 1.0, "volume_place": {}, "volume_from_hour": -1,
+           "volume_to_hour": -1, "slowdown": 1.0, "slow_from_hour": -1, "slow_to_hour": -1, "dispatch_delay_s": 0, "incidents": [],
+           "units_busy": [], "lookup": {"kind": "any", "place": {}, "hour_from": -1, "hour_to": -1, "days": "any", "group_by": "none"}}
 
 
 def _place_ok(p, valid, hoods):
@@ -96,8 +104,26 @@ def _place_ok(p, valid, hoods):
             "near_me": bool(p.get("near_me")), "text": str(p.get("text") or "")[:120]}
 
 
+def _agent(name, text, ctx, key):
+    """One specialist: (name, parsed dict or None, usage, ms, error)."""
+    prompt, schema = AGENTS[name]
+    body = {"model": MODEL, "max_tokens": 1024,
+            "system": [{"type": "text", "text": COMMON + "\n\n" + prompt + "\n\n" + ctx, "cache_control": {"type": "ephemeral"}}],
+            "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": schema}},
+            "messages": [{"role": "user", "content": text}]}
+    t0 = time.time()
+    try:
+        resp = _post(body, key, timeout=30)
+        if resp.get("type") == "error":
+            return name, None, {}, (time.time() - t0) * 1000, resp.get("error", {}).get("message", "error")[:160]
+        raw = next((b.get("text", "") for b in resp.get("content", []) if b.get("type") == "text"), "")
+        return name, json.loads(raw), resp.get("usage", {}), (time.time() - t0) * 1000, None
+    except Exception as e:
+        return name, None, {}, (time.time() - t0) * 1000, type(e).__name__
+
+
 def plan_scenario(text, stations_meta, me_label=None):
-    """Free text -> a validated simulation plan, or {error}."""
+    """Free text -> a validated simulation plan, or {error}. Five Haiku specialists read it in parallel."""
     text = (text or "").strip()[:500]
     if not text:
         return {"error": "Describe a situation first, for example: a Giants game with a crash outside the ballpark."}
@@ -107,21 +133,19 @@ def plan_scenario(text, stations_meta, me_label=None):
     ctx, valid = _context(stations_meta)
     hoods = {f["properties"]["nhood"] for f in json.load(open(SF / "hoods.geojson"))["features"]}
     where = f"The person has looked up their address: {me_label}." if me_label else "The person has not looked up an address."
-    body = {"model": MODEL, "max_tokens": 2048,
-            "system": [{"type": "text", "text": PLAN_SYSTEM + "\n\n" + ctx, "cache_control": {"type": "ephemeral"}}],
-            "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": PLAN_SCHEMA}},
-            "messages": [{"role": "user", "content": f"{where}\n\n{text}"}]}
+    msg = f"{where}\n\n{text}"
+    with ThreadPoolExecutor(max_workers=len(AGENTS)) as pool:
+        results = list(pool.map(lambda n: _agent(n, msg, ctx, key), AGENTS))
+    agents, p, notes = [], dict(NEUTRAL), []
+    for name, out, usage, ms, err in results:
+        agents.append({"name": name, "ms": ms, "usage": usage, "error": err, "out": out})
+        if out:
+            notes += out.pop("notes", []) or []
+            p.update(out)
+    router = next(a for a in agents if a["name"] == "Router")
+    if not router["out"]:
+        return {"error": f"Couldn't read that ({router['error'] or 'no answer'}). Try again.", "agents": agents}
     try:
-        resp = _post(body, key, timeout=30)
-    except Exception as e:
-        return {"error": f"Couldn't reach the AI service ({type(e).__name__}). Try again."}
-    if resp.get("type") == "error":
-        return {"error": f"The AI service returned an error: {resp.get('error', {}).get('message', 'unknown')[:200]}"}
-    if resp.get("stop_reason") == "refusal":
-        return {"error": "That one was declined. Describe a situation in San Francisco."}
-    raw = next((b.get("text", "") for b in resp.get("content", []) if b.get("type") == "text"), "")
-    try:
-        p = json.loads(raw)
         hour = lambda v, lo=0, hi=23: int(v) if isinstance(v, (int, float)) and lo <= v <= hi else -1
         num = lambda v, lo, hi, d: min(max(float(v), lo), hi) if isinstance(v, (int, float)) and math.isfinite(v) else d
         plan = {
@@ -131,6 +155,7 @@ def plan_scenario(text, stations_meta, me_label=None):
                           for a in p["add_units"] if str(a["station"]) in valid and a["type"] in TYPES][:10],
             "new_stations": [{"place": _place_ok(n["place"], valid, hoods), "kind": n["kind"]} for n in p["new_stations"]][:3],
             "call_volume": num(p["call_volume"], 0.5, 3.0, 1.0), "volume_place": _place_ok(p["volume_place"], valid, hoods),
+            "volume_from_hour": hour(p["volume_from_hour"]), "volume_to_hour": hour(p["volume_to_hour"], 0, 24),
             "slowdown": num(p["slowdown"], 1.0, 2.0, 1.0),
             "slow_from_hour": hour(p["slow_from_hour"]), "slow_to_hour": hour(p["slow_to_hour"], 0, 24),
             "dispatch_delay_s": int(num(p["dispatch_delay_s"], 0, 600, 0)),
@@ -141,19 +166,20 @@ def plan_scenario(text, stations_meta, me_label=None):
                            "ambulances": hour(i["ambulances"], 0, 8)} for i in p["incidents"]][:3],
             "focus": {"place": _place_ok(p["focus"]["place"], valid, hoods), "from_hour": hour(p["focus"]["from_hour"]),
                       "to_hour": hour(p["focus"]["to_hour"], 0, 24)},
-            "lookup": {**p["lookup"], "place": _place_ok(p["lookup"]["place"], valid, hoods)},
-            "assumptions": [str(a)[:240] for a in p["assumptions"]][:6],
-            "not_modeled": [str(a)[:240] for a in p["not_modeled"]][:4],
-            "usage": resp.get("usage", {}),
+            "lookup": {**p["lookup"], "place": _place_ok(p["lookup"].get("place"), valid, hoods)},
+            "assumptions": [str(a)[:240] for a in notes][:8],
+            "not_modeled": [str(a)[:240] for a in p.get("not_modeled", [])][:4],
+            "agents": agents,
+            "usage": {k: sum(a["usage"].get(k, 0) for a in agents) for k in ("input_tokens", "output_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")},
         }
     except (ValueError, KeyError, TypeError):
-        return {"error": "Couldn't turn that into a scenario. Try describing what happens and where."}
+        return {"error": "Couldn't turn that into a scenario. Try describing what happens and where.", "agents": agents}
     return plan
 
 
 NUM = re.compile(r"\d+:\d\d|\d[\d,]*(?:\.\d+)?%|\b\d{1,3}(?:,\d{3})+\b|\b\d{3,}\b")
 NARRATE = """Write the answer to the person's what-if from the simulator's measured outcome below.
-headline: one or two plain sentences that directly answer their question, using only numbers that appear in the outcome, copied exactly (7:24, +0:18, 40%). Lead with what matters to them: for an incident, how fast the first engine gets there (from facts); for a change, how their place or time is affected; then the citywide picture if it differs. Waits are medians: say "typical", never "average". If nothing changes, say why in plain words (nearby stations cover it). No hype."""
+headline: one or two plain sentences that directly answer their question, using only numbers that appear in the outcome, copied exactly (7:24, +0:18, 40%). Lead with what matters to them: for an incident, how fast the first engine gets there (from facts); for a change, how their place or time is affected; then the citywide picture if it differs. Waits are medians: say "typical", never "average". The wait is for help (the first unit of any kind), not specifically an ambulance. If the typical wait barely moves but calls were hit, lead with that instead: how many calls wait 30+ s longer (slower_30s of calls) and by how much (slower_by is their average extra wait; worst is the largest). If nothing changes, say why in plain words (nearby stations cover it). No hype."""
 
 
 def narrate(question, outcome, info=None):
