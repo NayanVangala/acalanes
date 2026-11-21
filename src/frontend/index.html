@@ -170,6 +170,23 @@ table.acc tr.ours td { color: var(--ok); font-weight: 600; }
 .ask input::placeholder { color: var(--ink-faint); }
 .ask-out { margin: 0; font-size: 13px; color: var(--ink-soft); line-height: 1.4; }
 .ask-out.err { color: #ffb0a6; }
+
+/* your location */
+.me-block h2 { color: var(--ink); font-size: 15px; }
+.me-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 8px; }
+.me-row .link { white-space: nowrap; }
+.me-privacy { font-size: 12px; color: var(--ink-faint); }
+.me-card { display: grid; gap: 10px; border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: rgba(255,255,255,0.03); }
+.me-card.stop { border-color: rgba(255,107,91,.55); background: rgba(255,107,91,.08); }
+.me-card.warn { border-color: rgba(255,194,75,.55); background: rgba(255,194,75,.06); }
+.me-card.pass { border-color: rgba(61,220,151,.55); background: rgba(61,220,151,.06); }
+.me-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.me-head b { font-size: 18px; letter-spacing: -0.01em; }
+.me-head span { font-size: 12px; color: var(--ink-faint); white-space: nowrap; }
+.me-addr { margin: -8px 0 0; font-size: 12.5px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.me-line { margin: 0; font-size: 13px; color: var(--ink-soft); }
+.me-line b { color: var(--ink); font-weight: 600; }
+.me-card .btn { width: 100%; }
 .follow { position: fixed; z-index: 10; top: 16px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 7px 8px 7px 14px; font-size: 13.5px; }
 .follow[hidden] { display: none; }
 .attrib { position: fixed; z-index: 5; right: 16px; bottom: 2px; font-size: 12px; color: rgba(255,255,255,.55); }
@@ -272,6 +289,14 @@ dialog p b { color: var(--ink); }
     <button role="tab" data-tab="map" aria-selected="false">Map</button>
   </nav>
   <div class="scroll">
+    <section class="block me-block" id="me-block" data-pane="whatif">
+      <h2>How fast would help reach you? <button class="link" id="me-clear" type="button" hidden>Clear</button></h2>
+      <form class="ask" id="me-form"><input id="me-q" type="text" autocomplete="street-address" placeholder="Enter a San Francisco address" aria-label="Your address in San Francisco"><button class="btn" type="submit" id="me-go">Find</button></form>
+      <div class="me-row"><button class="link" id="me-geo" type="button">Use my current location</button><span class="me-privacy">Looked up with OpenStreetMap, never saved</span></div>
+      <p class="ask-out" id="me-msg" role="status" hidden></p>
+      <div class="me-card" id="me-card" hidden></div>
+    </section>
+
     <section class="block" id="ask-block" data-pane="whatif">
       <form class="ask" id="ask-form"><input id="ask" type="text" autocomplete="off" placeholder="Ask a what-if, e.g. close the two stations nearest Bayview" aria-label="Ask a what-if question"><button class="btn" type="submit" id="ask-go">Ask</button></form>
       <p class="ask-out" id="ask-out" hidden></p>
@@ -442,6 +467,7 @@ const RGB = { engine: [255, 90, 69], medic: [76, 201, 255], call: [255, 176, 32]
 
 let META, HOODS, STATIONS, PEOPLE, VALID, BASE, RESULT, REPLAY, SEGS = [], DEPARTS = [], BUILDINGS = null, followUnit = null;
 let POLICE_ST = null, POL = [], PSEGS = [], HOSP = null;
+let ME = null;  // the visitor's chosen spot: { lng, lat, label, hood }
 let scenario = { closed: [], added: [], volume: 1 };
 let lastRun = JSON.stringify(scenario);
 let addType = "MEDIC";
@@ -840,6 +866,21 @@ function layers(t, veh) {
     getFillColor: (b) => [...b.col, 70], getLineColor: (b) => [...(b.halo || b.col), 200], parameters: GLOW, extensions: ext,
   }));
   L.push(halo.clone({ radiusScale: 1 + 0.6 * ph, opacity: 0.55 + 0.45 * (1 - ph) }));
+  if (ME) {
+    const st = nearestStation();
+    if (st) L.push(new deck.ArcLayer({
+      id: "me-arc", data: [{ from: [st.lng, st.lat], to: [ME.lng, ME.lat] }], getSourcePosition: (d) => d.from, getTargetPosition: (d) => d.to,
+      getSourceColor: [243, 154, 43, 230], getTargetColor: [255, 255, 255, 240], getWidth: 4, widthUnits: "pixels", getHeight: 0.5,
+      parameters: { depthTest: false },
+    }));
+    L.push(new deck.ScatterplotLayer({
+      id: "me", data: [ME, ME], pickable: true, getPosition: (d) => [d.lng, d.lat], radiusUnits: "pixels",
+      getRadius: (d, { index }) => (index ? 8 : 14 + pulse * 16), stroked: true, filled: true, lineWidthUnits: "pixels",
+      getFillColor: (d, { index }) => (index ? [255, 255, 255, 255] : [243, 154, 43, 70]),
+      getLineColor: (d, { index }) => (index ? [243, 154, 43, 255] : [243, 154, 43, 200]), getLineWidth: (d, { index }) => (index ? 4 : 2),
+      parameters: { depthTest: false }, extensions: ext, updateTriggers: { getRadius: pulse },
+    }));
+  }
   L.push(new deck.TripsLayer({
     id: "trails", data: SEGS, getPath: (d) => d.path, getTimestamps: (d) => d.ts, currentTime: t, trailLength: 240,
     fadeTrail: true, widthMinPixels: 2, capRounded: true, jointRounded: true,
@@ -891,6 +932,7 @@ function tooltip({ object, layer }) {
   }
   if (layer.id === "police-stations") return box(`<b>${esc(object.name)}</b><br>${esc(object.address)}<br>SFPD district station`);
   if (layer.id.startsWith("vehicles")) return box(`<b>${esc(object.unit)}</b> · ${esc(KIND[object.type] || object.type)}<br>${["Driving to a call in", "On scene in", "Returning from"][object.state]} ${esc(object.hood)}`);
+  if (layer.id === "me") return box(`<b>You</b><br>${esc(ME.label)}`);
   if (layer.id === "calls") return box(`<b>${esc(object[5])}</b><br>${esc(object[4])}<br>Called ${hhmm(object[2])} · help in ${mmss(object[3] - object[2])}`);
   if (layer.id.startsWith("stations")) {
     const units = Object.entries(META.fleet[object.station] || {}).map(([k, n]) => `${n} ${(KIND[k] || k).toLowerCase()}`).join(", ");
@@ -1119,13 +1161,135 @@ async function run() {
   }
   renderAll();
 }
-function renderAll() { renderScenario(); renderVerdict(); renderFindings(); }
+function renderAll() { renderScenario(); renderVerdict(); renderFindings(); renderMine(); }
 function focusHood(name) {
   const f = HOODS.features.find((x) => x.properties.nhood === name);
   if (!f) return;
   const [longitude, latitude] = centroid(f);
   setView({ longitude, latitude, zoom: 14, pitch: 55 }, 1200);
 }
+
+// ---------- your location ----------
+const NEAR_M = 800;  // "near you" radius for the simulated-call sample
+function inRing(x, y, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i], [xj, yj] = ring[j];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+function hoodAt(lng, lat) {
+  for (const f of HOODS.features) {
+    const polys = f.geometry.type === "Polygon" ? [f.geometry.coordinates] : f.geometry.coordinates;
+    if (polys.some((rings) => inRing(lng, lat, rings[0]) && !rings.slice(1).some((h) => inRing(lng, lat, h)))) return f.properties.nhood;
+  }
+  return null;
+}
+const meters = (a, b) => Math.hypot((a[0] - b[0]) * M_LAT * Math.cos((a[1] * Math.PI) / 180), (a[1] - b[1]) * M_LAT);
+function nearestStation() {
+  if (!ME) return null;
+  const closed = new Set(JSON.parse(lastRun).closed);
+  let best = null;
+  for (const s of STATIONS) {
+    if (closed.has(s.station)) continue;
+    const d = meters([ME.lng, ME.lat], [s.lng, s.lat]);
+    if (!best || d < best.d) best = { ...s, d };
+  }
+  return best;
+}
+function nearbyMedian(result) {
+  const pts = (result.points || []).filter((p) => meters([ME.lng, ME.lat], p) <= NEAR_M).map((p) => p[2]).sort((a, b) => a - b);
+  return pts.length >= 12 ? { median: pts[pts.length >> 1], n: pts.length } : null;
+}
+function renderMine() {
+  const card = $("#me-card");
+  if (!ME || !RESULT) { card.hidden = true; return; }
+  const scen = isScenario(), r = RESULT.hoods[ME.hood], b = BASE.hoods[ME.hood];
+  const st = nearestStation(), near = nearbyMedian(RESULT), nearBase = scen ? nearbyMedian(BASE) : null;
+  const change = (now, was) => (scen && was != null ? ` <span class="num ${Math.abs(now - was) < 1 ? "flat" : now > was ? "up" : "down"}">(${signed(now - was)})</span>` : "");
+  let html = "";
+  if (!r) {
+    card.className = "me-card";
+    html = `<div class="me-head"><b>${esc(ME.hood || "San Francisco")}</b></div><p class="me-addr">${esc(ME.label)}</p><p class="me-line">Not enough 911 calls here last month to estimate a wait.</p>`;
+  } else {
+    const rows = hoodRows().sort((x, y) => y.r.median - x.r.median), rank = rows.findIndex((x) => x.name === ME.hood) + 1;
+    const city = RESULT.city.median, vs = r.median - city;
+    card.className = `me-card ${r.over8 >= 0.6 ? "stop" : r.over8 >= 0.45 ? "warn" : "pass"}`;
+    html = `<div class="me-head"><b>${esc(ME.hood)}</b>${rank ? `<span class="num">#${rank} slowest of ${rows.length}</span>` : ""}</div>
+      <p class="me-addr" title="${esc(ME.label)}">${esc(ME.label)}</p>
+      <div class="tiles">
+        <div class="tile"><span>Typical wait for help</span><b class="num">${mmss(r.median)}</b><i class="num ${scen ? "" : "flat"}">${scen ? change(r.median, b && b.median) : "your neighborhood"}</i></div>
+        <div class="tile"><span>Calls over 8 min</span><b class="num">${pct(r.over8)}</b><i class="num flat">${pct(RESULT.city.over8)} citywide</i></div>
+      </div>
+      <p class="me-line">That’s <b>${Math.abs(Math.round(vs)) < 5 ? "about the same as" : `${mmss(Math.abs(vs))} ${vs > 0 ? "slower" : "faster"} than`}</b> the city as a whole (${mmss(city)}).</p>`;
+    if (near) html += `<p class="me-line">Calls within ${NEAR_M} m of you: typical wait <b class="num">${mmss(near.median)}</b>${nearBase ? change(near.median, nearBase.median) : ""} (${near.n} sampled)</p>`;
+  }
+  if (st) {
+    html += `<p class="me-line">Closest open fire station: <b>Station ${esc(st.station)}</b>, ${(st.d / 1000).toFixed(1)} km away</p>`;
+    const already = JSON.parse(lastRun).added.some(([s, t]) => s === st.station && t === "MEDIC");
+    html += `<button class="btn" type="button" id="me-try">${already ? `Add another ambulance at Station ${esc(st.station)}` : `What if Station ${esc(st.station)} got one more ambulance?`}</button>`;
+  }
+  html += `<p class="note">Simulated from October 2026’s real 911 calls. Wait = call received to first unit on scene.</p>`;
+  card.innerHTML = html;
+  card.hidden = false;
+  const tryBtn = $("#me-try");
+  if (tryBtn) tryBtn.onclick = () => {
+    scenario = JSON.parse(lastRun);
+    scenario.added.push([st.station, "MEDIC"]);
+    renderScenario();
+    run().then(() => setTab("whatif"));  // stay on the card so the visitor sees their own wait change
+  };
+}
+function setMe(lng, lat, label) {
+  const msg = $("#me-msg");
+  const hood = hoodAt(lng, lat);
+  if (!hood && !(lng > BBOX[0] && lng < BBOX[2] && lat > BBOX[1] && lat < BBOX[3])) {
+    msg.hidden = false; msg.className = "ask-out err";
+    msg.textContent = "That spot is outside San Francisco. Runnr only covers the city’s 911 calls.";
+    return;
+  }
+  ME = { lng, lat, label, hood };
+  msg.hidden = true;
+  $("#me-clear").hidden = false;
+  stopFollow();
+  setView({ longitude: lng, latitude: lat, zoom: 14.6, pitch: 55 }, reduced ? 0 : 1400);
+  renderMine();
+}
+async function geocode(q) {
+  const u = new URL("https://nominatim.openstreetmap.org/search");
+  u.search = new URLSearchParams({ format: "jsonv2", limit: "1", bounded: "1", countrycodes: "us",
+    viewbox: `${BBOX[0]},${BBOX[3]},${BBOX[2]},${BBOX[1]}`, q: /san francisco/i.test(q) ? q : `${q}, San Francisco, CA` });
+  const r = await fetch(u, { headers: { Accept: "application/json" } });
+  if (!r.ok) throw new Error(r.status);
+  const d = await r.json();
+  if (!d.length) return null;
+  const parts = d[0].display_name.split(",").map((s) => s.trim());
+  return { lng: +d[0].lon, lat: +d[0].lat, label: parts.slice(0, 3).join(", ") };
+}
+$("#me-form").onsubmit = async (e) => {
+  e.preventDefault();
+  const q = $("#me-q").value.trim(), msg = $("#me-msg");
+  if (!q || !HOODS) return;
+  $("#me-go").disabled = true; msg.hidden = false; msg.className = "ask-out"; msg.textContent = "Looking up that address…";
+  try {
+    const hit = await geocode(q);
+    if (!hit) { msg.className = "ask-out err"; msg.textContent = "Couldn’t find that address in San Francisco. Try a street number and name, like 500 Castro St."; return; }
+    setMe(hit.lng, hit.lat, hit.label);
+  } catch (err) {
+    msg.className = "ask-out err"; msg.textContent = "The address lookup didn’t respond. Try again, or use your current location.";
+  } finally { $("#me-go").disabled = false; }
+};
+$("#me-geo").onclick = () => {
+  const msg = $("#me-msg");
+  if (!navigator.geolocation) { msg.hidden = false; msg.className = "ask-out err"; msg.textContent = "This browser can’t share your location. Type an address instead."; return; }
+  msg.hidden = false; msg.className = "ask-out"; msg.textContent = "Finding you…";
+  navigator.geolocation.getCurrentPosition(
+    (p) => setMe(p.coords.longitude, p.coords.latitude, "Your current location"),
+    () => { msg.className = "ask-out err"; msg.textContent = "Location access was blocked or timed out. Type an address instead."; },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
+};
+$("#me-clear").onclick = () => { ME = null; $("#me-q").value = ""; $("#me-msg").hidden = true; $("#me-clear").hidden = true; renderMine(); };
 
 // ---------- wiring ----------
 $("#close-add").onclick = () => { const s = $("#close-sel").value; if (!scenario.closed.includes(s)) toggleClosed(s); };
