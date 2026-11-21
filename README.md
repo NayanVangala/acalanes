@@ -18,10 +18,23 @@ This README is the full project context: what it is, how every piece works, ever
 2. **Model.** From 333,000 real trips we learn how long it takes to drive from each station to each 500 m block of the city at each time of day. Roads, hills and traffic are already in those times, because the trips really happened.
 3. **Simulator.** It replays every real call in order. Each call gets the unit SF would actually send: the call's own first-due station if that unit is free, otherwise the one that can arrive soonest. Busy units stay busy. The output is a predicted "time until help arrives" for every call.
 4. **Validation.** Everything is fit on data before October 2026, then October is replayed and compared with what really happened. By neighborhood the simulation matches reality with **r = 0.94**, a typical error of **16 seconds**, and it beats two simpler baselines.
-5. **What-if.** Change the city (close or add stations and units, scale call volume), replay the same month, and compare every neighborhood with today.
+5. **What-if, in plain words.** Type any situation ("a crash on 6th Street at 5 PM", "a Giants game tonight", "pouring rain at rush hour", "the 911 phones go down"). Claude Haiku turns it into a simulation plan using these levers:
+   - close or add stations and units, or put a new station anywhere
+   - more calls, citywide or in one area
+   - slower driving by hour
+   - a dispatch delay
+   - busy units
+   - an incident at any street or landmark
 
-**No AI calculates any number.** Claude Haiku reads a typed question, decides which data checks to run (query the real records, re-simulate the city, simulate an incident or busy units, profile a place), and writes the answer from their output. Every number comes from those deterministic Python tools, and the server checks each number in the answer against the tool output before showing it.
+   The simulator replays October with that plan and shows the outcome: the typical wait where and when you care, citywide, the neighborhoods that change most, and how many calls get 30+ s slower or faster. The whole map switches to the scenario. Plain factual questions ("which hours are slowest for fires") are answered straight from the real records.
+6. **Propose.** Residents click a spot, pick a fire station or an ambulance post, see October replayed with it, and submit it with a note. Others vote, one vote each. Police stations and hospitals can be proposed and voted on, but not simulated: the data covers fire/EMS only. Proposals live in `data/proposals.json`, which Render's free disk wipes on each deploy.
+7. **Findings.** These are computed from the datasets (`GET /api/findings`):
+   - **The equity gap:** real October waits joined with Census ACS. The quarter of neighborhoods with the fewest white residents wait 8:13, against 7:09 in the quarter with the most, r = −0.59 across 36 neighborhoods. It's a correlation: the slow areas are also the farthest from stations.
+   - **Where a new station helps most:** a new station (an engine and an ambulance) tried at every neighborhood's center. Visitacion Valley is first: −0:54, from 9:29 to 8:35. Rebuild with `python3 src/backend/app.py --best-spots`.
+   - **Why it's a station, not an ambulance:** one extra ambulance at any of the 43 stations moves the five slowest areas by at most 13 s. The gap is distance.
+   - **The datasets behind every number,** and the model's accuracy.
 
+**No AI calculates any number.** Claude Haiku only turns words into a plan (which levers, what place, what hours) and writes the first sentence of the answer from the measured outcome. Every number in that sentence is checked against the simulator's output; if one doesn't match, a fixed template is shown instead. The plan is listed under "What Medio simulated" on every answer, so anyone can see exactly what was run.
 ---
 
 ## 2. Headline findings (simulator v2, held-out October 2026)
@@ -143,7 +156,7 @@ src/backend/
   app.py      HTTP server (stdlib http.server), API, gzip, cache warm-up
   sim.py      travel-time model, simulator, validation, export
   routing.py  street graph (DataSF centerlines), shortest-path trees, route()
-  nl.py       Claude Haiku what-if agent: picks data tools, writes the answer (stdlib urllib, no SDK)
+  nl.py       Claude Haiku: words -> simulation plan, plus a checked one-line answer (stdlib urllib, no SDK)
   paths.py    every file location
 src/frontend/index.html   the whole UI (deck.gl 8.9 from unpkg, no build step)
 scripts/      fetch_data.py · fetch_buildings.py · fetch_hospitals.py · fetch_elevation.py · fetch_police.py
@@ -164,7 +177,10 @@ CLAUDE.md     notes for Claude Code
 | `GET /` | the app |
 | `GET /api/meta` | fleet, period, replay days, baseline results, and a replay of the busiest day (Fri Oct 16). Prebuilt and gzipped at startup. |
 | `POST /api/simulate` `{closed:[station], added:[[station,"MEDIC"\|"ENGINE"\|"TRUCK"]], volume:0.5–3, day:<ordinal>}` | runs the whole held-out month with that scenario (< 1 s) and returns per-neighborhood + citywide results and a replay of the chosen day. Results are cached in a small LRU of 24. |
-| `POST /api/ask` `{text, me}` | Haiku answers with tools: `{headline, facts, assumptions, steps, checked, unmatched, focus?, scenario?}`, or `{error}`. 400 on unusable questions, 503 if no key. |
+| `POST /api/ask` `{text, me, day}` | Words → plan → simulation: `{mode, title, headline, outcome, simulated, assumptions, not_modeled, markers, focus, result}` (or a records lookup). 400 on unusable text, 503 if no key. |
+| `POST /api/station` `{lat, lng, kind}` | Preview a proposed station: same outcome shape. |
+| `GET/POST /api/proposals`, `POST /api/vote` | Residents' proposal board. |
+| `GET /api/findings` | Equity, best spots, datasets, accuracy. |
 | `GET /api/config` | `{google_maps_key}` for the browser (a Map Tiles key, restricted by domain in Google Cloud) |
 | `GET /data/<file>` | whitelisted data files, gzipped and cached |
 
