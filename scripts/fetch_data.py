@@ -1,4 +1,4 @@
-"""Download every dataset Runnr uses into data/. Run once; outputs are committed so deploys don't need it.
+"""Download every dataset Medio uses into data/. Run once; outputs are committed so deploys don't need it.
 
 - calls.csv.gz      SF Fire Dept calls for service, every unit dispatched (DataSF nuek-vuh3)
 - stations.json     SF fire station locations (DataSF wt27-4jim, City-owned facilities)

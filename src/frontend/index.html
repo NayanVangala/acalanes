@@ -203,6 +203,13 @@ table.acc tr.ours td { color: var(--ok); font-weight: 600; }
 .me-head span { font-size: 12px; color: var(--ink-faint); white-space: nowrap; }
 .me-addr { margin: -8px 0 0; font-size: 12.5px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .me-line { margin: 0; font-size: 13px; color: var(--ink-soft); }
+.here { display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; }
+.here h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+.here table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.here th, .here td { text-align: right; padding: 4px 2px; border-bottom: 1px solid var(--line); font-weight: 400; }
+.here th:first-child, .here td:first-child { text-align: left; }
+.here th { color: var(--ink-faint); font-size: 12px; }
+.here .bar { display: inline-block; height: 6px; border-radius: 3px; vertical-align: middle; margin-left: 6px; background: var(--warn); opacity: .8; }
 .me-line b { color: var(--ink); font-weight: 600; }
 .me-card .btn { width: 100%; }
 .follow { position: fixed; z-index: 10; top: 16px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 7px 8px 7px 14px; font-size: 13.5px; }
@@ -1332,6 +1339,37 @@ function nearbyMedian(result) {
   const pts = (result.points || []).filter((p) => meters([ME.lng, ME.lat], p) <= NEAR_M).map((p) => p[2]).sort((a, b) => a - b);
   return pts.length >= 12 ? { median: pts[pts.length >> 1], n: pts.length } : null;
 }
+// "if I'm here": typical wait around this spot by time of day and type of emergency, today vs the scenario
+let HERE_KEY = null;
+async function loadHere() {
+  if (!ME) return;
+  const sc = JSON.parse(lastRun), key = JSON.stringify([ME.lng, ME.lat, sc]);
+  if (key === HERE_KEY && $("#here") && $("#here").dataset.ready) return;
+  HERE_KEY = key;
+  try {
+    const r = await fetch("/api/here", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ lng: ME.lng, lat: ME.lat, ...sc }) });
+    const d = await r.json();
+    if (key !== HERE_KEY || !$("#here")) return;  // the visitor moved on
+    if (!r.ok || d.error) { $("#here").innerHTML = `<p class="note">${esc(d.error || "Couldn’t load the breakdown for this spot.")}</p>`; return; }
+    renderHere(d);
+  } catch (e) { if ($("#here")) $("#here").innerHTML = `<p class="note">Couldn’t reach the server for the breakdown.</p>`; }
+}
+function renderHere(d) {
+  const el = $("#here"), scen = d.is_scenario;
+  const cell = (x) => (x ? `<b class="num">${mmss(x.median)}</b>` : "—");
+  const delta = (row) => (scen && row.today && row.scenario ? (() => { const v = row.scenario.median - row.today.median;
+    return ` <span class="num ${Math.abs(v) < 1 ? "flat" : v > 0 ? "up" : "down"}">${signed(v)}</span>`; })() : "");
+  const max = Math.max(...d.by_time.map((b) => (b.scenario || b.today || { median: 0 }).median), 1);
+  const rows = (list, label) => list.map((b) => { const x = scen ? b.scenario : b.today;
+    return `<tr><td>${esc(b[label])}</td><td>${cell(x)}${delta(b)}${x ? `<span class="bar" style="width:${Math.round((x.median / max) * 40)}px"></span>` : ""}</td><td class="num">${x ? pct(x.over8) : "—"}</td><td class="num">${x ? x.n : 0}</td></tr>`; }).join("");
+  const resp = d.responders.map((r) => `Station ${esc(r.station)} (${mmss(r.drive_s["Midday (10–16)"])} drive)`).join(", ");
+  el.dataset.ready = "1";
+  el.innerHTML = `<h3>When you call matters</h3>
+    <table><tr><th>Time of day</th><th>Typical wait</th><th>Over 8 min</th><th>Calls</th></tr>${rows(d.by_time, "label")}</table>
+    ${d.by_kind.length > 1 ? `<h3>What kind of emergency</h3><table><tr><th>Emergency</th><th>Typical wait</th><th>Over 8 min</th><th>Calls</th></tr>${rows(d.by_kind, "kind")}</table>` : ""}
+    <p class="me-line">Most likely first engine: ${resp}.</p>
+    <p class="note">${d.calls} real calls within ${d.radius_m} m of this spot, October 2026${scen ? `, re-simulated under your scenario (changes vs today in color)` : ""}. Bars compare times of day.</p>`;
+}
 function renderMine() {
   const card = $("#me-card");
   if (!ME || !RESULT) { card.hidden = true; return; }
@@ -1361,8 +1399,9 @@ function renderMine() {
     html += `<button class="btn" type="button" id="me-try">${already ? `Add another ambulance at Station ${esc(st.station)}` : `What if Station ${esc(st.station)} got one more ambulance?`}</button>`;
   }
   html += `<p class="note">Simulated from October 2026’s real 911 calls. Wait = call received to first unit on scene.</p>`;
-  card.innerHTML = html;
+  card.innerHTML = html + `<div class="here" id="here"><p class="note">Loading how this changes by time of day…</p></div>`;
   card.hidden = false;
+  loadHere();
   const tryBtn = $("#me-try");
   if (tryBtn) tryBtn.onclick = () => {
     scenario = JSON.parse(lastRun);
