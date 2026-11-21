@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Medio</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%230d171f'/%3E%3Cpath d='M3 12h4l2.5-6 4 12 2.5-6H21' fill='none' stroke='%23f39a2b' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"%3E%3Crect width="32" height="32" rx="9" fill="%231a2634"/%3E%3Cg fill="none" stroke="%23e8622c" stroke-linecap="round" stroke-width="2.6"%3E%3Cpath d="M9 16.5a7.5 7.5 0 0 1 7.5 7.5"/%3E%3Cpath d="M9 11a13 13 0 0 1 13 13" opacity=".75"/%3E%3Cpath d="M9 5.5a18.5 18.5 0 0 1 18.5 18.5" opacity=".5"/%3E%3C/g%3E%3Ccircle cx="9" cy="24" r="3.2" fill="%23fff"/%3E%3C/svg%3E">
 <meta name="description" content="Live replay of San Francisco 911 response: fire engines, ambulances and police, built from real dispatch records.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/deck.gl@8.9.35/dist.min.js"></script>
 <style>
 :root {
@@ -502,22 +502,242 @@ dialog p b { color: var(--ink); }
   .layer-chips, .stage .dock, .nav, .stage .attrib { left: var(--gap); right: var(--gap); }
   .nav { right: var(--gap); left: auto; }
 }
+
+/* ================= AP-style layer: the map is the product, the interface is thin frosted glass =================
+   Futura-like Jost, neutral frosted surfaces, round icon buttons, a route-style bar at the bottom.
+   Medio orange stays the single accent; color otherwise lives only on the map. */
+:root {
+  --font: "Jost", "Futura", "Avenir Next", system-ui, sans-serif;
+  --frost: rgba(242, 243, 245, 0.84); --frost-solid: rgba(248, 249, 250, 0.97);
+  --ink: #141414; --ink-soft: #3d3d3d; --ink-faint: #4d5155;
+  --rule: rgba(0, 0, 0, 0.09); --rule-strong: rgba(0, 0, 0, 0.16); --hover: rgba(0, 0, 0, 0.06); --raised: rgba(255, 255, 255, 0.72);
+  --accent: #e8622c; --accent-strong: #c44916; --accent-ink: #ffffff; --blue: #1e88e5;
+  --ok: #2e8b57; --warn: #b7791f; --bad: #c23a2b;
+  --medic: #1e88e5; --police: #3f72e8;
+  --shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.10), 0 10px 30px rgba(0, 0, 0, 0.22);
+  --edge: 16px; --bar-h: 58px;
+}
+body, button, input, select, textarea { font-family: var(--font); }
+.num, .checks .k, .block h2, .col-head h2, .cta, .ex kbd, .layer-chips .toggle, .hours, .clock b { font-family: var(--font); font-variant-numeric: tabular-nums; }
+.frost { background: var(--frost); -webkit-backdrop-filter: blur(22px) saturate(1.6); backdrop-filter: blur(22px) saturate(1.6);
+  border: 1px solid rgba(255, 255, 255, 0.6); box-shadow: var(--shadow-soft); color: var(--ink); }
+.stage { position: fixed; inset: 0; }
+.stage #map { position: absolute; inset: 0; }
+
+/* round icon buttons */
+.fab { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; border: 1px solid rgba(255, 255, 255, 0.6);
+  background: var(--frost); -webkit-backdrop-filter: blur(22px) saturate(1.6); backdrop-filter: blur(22px) saturate(1.6);
+  box-shadow: var(--shadow-soft); color: var(--ink); cursor: pointer; transition: transform .15s ease, background-color .15s ease; }
+.fab:hover { background: var(--frost-solid); }
+.fab:active { transform: scale(0.96); }
+.fab svg { width: 20px; height: 20px; }
+.fab[hidden] { display: none; }
+.fab.sm { width: 34px; height: 34px; box-shadow: none; background: var(--hover); border: 0; }
+.fab.sm svg { width: 16px; height: 16px; }
+
+/* left rail, layers popover */
+.rail { position: fixed; z-index: 12; left: var(--edge); top: var(--edge); display: flex; flex-direction: column; gap: 10px; }
+.layer-pop { position: fixed; z-index: 13; left: calc(var(--edge) + 56px); top: calc(var(--edge) + 108px); display: flex; flex-wrap: wrap; gap: 6px; max-width: 340px; padding: 10px; border-radius: 16px; }
+.layer-pop[hidden] { display: none; }
+.layer-pop .toggle { position: relative; display: inline-flex; padding: 7px 12px; border-radius: 999px; background: var(--raised); color: var(--ink-soft); font-size: 13.5px; font-weight: 500; cursor: pointer; border: 1px solid var(--rule); }
+.layer-pop .toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.layer-pop .toggle:has(input:checked) { background: var(--ink); color: #fff; border-color: var(--ink); }
+.layer-pop .toggle:has(input:focus-visible) { outline: 2px solid var(--blue); outline-offset: 2px; }
+.layer-pop [hidden] { display: none; }
+
+/* top banner (verdict) and the live chip */
+.banner { position: fixed; z-index: 11; top: var(--edge); left: calc(var(--edge) + 56px); width: min(760px, calc(100vw - 420px)); min-height: 62px;
+  display: flex; align-items: center; gap: 14px; padding: 10px 18px 10px 12px; border-radius: 18px; }
+.mark { flex: none; width: 40px; height: 40px; }
+.mark svg { width: 100%; height: 100%; display: block; }
+.mark.sm { width: 24px; height: 24px; }
+.banner-body { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.banner-title { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+.banner-line { font-size: 15px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: baseline; gap: 6px; }
+.banner-line b { color: var(--ink); font-weight: 600; }
+.banner-line .sep { color: var(--ink-faint); }
+.banner-line .vdot { align-self: center; width: 9px; height: 9px; border-radius: 50%; }
+.banner-meta { flex: none; font-size: 12.5px; color: var(--ink-faint); text-align: right; line-height: 1.35; }
+.banner-meta b { color: var(--ink-soft); font-weight: 600; }
+.chip { background: var(--hover); border-radius: 999px; padding: 1px 7px; font-size: 12.5px; font-style: normal; font-weight: 600; }
+.chip.up { background: rgba(194, 58, 43, 0.12); color: var(--bad); } .chip.down { background: rgba(46, 139, 87, 0.13); color: var(--ok); }
+.chip[hidden] { display: none; }
+.now { position: fixed; z-index: 11; top: var(--edge); right: var(--edge); display: flex; align-items: center; gap: 14px; padding: 0 16px; height: 44px; border-radius: 999px; font-size: 14px; color: var(--ink-soft); }
+.now span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.now span[hidden] { display: none; }
+.now b { color: var(--ink); font-weight: 600; }
+.now .dot, .legend .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+/* the drawer: everything else, opened from the rail, the scenario grid, or an answer */
+.drawer { position: fixed; z-index: 10; left: calc(var(--edge) + 56px); top: calc(var(--edge) + 74px); bottom: calc(var(--bar-h) + var(--edge) * 2 + 64px);
+  width: 392px; display: flex; flex-direction: column; border-radius: 20px; overflow: visible; }
+.drawer.hidden, #panel.hidden { display: none; }
+.drawer-head { display: flex; align-items: center; gap: 8px; padding: 10px 10px 6px 12px; }
+.drawer .tabs { flex: 1; display: flex; gap: 4px; padding: 3px; border: 0; border-radius: 999px; background: var(--hover); }
+.drawer .tabs button { flex: 1; padding: 7px 10px; border: 0; border-radius: 999px; font-size: 14px; font-weight: 500; color: var(--ink-soft); background: transparent; margin: 0; }
+.drawer .tabs button[aria-selected="true"] { background: var(--frost-solid); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); border: 0; }
+#panel:not([data-tab="whatif"]) [data-pane="whatif"], #panel:not([data-tab="results"]) [data-pane="results"], #panel:not([data-tab="live"]) [data-pane="live"] { display: none; }
+.drawer .scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 16px 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-content: start; scrollbar-width: thin; scrollbar-color: var(--rule-strong) transparent; }
+.drawer .block h2 { margin: 0; font-size: 15px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ink); display: flex; justify-content: space-between; align-items: baseline; }
+.drawer .foot { padding: 12px 16px 16px; border-top: 1px solid var(--rule); background: transparent; border-radius: 0 0 20px 20px; }
+.drawer .link { color: var(--ink-faint); font-size: 13px; }
+.drawer select, .drawer .btn { background: var(--raised); border: 1px solid var(--rule-strong); border-radius: 10px; color: var(--ink); height: 38px; }
+.drawer .btn:hover { background: var(--frost-solid); }
+.drawer .seg { border: 1px solid var(--rule-strong); background: var(--hover); border-radius: 10px; padding: 2px; gap: 2px; }
+.drawer .seg button { border-radius: 8px; height: 32px; color: var(--ink-soft); }
+.drawer .seg button.on { background: var(--frost-solid); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+.drawer .label, .drawer .range-row output { color: var(--ink-soft); }
+.drawer .tag { border-radius: 999px; padding: 4px 6px 4px 11px; }
+.ex { border: 0; border-radius: 14px; background: var(--raised); padding: 11px 12px; font-size: 15px; grid-template-columns: 28px 1fr auto; }
+.ex:hover { background: var(--frost-solid); border: 0; }
+.ex kbd { width: 28px; height: 28px; border-radius: 50%; border: 0; background: var(--hover); font-size: 13px; font-weight: 600; color: var(--ink-soft); }
+.ex em { font-size: 13px; color: var(--ink-faint); }
+.ex.on { box-shadow: inset 0 0 0 2px var(--ink); border: 0; }
+.ex.on kbd { background: var(--ink); color: #fff; }
+.reply, .verdict, .me-card, .finding, .tile { background: var(--raised); border: 0; border-radius: 14px; }
+.reply { padding: 14px 16px; box-shadow: inset 0 0 0 1px var(--rule); }
+.reply-h { font-size: 16px; }
+.verdict.stop { background: rgba(194, 58, 43, 0.08); } .verdict.warn { background: rgba(183, 121, 31, 0.09); } .verdict.pass { background: rgba(46, 139, 87, 0.09); }
+.vword { font-size: 30px; font-weight: 600; letter-spacing: -0.02em; }
+.finding { padding: 11px 14px 11px 30px; margin-bottom: 8px; }
+.finding::before { left: 13px; top: 17px; border-radius: 50%; }
+.finding b { font-size: 15px; } .finding p { font-size: 13.5px; }
+.how { font-size: 14px; line-height: 1.5; }
+.me-privacy, .ai-note, .note { font-size: 13px; color: var(--ink-faint); }
+.cta { width: 100%; border: 0; border-radius: 999px; padding: 14px 18px; background: var(--accent-strong); color: var(--accent-ink); font-size: 15px; font-weight: 600; letter-spacing: 0.01em; text-transform: none; }
+.cta:hover { filter: brightness(1.06); }
+.cta:disabled { background: var(--hover); color: var(--ink-faint); box-shadow: none; }
+.checks li { border-color: var(--rule); padding: 9px 0; }
+.checks .k { font-size: 14px; letter-spacing: 0; text-transform: none; font-weight: 400; }
+.feed .col-head { padding: 4px 0 6px; border: 0; }
+.feed .col-head h2 { font-size: 15px; letter-spacing: 0; text-transform: none; }
+.drawer .feed ol { padding: 0; }
+.drawer .feed li { font-size: 13.5px; border-color: var(--rule); }
+.drawer .legend { padding: 0; border: 0; color: var(--ink-soft); font-size: 13.5px; }
+
+/* timeline pill, scenario chip */
+.timeline { position: fixed; z-index: 11; left: 50%; transform: translateX(-50%); bottom: calc(var(--bar-h) + var(--edge) * 2); width: min(720px, calc(100vw - 2 * var(--edge)));
+  display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 8px 14px 8px 8px; border-radius: 999px; }
+.timeline .play { width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--ink); color: #fff; display: grid; place-items: center; cursor: pointer; }
+.timeline .play svg { width: 18px; height: 18px; }
+.timeline .clock b { font-size: 20px; font-weight: 600; color: var(--ink); }
+.timeline .clock select { font-size: 12.5px; color: var(--ink-soft); background: transparent; border: 0; height: 20px; padding: 0; }
+.timeline .scrubwrap { height: 26px; }
+.timeline .hours { font-size: 11.5px; color: var(--ink-faint); }
+.timeline .seg { border: 0; background: var(--hover); border-radius: 999px; padding: 2px; gap: 2px; }
+.timeline .seg button { border-radius: 999px; height: 30px; padding: 0 11px; font-size: 13px; color: var(--ink-soft); background: transparent; }
+.timeline .seg button.on { background: var(--frost-solid); color: var(--ink); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
+#activity rect { fill: rgba(0, 0, 0, 0.12); } #activity rect.past { fill: rgba(232, 98, 44, 0.8); }
+#activity rect.pol { fill: rgba(63, 114, 232, 0.16); } #activity rect.pol.past { fill: rgba(63, 114, 232, 0.55); }
+.scen-chip { position: fixed; z-index: 11; left: var(--edge); bottom: calc(var(--bar-h) + var(--edge) * 2); display: flex; align-items: center; gap: 10px; padding: 8px 16px 8px 8px; border-radius: 999px; font-size: 14px; font-weight: 500; max-width: calc(50vw - 380px); }
+.scen-chip[hidden] { display: none; }
+.scen-chip #scen-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* route-style bar at the bottom: your address | ask a what-if */
+.routebar { position: fixed; z-index: 12; left: var(--edge); right: var(--edge); bottom: var(--edge); height: var(--bar-h); display: flex; align-items: center; gap: 4px; padding: 0 7px 0 18px; border-radius: 18px; }
+.rb-field { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; height: 100%; }
+.rb-field input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; font-size: 16px; color: var(--ink); padding: 0; }
+.rb-field input::placeholder { color: var(--ink-faint); }
+.rb-field .me-search { flex: 1; min-width: 0; position: relative; height: 100%; display: flex; }
+.rb-field:focus-within { }
+.rb-dot { flex: none; width: 12px; height: 12px; border-radius: 50%; }
+.rb-dot.me { background: var(--blue); box-shadow: 0 0 0 4px rgba(30, 136, 229, 0.18); }
+.rb-dot.ask { background: var(--accent); box-shadow: 0 0 0 4px rgba(232, 98, 44, 0.18); }
+.rb-btn { flex: none; width: 38px; height: 38px; border-radius: 50%; border: 0; background: transparent; color: var(--ink-soft); display: grid; place-items: center; cursor: pointer; }
+.rb-btn:hover { background: var(--hover); color: var(--ink); }
+.rb-btn svg { width: 19px; height: 19px; }
+.rb-btn.go { background: var(--ink); color: #fff; }
+.rb-btn.go:hover { background: #000; color: #fff; }
+.rb-btn:disabled { opacity: 0.5; }
+.rb-div { flex: none; width: 1px; height: 30px; background: var(--rule-strong); margin: 0 10px; }
+.routebar .fab.grid { width: 44px; height: 44px; margin-left: 6px; box-shadow: none; background: var(--hover); border: 0; }
+.routebar .fab.grid svg { width: 22px; height: 22px; }
+.routebar .me-list { top: auto; bottom: calc(100% + 18px); left: -30px; width: min(420px, 90vw); max-width: none; background: var(--frost-solid); border: 1px solid var(--rule); border-radius: 16px; box-shadow: var(--shadow-soft); color: var(--ink); }
+.routebar .me-list li[aria-selected="true"], .routebar .me-list li:hover { background: var(--hover); }
+.toast { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(100% + 76px); margin: 0; max-width: min(560px, 90vw); padding: 10px 16px; border-radius: 14px;
+  background: var(--frost-solid); box-shadow: var(--shadow-soft); font-size: 14px; color: var(--ink-soft); }
+.toast[hidden] { display: none; }
+.toast.err { color: var(--bad); }
+
+#panel-open { display: none !important; }
+/* right-hand map buttons */
+.fabs { position: fixed; z-index: 11; right: var(--edge); bottom: calc(var(--bar-h) + var(--edge) * 2 + 66px); display: flex; flex-direction: column; gap: 10px; }
+#compass-svg { width: 22px; height: 22px; }
+.stage .hint { position: fixed; z-index: 11; left: 50%; transform: translateX(-50%); bottom: calc(var(--bar-h) + var(--edge) * 2 + 70px); background: rgba(20, 20, 20, 0.82); color: #fff; border-radius: 999px; padding: 8px 16px; font-size: 13.5px; }
+.stage .follow { position: fixed; z-index: 12; top: calc(var(--edge) + 76px); left: 50%; transform: translateX(-50%); background: var(--frost-solid); border-radius: 999px; padding: 6px 6px 6px 16px; box-shadow: var(--shadow-soft); color: var(--ink); border: 0; }
+.stage .follow .btn { border-radius: 999px; }
+.stage .attrib { position: fixed; z-index: 9; right: calc(var(--edge) + 4px); bottom: calc(var(--bar-h) + var(--edge) + 4px); font-size: 11.5px; max-width: 46vw; text-align: right; color: rgba(255, 255, 255, 0.82); text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7); }
+dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-solid); border: 0; box-shadow: var(--shadow-soft); }
+@media (max-width: 1100px) { .banner-meta { display: none; } .banner { width: calc(100vw - 2 * var(--edge) - 56px - 300px); } }
+@media (max-width: 820px) {
+  .now { display: none; } .banner { width: calc(100vw - 2 * var(--edge) - 56px); }
+  .drawer { left: var(--edge); right: var(--edge); width: auto; top: auto; height: 52vh; bottom: calc(var(--bar-h) + var(--edge) * 2 + 64px); }
+  .routebar { height: auto; flex-wrap: wrap; padding: 8px 8px 8px 16px; } .rb-div { display: none; } .rb-field { flex-basis: 100%; height: 44px; }
+  .timeline .speed, .timeline .hours { display: none; }
+  .scen-chip { display: none; }
+}
 </style>
 </head>
 <body>
 <div class="app" id="app">
-<aside class="col left" id="panel" data-tab="whatif" aria-label="Scenario controls">
-  <header class="brand">
-    <b class="wordmark">medio</b><span class="brand-sub">San Francisco 911, replayed from real calls</span>
-    <button class="icon-btn" id="help" aria-label="About Medio" title="About"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17.5v.01"/></svg></button>
-    <button class="icon-btn" id="panel-toggle" aria-label="Hide controls" title="Hide controls"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg></button>
+<main class="stage">
+  <div id="map" tabindex="0" role="application" aria-label="3D map of San Francisco with fire engines, ambulances and police responding to 911 calls. Arrow keys move, Shift with arrow keys rotates and tilts, plus and minus zoom."></div>
+  <div class="map-fade" aria-hidden="true"></div>
+  <div class="hint" id="hint" hidden>Drag or arrow keys to move · Scroll to zoom · Shift + arrows to rotate and tilt</div>
+  <div class="follow" id="follow" hidden><span id="follow-text">Following</span><button class="btn" id="follow-stop">Stop (Esc)</button></div>
+  <div class="attrib" id="attrib">Imagery © Esri, Maxar, Earthstar Geographics · Streets and data: DataSF</div>
+</main>
+
+<nav class="rail" aria-label="Menu">
+  <button class="fab" id="panel-toggle" aria-label="Open or close the panel" title="Panel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+  <button class="fab" id="help" aria-label="About Medio" title="About"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.01"/></svg></button>
+  <button class="fab" id="layers-btn" aria-label="Map layers" aria-expanded="false" title="Layers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 4.5-9 4.5-9-4.5z"/><path d="M3 12l9 4.5 9-4.5M3 16.5l9 4.5 9-4.5"/></svg></button>
+</nav>
+<div class="layer-pop frost" id="layer-pop" role="group" aria-label="Map layers" hidden>
+    <label class="toggle" id="t-g3d" hidden><input type="checkbox" id="l-g3d" checked>Google 3D</label>
+    <label class="toggle"><input type="checkbox" id="l-sat" checked>Satellite</label>
+    <label class="toggle" id="t-bld" hidden><input type="checkbox" id="l-bld" checked>Buildings</label>
+    <label class="toggle"><input type="checkbox" id="l-hoods" checked>Response</label>
+    <label class="toggle"><input type="checkbox" id="l-3d">Response 3D</label>
+    <label class="toggle"><input type="checkbox" id="l-grid">Grid</label>
+    <label class="toggle" id="t-pol" hidden><input type="checkbox" id="l-pol" checked>Police</label>
+    <label class="toggle" id="t-hosp" hidden><input type="checkbox" id="l-hosp" checked>Hospitals</label>
+</div>
+
+<header class="banner frost" role="status" aria-live="polite">
+  <span class="mark"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#1a2634"/><g fill="none" stroke="#e8622c" stroke-linecap="round" stroke-width="2.6"><path d="M9 16.5a7.5 7.5 0 0 1 7.5 7.5"/><path d="M9 11a13 13 0 0 1 13 13" opacity=".75"/><path d="M9 5.5a18.5 18.5 0 0 1 18.5 18.5" opacity=".5"/></g><circle cx="9" cy="24" r="3.2" fill="#fff"/></svg></span>
+  <div class="banner-body">
+    <b class="banner-title">Medio</b>
+    <span class="banner-line"><span class="vdot" id="chip-dot"></span><span id="chip-verdict">Loading</span><span class="sep" aria-hidden="true">·</span>help arrives in <b class="num" id="m-med">—</b><i class="num chip" id="m-dmed" hidden></i><span class="sep" aria-hidden="true">·</span><b class="num" id="m-over">—</b><i class="num chip" id="m-dover" hidden></i>&nbsp;over 8 min</span>
+  </div>
+  <span class="banner-meta"><b class="num" id="m-calls">—</b> real 911 calls<br>San Francisco · Oct 2026</span>
+  <i id="ck-med" hidden></i><i id="ck-over" hidden></i>
+</header>
+
+<div class="now frost" aria-label="Right now in the replay">
+  <span class="c-move"><i class="dot" style="background:var(--medic)"></i><b class="num" id="n-move">0</b> driving</span>
+  <span><i class="dot" style="background:var(--engine)"></i><b class="num" id="n-scene">0</b> on scene</span>
+  <span class="c-pol" id="c-pol" hidden><i class="dot" style="background:var(--police)"></i><b class="num" id="n-pol">0</b> police</span>
+  <span class="c-wait"><i class="dot" style="background:var(--call)"></i><b class="num" id="n-wait">0</b> waiting</span>
+</div>
+
+<aside class="drawer frost hidden" id="panel" data-tab="whatif" aria-label="Medio panel">
+  <header class="drawer-head">
+    <nav class="tabs" role="tablist" aria-label="Panel sections">
+      <button role="tab" data-tab="whatif" aria-selected="true">What if</button>
+      <button role="tab" data-tab="results" aria-selected="false">Results</button>
+      <button role="tab" data-tab="live" aria-selected="false">Live</button>
+    </nav>
+    <button class="fab sm" id="panel-close" aria-label="Close the panel" title="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </header>
-  <nav class="tabs" role="tablist" aria-label="Panel sections">
-    <button role="tab" data-tab="whatif" aria-selected="true">What if</button>
-    <button role="tab" data-tab="results" aria-selected="false">Results</button>
-  </nav>
   <div class="scroll">
     <section class="block reply" id="reply" data-pane="whatif" aria-live="polite" hidden></section>
+
+    <section class="block me-block" id="me-block" data-pane="whatif">
+      <h2>How fast would help reach you? <button class="link" id="me-clear" type="button" hidden>Clear</button></h2>
+      <p class="me-privacy">Type your address in the bar below. It’s looked up with Photon (OpenStreetMap data) and never saved.</p>
+      <div class="me-card" id="me-card" hidden></div>
+    </section>
 
     <section class="block" data-pane="whatif">
       <h2>Try a scenario</h2>
@@ -527,16 +747,6 @@ dialog p b { color: var(--ink); }
         <button class="ex" data-ex="heat"><kbd>C</kbd><span>Heat wave, 2× calls</span><em class="num" data-meta="heat"></em></button>
         <button class="ex" data-ex="south"><kbd>D</kbd><span>2 ambulances for the south</span><em class="num" data-meta="south"></em></button>
       </div>
-    </section>
-
-    <section class="block me-block" id="me-block" data-pane="whatif">
-      <h2>How fast would help reach you? <button class="link" id="me-clear" type="button" hidden>Clear</button></h2>
-      <form class="ask" id="me-form" autocomplete="off"><div class="me-search"><input id="me-q" type="text" autocomplete="off" spellcheck="false" placeholder="Enter a San Francisco address" aria-label="Your address in San Francisco"
-        role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="me-list"><ul class="me-list" id="me-list" role="listbox" aria-label="Address suggestions" hidden></ul></div><button class="btn" type="submit" id="me-go">Find</button></form>
-      <div class="me-row"><span>or</span><button class="btn me-geo" id="me-geo" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Use my current location</button></div>
-      <p class="me-privacy">Addresses are looked up with Photon (OpenStreetMap data) and never saved.</p>
-      <p class="ask-out" id="me-msg" role="status" hidden></p>
-      <div class="me-card" id="me-card" hidden></div>
     </section>
 
     <section class="block" data-pane="whatif">
@@ -587,81 +797,20 @@ dialog p b { color: var(--ink); }
         <p class="note">We replayed October 2026, a month the model never saw, and compared it with the real recorded arrival times. "Area r" is how closely neighborhood medians match reality (1.0 is perfect).</p>
       </details>
     </section>
-  </div>
-  <div class="foot" id="ask-block">
-    <p class="ask-out" id="ask-out" hidden></p>
-    <form class="ask" id="ask-form"><input id="ask" type="text" autocomplete="off" placeholder="Ask a what-if, e.g. close the two stations nearest Bayview" aria-label="Ask a what-if question"><button class="btn" type="submit" id="ask-go">Ask</button></form>
-    <p class="ai-note">AI only reads your question and sets the controls. Every number comes from the simulator.</p>
-  </div>
-</aside>
 
-<main class="stage">
-  <button class="icon-btn" id="panel-open" aria-label="Show controls" title="Show controls"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg></button>
-  <div id="map" tabindex="0" role="application" aria-label="3D map of San Francisco with fire engines, ambulances and police responding to 911 calls. Arrow keys move, Shift with arrow keys rotates and tilts, plus and minus zoom."></div>
-
-  <div class="map-fade" aria-hidden="true"></div>
-  <div class="layer-chips" role="group" aria-label="Map layers">
-    <label class="toggle" id="t-g3d" hidden><input type="checkbox" id="l-g3d" checked>Google 3D</label>
-    <label class="toggle"><input type="checkbox" id="l-sat" checked>Satellite</label>
-    <label class="toggle" id="t-bld" hidden><input type="checkbox" id="l-bld" checked>Buildings</label>
-    <label class="toggle"><input type="checkbox" id="l-hoods" checked>Response</label>
-    <label class="toggle"><input type="checkbox" id="l-3d">Response 3D</label>
-    <label class="toggle"><input type="checkbox" id="l-grid">Grid</label>
-    <label class="toggle" id="t-pol" hidden><input type="checkbox" id="l-pol" checked>Police</label>
-    <label class="toggle" id="t-hosp" hidden><input type="checkbox" id="l-hosp" checked>Hospitals</label>
-  </div>
-
-  <div class="nav" role="group" aria-label="Move the map">
-    <button class="icon-btn" id="n-rl" aria-label="Rotate left (Shift ←)" title="Rotate left (Shift ←)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.6"/><path d="M4 4v4h4"/></svg></button>
-    <button class="icon-btn" id="n-up" aria-label="Move north (↑)" title="Move (↑)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg></button>
-    <button class="icon-btn" id="n-rr" aria-label="Rotate right (Shift →)" title="Rotate right (Shift →)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v4h-4"/></svg></button>
-    <button class="icon-btn" id="n-left" aria-label="Move west (←)" title="Move (←)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
-    <button class="icon-btn" id="n-compass" aria-label="Face north" title="Face north"><svg viewBox="0 0 24 24" id="compass-svg" aria-hidden="true"><path d="M12 3l4 9h-8z" fill="#e8622c"/><path d="M12 21l-4-9h8z" fill="currentColor"/></svg></button>
-    <button class="icon-btn" id="n-right" aria-label="Move east (→)" title="Move (→)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
-    <button class="icon-btn" id="z-in" aria-label="Zoom in (+)" title="Zoom in (+)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
-    <button class="icon-btn" id="n-down" aria-label="Move south (↓)" title="Move (↓)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
-    <button class="icon-btn" id="z-out" aria-label="Zoom out (−)" title="Zoom out (−)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
-    <button class="icon-btn" id="z-tilt" aria-label="Toggle 3D tilt" title="Tilt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l9 4 9-4M3 12l9 4 9-4M12 3l9 4-9 4-9-4z"/></svg></button>
-    <button class="icon-btn" id="z-drop" aria-label="Drop to street level behind a moving vehicle" title="Street level"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 20h14"/></svg></button>
-    <button class="icon-btn" id="z-fit" aria-label="Reset view (R)" title="Reset view (R)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
-  </div>
-  <div class="hint" id="hint" hidden>Drag or arrow keys to move · Scroll to zoom · Shift + arrows to rotate and tilt</div>
-  <div class="follow" id="follow" hidden><span id="follow-text">Following</span><button class="btn" id="follow-stop">Stop (Esc)</button></div>
-
-  <div class="dock">
-    <button class="play" id="play" aria-label="Pause replay"><svg viewBox="0 0 24 24" fill="currentColor" id="play-icon"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg></button>
-    <div class="clock"><b class="num" id="clock">08:00</b><select id="day" aria-label="Day to replay"></select></div>
-    <div class="track">
-      <div class="scrubwrap"><svg id="activity" viewBox="0 0 24 100" preserveAspectRatio="none" aria-hidden="true"></svg>
-        <input type="range" id="scrub" min="0" max="86340" step="60" value="28800" aria-label="Time of day"></div>
-      <div class="hours num" aria-hidden="true"><span>0:00</span><span>6:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
-    </div>
-    <div class="speed"><div class="seg" role="group" aria-label="Replay speed"><button data-speed="60">1 min/s</button><button class="on" data-speed="300">5 min/s</button><button data-speed="900">15 min/s</button></div></div>
-  </div>
-  <div class="attrib" id="attrib">Imagery © Esri, Maxar, Earthstar Geographics · Streets and data: DataSF</div>
-</main>
-
-<aside class="col right" aria-label="Response check">
-  <div class="col-head"><h2>Response check</h2><span class="num">Oct 2026</span></div>
-  <ul class="checks" role="status" aria-live="polite">
-    <li><i class="box" id="chip-dot"></i><span class="k">Verdict</span><b id="chip-verdict">Loading</b></li>
-    <li><i class="box" id="ck-med"></i><span class="k">Median wait</span><b class="num"><span id="m-med">—</span><i class="num chip" id="m-dmed" hidden></i></b></li>
-    <li><i class="box" id="ck-over"></i><span class="k">Over 8 min</span><b class="num"><span id="m-over">—</span><i class="num chip" id="m-dover" hidden></i></b></li>
-    <li><i class="box live"></i><span class="k">Calls replayed</span><b class="num" id="m-calls">—</b></li>
-  </ul>
-  <div class="col-head sub"><h2>Right now</h2></div>
-  <ul class="checks counters">
-    <li class="c-move"><i class="box medic"></i><span class="k">Driving</span><b class="num" id="n-move">0</b></li>
-    <li><i class="box engine"></i><span class="k">On scene</span><b class="num" id="n-scene">0</b></li>
-    <li class="c-pol" id="c-pol" hidden><i class="box police"></i><span class="k">Police on calls</span><b class="num" id="n-pol">0</b></li>
-    <li class="c-wait"><i class="box call"></i><span class="k">Waiting for help</span><b class="num" id="n-wait">0</b></li>
-    <li><i class="box live"></i><span class="k">Median wait today</span><b class="num" id="n-med">—</b></li>
-  </ul>
-  <section class="feed" id="feedbox" aria-live="off">
+    <section class="block" data-pane="live">
+      <h2>Right now</h2>
+      <ul class="checks counters"><li><i class="box live"></i><span class="k">Median wait so far today</span><b class="num" id="n-med">—</b></li></ul>
+    </section>
+    <section class="block" data-pane="live">
+      <section class="feed" id="feedbox" aria-live="off">
     <div class="col-head sub"><h2><button class="feed-toggle" id="feed-toggle" aria-expanded="true">Dispatches</button></h2><span class="num" id="feed-count"></span></div>
     <ol id="feed"></ol>
   </section>
-  <div class="legend" aria-label="Map legend">
+    </section>
+    <section class="block" data-pane="live">
+      <h2>Legend</h2>
+      <div class="legend" aria-label="Map legend">
     <div class="lg-ramp"><span>Wait for help</span><div class="ramp" aria-hidden="true"></div><span class="num">6 → 10+ min</span></div>
     <div class="lg-row">
       <span><i class="dot" style="background:var(--engine)"></i>Engine</span>
@@ -673,10 +822,59 @@ dialog p b { color: var(--ink); }
       <span><i class="dot" style="background:#e23a46"></i>Hospital</span>
     </div>
   </div>
+    </section>
+  </div>
   <div class="foot"><button class="cta" id="run">Run simulation</button></div>
 </aside>
+
+<div class="timeline frost">
+  <button class="play" id="play" aria-label="Pause replay"><svg viewBox="0 0 24 24" fill="currentColor" id="play-icon"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg></button>
+    <div class="clock"><b class="num" id="clock">08:00</b><select id="day" aria-label="Day to replay"></select></div>
+    <div class="track">
+      <div class="scrubwrap"><svg id="activity" viewBox="0 0 24 100" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <input type="range" id="scrub" min="0" max="86340" step="60" value="28800" aria-label="Time of day"></div>
+      <div class="hours num" aria-hidden="true"><span>0:00</span><span>6:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
+    </div>
+    <div class="speed"><div class="seg" role="group" aria-label="Replay speed"><button data-speed="60">1 min/s</button><button class="on" data-speed="300">5 min/s</button><button data-speed="900">15 min/s</button></div></div>
 </div>
 
+<div class="scen-chip frost" id="scen-chip" hidden><span class="mark sm"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#1a2634"/><g fill="none" stroke="#e8622c" stroke-linecap="round" stroke-width="2.6"><path d="M9 16.5a7.5 7.5 0 0 1 7.5 7.5"/><path d="M9 11a13 13 0 0 1 13 13" opacity=".75"/><path d="M9 5.5a18.5 18.5 0 0 1 18.5 18.5" opacity=".5"/></g><circle cx="9" cy="24" r="3.2" fill="#fff"/></svg></span><span id="scen-text"></span></div>
+
+<div class="routebar frost">
+  <form class="rb-field" id="me-form" autocomplete="off">
+    <span class="rb-dot me" aria-hidden="true"></span>
+    <div class="me-search"><input id="me-q" type="text" autocomplete="off" spellcheck="false" placeholder="Your address in San Francisco" aria-label="Your address in San Francisco"
+      role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="me-list"><ul class="me-list" id="me-list" role="listbox" aria-label="Address suggestions" hidden></ul></div>
+    <button class="rb-btn" id="me-geo" type="button" aria-label="Use my current location" title="Use my current location"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7"/></svg></button>
+    <button class="rb-btn" id="me-go" type="submit" aria-label="Find this address" title="Find"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg></button>
+  </form>
+  <span class="rb-div" aria-hidden="true"></span>
+  <form class="rb-field" id="ask-form">
+    <span class="rb-dot ask" aria-hidden="true"></span>
+    <input id="ask" type="text" autocomplete="off" placeholder="Ask a what-if: a crash near me at 5 PM, Station 43’s engine is busy…" aria-label="Ask a what-if question">
+    <button class="rb-btn go" type="submit" id="ask-go" aria-label="Ask" title="Ask"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+  </form>
+  <button class="fab grid" id="scen-btn" type="button" aria-label="Scenarios" title="Scenarios"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="6" r="2.2" fill="#e8622c"/><circle cx="12" cy="6" r="2.2" fill="#1e88e5"/><circle cx="18" cy="6" r="2.2" fill="#2e8b57"/><circle cx="6" cy="12" r="2.2" fill="#ffb020"/><circle cx="12" cy="12" r="2.2" fill="#e23a46"/><circle cx="18" cy="12" r="2.2" fill="#3f72e8"/><circle cx="6" cy="18" r="2.2" fill="#8e44ad"/><circle cx="12" cy="18" r="2.2" fill="#ff6e32"/><circle cx="18" cy="18" r="2.2" fill="#1a2634"/></svg></button>
+  <p class="toast" id="ask-out" role="status" hidden></p>
+  <p class="toast" id="me-msg" role="status" hidden></p>
+</div>
+
+<div class="fabs" role="group" aria-label="Map view">
+    <button class="fab" id="n-rl" hidden aria-label="Rotate left (Shift ←)" title="Rotate left (Shift ←)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.6"/><path d="M4 4v4h4"/></svg></button>
+    <button class="fab" id="n-up" hidden aria-label="Move north (↑)" title="Move (↑)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg></button>
+    <button class="fab" id="n-rr" hidden aria-label="Rotate right (Shift →)" title="Rotate right (Shift →)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v4h-4"/></svg></button>
+    <button class="fab" id="n-left" hidden aria-label="Move west (←)" title="Move (←)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+    <button class="fab" id="n-compass" aria-label="Face north" title="Face north"><svg viewBox="0 0 24 24" id="compass-svg" aria-hidden="true"><path d="M12 3l4 9h-8z" fill="#e8622c"/><path d="M12 21l-4-9h8z" fill="currentColor"/></svg></button>
+    <button class="fab" id="n-right" hidden aria-label="Move east (→)" title="Move (→)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+    <button class="fab" id="z-in" aria-label="Zoom in (+)" title="Zoom in (+)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button class="fab" id="n-down" hidden aria-label="Move south (↓)" title="Move (↓)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+    <button class="fab" id="z-out" aria-label="Zoom out (−)" title="Zoom out (−)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+    <button class="fab" id="z-tilt" aria-label="Toggle 3D tilt" title="Tilt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l9 4 9-4M3 12l9 4 9-4M12 3l9 4-9 4-9-4z"/></svg></button>
+    <button class="fab" id="z-drop" aria-label="Drop to street level behind a moving vehicle" title="Street level"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 20h14"/></svg></button>
+    <button class="fab" id="z-fit" aria-label="Reset view (R)" title="Reset view (R)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+  </div>
+<button id="panel-open" hidden></button>
+</div>
 <dialog id="about">
   <h2>Medio</h2>
   <p>When you call 911, the minutes until help arrives matter. <b>Medio replays a real day of San Francisco 911 calls</b>: fire engines, ambulances and police. Each fire or medical call goes to the engine or ambulance that can get there soonest. Travel times are learned from 333,000 real trips, so hills and traffic are already in them.</p>
@@ -1447,6 +1645,9 @@ function renderVerdict() {
   $("#chip-verdict").textContent = scen ? `Scenario: ${word.toLowerCase()}` : "Today, as is";
   // top strip mirrors the verdict tiles so the key numbers are always on screen
   $("#m-med").textContent = mmss(c.median);
+  const sc = $("#scen-chip");
+  sc.hidden = !scen;
+  if (scen) $("#scen-text").textContent = `${readAs(JSON.parse(lastRun))} · ${signed(dMed)} citywide`;
   $("#ck-med").className = `box ${c.median > 480 ? "bad" : c.median > 430 ? "warn" : "ok"}`;
   $("#ck-over").className = `box ${c.over8 >= 0.45 ? "bad" : c.over8 >= 0.3 ? "warn" : "ok"}`;
   $("#m-over").textContent = pct(c.over8);
@@ -1655,6 +1856,7 @@ function setMe(lng, lat, label) {
     return;
   }
   ME = { lng, lat, label, hood };
+  openPanel("whatif");
   msg.hidden = true;
   $("#me-clear").hidden = false;
   stopFollow();
@@ -1774,6 +1976,11 @@ document.querySelectorAll("[data-ex]").forEach((b) => (b.onclick = () => { scena
 $("#run").onclick = run;
 $("#panel-toggle").onclick = () => $("#panel").classList.toggle("hidden");
 $("#panel-open").onclick = () => $("#panel").classList.remove("hidden");
+function openPanel(tab) { $("#panel").classList.remove("hidden"); if (tab) setTab(tab); }
+$("#panel-close").onclick = () => $("#panel").classList.add("hidden");
+$("#scen-btn").onclick = () => { const p = $("#panel"); p.classList.contains("hidden") || p.dataset.tab !== "whatif" ? openPanel("whatif") : p.classList.add("hidden"); };
+$("#layers-btn").onclick = () => { const pop = $("#layer-pop"); pop.hidden = !pop.hidden; $("#layers-btn").setAttribute("aria-expanded", String(!pop.hidden)); };
+addEventListener("click", (e) => { const pop = $("#layer-pop"); if (!pop.hidden && !pop.contains(e.target) && !$("#layers-btn").contains(e.target)) { pop.hidden = true; $("#layers-btn").setAttribute("aria-expanded", "false"); } });
 $("#help").onclick = () => $("#about").showModal();
 function nav(v, ms = 300) { if (followUnit) stopFollow(); hideHint(); setView(v, ms); }
 function pan(fx, fy) {
@@ -1830,6 +2037,7 @@ function showReply(question, html) {
   const el = $("#reply");
   el.innerHTML = `<div class="reply-q">“${esc(question)}”</div>${html}`;
   el.hidden = false;
+  openPanel("whatif");
   document.querySelector("#panel .scroll").scrollTop = 0;
 }
 function replyHTML(d) {
