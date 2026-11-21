@@ -443,7 +443,10 @@ function placeCallouts() {
   svg.innerHTML = lines;
 }
 function buildCallouts() {
-  const ranked = rankHoods().slice(0, 2);
+  let ranked = rankHoods();
+  // nothing got slower: point at the neighborhoods that improved most instead
+  if (isScenario() && !ranked.some((h) => h.sev === "stop" || h.sev === "warn")) ranked = ranked.slice().sort((a, b) => a.key - b.key);
+  ranked = ranked.slice(0, 2);
   CALLOUTS = ranked.map((h) => ({ ...h, pos: centroid(HOODS.features.find((f) => f.properties.nhood === h.name)) }));
   $("#callouts").innerHTML = CALLOUTS.map((h) => `
     <div class="callout ${h.sev}">
