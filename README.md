@@ -35,13 +35,23 @@ python3 app.py          # http://localhost:8000
 
 Python 3.10+, no extra packages. Deployed on Render (`python3 app.py`, binds to `$PORT`).
 
+## Validation (held-out October 2026, 13,417 incidents)
+
+| Model | Median error per call | Neighborhood r | Neighborhood error |
+|---|---|---|---|
+| Baseline: city median | 153 s | n/a | 28 s |
+| Baseline: straight-line, one speed | 100 s | 0.72 | 32 s |
+| **Runnr (learned travel + calibration)** | **90 s** | **0.92** | **16 s** |
+
+Reproduce: `python3 sim.py`. After changing the model, run `python3 sim.py --export` to rebuild `data/runtime.pkl.gz`, the small file the server loads.
+
 ## Status
 
-- [ ] Data download and cleaning
-- [ ] Travel-time model and simulator
-- [ ] Validation numbers
-- [ ] 3D map with scenario controls
-- [ ] Render deploy
+- [x] Data download and cleaning (300,081 incidents, Nov 2024 to Oct 2026)
+- [x] Travel-time model and simulator
+- [x] Validation numbers
+- [x] 3D map with scenario controls (`web/index.html`, styled after Bench)
+- [ ] Render deploy (`render.yaml` is ready; connect the repo in Render)
 - [ ] Slides
 
 The earlier idea, Runnr as a lab-protocol checker, is in git history (commit `fa7e4a4`).
