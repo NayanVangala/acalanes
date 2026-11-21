@@ -125,6 +125,22 @@ def people():
     print(f"people: {len(out)} neighborhoods")
 
 
+def transports(start="2026-09-01", end="2026-11-01"):
+    """Which units took a patient to hospital (calibration + held-out months): incident, unit, transport, hospital."""
+    path = OUT / "transports.csv.gz"
+    text = get("nuek-vuh3", "csv", **{
+        "$select": "incident_number, unit_id, transport_dttm, hospital_dttm",
+        "$where": f"received_dttm >= '{start}' AND received_dttm < '{end}' AND transport_dttm IS NOT NULL",
+        "$limit": 200000})
+    rows = list(csv.DictReader(io.StringIO(text)))
+    with gzip.open(path, "wt", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["incident", "unit", "transport", "hospital"])
+        for r in rows:
+            w.writerow([r["incident_number"], r["unit_id"], ts(r["transport_dttm"]), ts(r["hospital_dttm"])])
+    print(f"transports: {len(rows)} -> {path}")
+
+
 if __name__ == "__main__":
     OUT.mkdir(exist_ok=True)
     stations()

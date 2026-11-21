@@ -15,20 +15,20 @@
   "pct_over_8min_sim": 0.3921890139375419,
   "pct_over_8min_real": 0.45569054184989194
  },
- "runnr: learned travel times": {
-  "incidents": 13417,
-  "median_abs_err_s": 80.0,
-  "hood_corr": 0.924,
-  "hood_median_abs_err_s": 57.0,
-  "pct_over_8min_sim": 0.27509875531042705,
-  "pct_over_8min_real": 0.45569054184989194
- },
- "runnr: learned + calibrated": {
+ "runnr v1: units always leave from home, flat calibration": {
   "incidents": 13417,
   "median_abs_err_s": 90.5,
   "hood_corr": 0.924,
   "hood_median_abs_err_s": 15.5,
   "pct_over_8min_sim": 0.39643735559364984,
+  "pct_over_8min_real": 0.45569054184989194
+ },
+ "runnr: learned + calibrated": {
+  "incidents": 13417,
+  "median_abs_err_s": 91.0,
+  "hood_corr": 0.935,
+  "hood_median_abs_err_s": 15.5,
+  "pct_over_8min_sim": 0.3957665648058433,
   "pct_over_8min_real": 0.45569054184989194
  }
 }

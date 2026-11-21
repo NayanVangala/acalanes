@@ -1202,7 +1202,7 @@ function renderAccuracy() {
   if (META) $("#how-n").textContent = fmtN(META.incidents_total);
   $("#acc").innerHTML = `<tr><th>Model</th><th>Per call</th><th>Area r</th><th>Area err</th></tr>` + Object.entries(VALID).map(([name, r]) => {
     const ours = name.includes("calibrated");
-    const label = { "baseline: city median": "City average", "baseline: straight-line, one speed": "Straight line", "runnr: learned travel times": "Learned only", "runnr: learned + calibrated": "Runnr" }[name] || name;
+    const label = { "baseline: city median": "City average", "baseline: straight-line, one speed": "Straight line", "runnr: learned travel times": "Learned only", "runnr v1: units always leave from home, flat calibration": "Runnr v1", "runnr: learned + calibrated": "Runnr" }[name] || name;
     return `<tr class="${ours ? "ours" : ""}"><td>${label}</td><td>${Math.round(r.median_abs_err_s)} s</td><td>${r.hood_corr == null ? "—" : r.hood_corr.toFixed(2)}</td><td>${Math.round(r.hood_median_abs_err_s)} s</td></tr>`;
   }).join("");
 }

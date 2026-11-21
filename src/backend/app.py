@@ -50,7 +50,8 @@ LOCK = Lock()  # the travel memo is shared; one simulation at a time is plenty f
 CACHE = OrderedDict()
 DAYS = Counter(i["day"] for i in RT["test"])
 DEFAULT_DAY = max(DAYS, key=DAYS.get)  # the busiest day makes the liveliest replay
-OFF = round(RT["offset"])
+def off_for(t):
+    return round(sim.offset_for(RT["offset"], t))  # calibration seconds for a call at time t (per time of day)
 DATA_FILES = {"stations.json", "hoods.geojson", "people.json", "validation.json", "buildings.json", "police_stations.json", "hospitals.json", "elevation.json"}
 # added units (NEW*) start at a station; find its key from the start coordinates in the sim log
 STATION_AT = {(round(lng, 5), round(lat, 5)): "S" + k for k, (lat, lng) in sim.load_stations().items()}
@@ -63,7 +64,8 @@ except Exception as e:  # no routes file: vehicles fall back to straight lines
 
 
 def street_path(d):
-    if routing is None:
+    # street routes are precomputed from each unit's home; a unit leaving a scene or hospital is drawn straight
+    if routing is None or not d.get("from_home", True):
         return None
     h = RT["homes"].get(d["unit"])
     key = h[0] if h else STATION_AT.get((round(d["from"][0], 5), round(d["from"][1], 5)))
@@ -128,7 +130,8 @@ def replay(log, ordinal):
     for d in log:
         if not t0 <= d["call"] < t0 + 86400:
             continue
-        dep, arr, free = d["depart"] + OFF - t0, d["arrive"] + OFF - t0, d["free"] + OFF - t0
+        off = off_for(d["call"])
+        dep, arr, free = d["depart"] + off - t0, d["arrive"] + off - t0, d["free"] + off - t0
         travel = arr - dep
         trips.append([d["unit"], d["type"], round(d["from"][0], 5), round(d["from"][1], 5), d["to"][0], d["to"][1],
                       round(dep), round(arr), round(free), round(free + travel), d["hood"], d["call"] - t0,

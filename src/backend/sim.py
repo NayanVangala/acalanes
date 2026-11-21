@@ -59,20 +59,35 @@ def load_stations():
     return {s["station"].split()[0]: (s["lat"], s["lng"]) for s in json.load(open(SF_DATA / "stations.json"))}
 
 
+def load_transports(path=SF_DATA / "transports.csv.gz"):
+    """(incident, unit) pairs that took a patient to hospital. Covers the calibration + held-out months."""
+    if not path.exists():
+        return set()
+    with gzip.open(path, "rt") as f:
+        return {(r["incident"], r["unit"]) for r in csv.DictReader(f)}
+
+
+def load_hospitals():
+    p = SF_DATA / "hospitals.json"
+    return [(h["lat"], h["lng"]) for h in json.load(open(p))] if p.exists() else []
+
+
 def load_incidents(path=SF_DATA / "calls.csv.gz"):
     """Incidents with >= 1 on-scene unit of a SIM_TYPE, in time order."""
-    inc = {}
+    inc, transports = {}, load_transports()
     with gzip.open(path, "rt") as f:
         for r in csv.DictReader(f):
             i = inc.get(r["incident"])
             if i is None:
                 i = inc[r["incident"]] = {"id": r["incident"], "t": int(r["received"]), "lat": float(r["lat"]),
                                           "lng": float(r["lng"]), "hood": r["hood"], "group": r["group"],
-                                          "type": r["call_type"], "priority": r["priority"], "units": []}
+                                          "type": r["call_type"], "priority": r["priority"], "units": [],
+                                          "area": r["station"].lstrip("0") or "0"}
             if r["unit_type"] in SIM_TYPES and r["dispatch"]:
                 i["units"].append({"unit": r["unit"], "type": r["unit_type"], "dispatch": int(r["dispatch"]),
                                    "enroute": num(r["enroute"]), "onscene": num(r["onscene"]),
-                                   "available": num(r["available"])})
+                                   "available": num(r["available"]),
+                                   "transport": (r["incident"], r["unit"]) in transports})
     out = []
     for i in inc.values():
         i["units"].sort(key=lambda u: u["dispatch"])
@@ -144,6 +159,13 @@ class TravelModel:
         self.n_trips = sum(len(v) for v in home_cell.values())
         self.memo = {}
 
+    def from_point(self, lat, lng, to_lat, to_lng, b):
+        """Travel time from an arbitrary point (a unit still at a scene or a hospital), by distance and hour band."""
+        d = km(lat, lng, to_lat, to_lng)
+        if d < 0.05:
+            return 30
+        return self.bins.get((b, int(d / BIN_KM))) or 60 + d / self.speed
+
     def __call__(self, home, i_cell, lat, lng, b):
         key = (home[0], i_cell, b)
         if key in self.memo:
@@ -166,10 +188,23 @@ def duty_days(incidents):
     return out
 
 
-def simulate(incidents, homes, travel, closed=(), added=(), volume=1.0, seed=0, offset=0.0, log=None):
+def offset_for(offset, t):
+    """Calibration seconds for a call at time t: a number, or {band: seconds} learned per time of day."""
+    return offset.get(band(t), offset.get("all", 0.0)) if isinstance(offset, dict) else offset
+
+
+FIRST_DUE = {"ENGINE", "TRUCK"}  # SF sends the call's own station first: 86.5% of first engines, 63% of trucks (2 years of data)
+
+
+def simulate(incidents, homes, travel, closed=(), added=(), volume=1.0, seed=0, offset=0.0, log=None, positions=True,
+             first_due=True):
     """Returns {incident id: simulated response seconds}. closed: station numbers; added: [(station, type)].
     Units are only available on days they really worked (added units: every day).
-    offset: calibration seconds added to every simulated response.
+    offset: calibration seconds added to every simulated response (number, or {band: seconds}).
+    positions: units are dispatched from where they are (still at a scene, or at the hospital after a transport)
+    until they've had time to drive home; False = the original model where every unit leaves from home.
+    first_due: engines and trucks go to the call's own first-due station's unit when it's free (how SF dispatches),
+    else the unit that can arrive soonest. Ambulances always go to the soonest (they rove, no home area).
     log: optional list; each dispatch appends a dict (unit, type, from, to, call, depart, arrive, free, travel, incident)."""
     on_duty = duty_days(incidents)
     stations = load_stations()
@@ -197,6 +232,8 @@ def simulate(incidents, homes, travel, closed=(), added=(), volume=1.0, seed=0, 
             incs = rng.sample(incs, int(len(incs) * volume))
         incs.sort(key=lambda i: i["t"])
     free = defaultdict(lambda: -10**12)
+    loc, home_at = {}, defaultdict(lambda: -10**12)  # where a unit is after its last call, and when it's back home
+    hospitals = load_hospitals() if positions else []
     out = {}
     for i in incs:
         t0 = i["t"] + i["delay"]
@@ -204,29 +241,44 @@ def simulate(incidents, homes, travel, closed=(), added=(), volume=1.0, seed=0, 
         used, arrivals = set(), []
         for u in i["units"]:
             best = None
+            due = first_due and u["type"] in FIRST_DUE
             for uid in by_type[u["type"]]:
                 if uid in used or (on_duty[uid] is not None and i["day"] not in on_duty[uid]):
                     continue
                 start = max(free[uid], t0)
-                eta = start - t0 + travel(fleet[uid], i["cell"], i["lat"], i["lng"], b)
-                if best is None or eta < best[0]:
-                    best = (eta, uid)
+                if positions and start < home_at[uid] and uid in loc:
+                    origin = loc[uid]
+                    eta = start - t0 + travel.from_point(origin[0], origin[1], i["lat"], i["lng"], b)
+                else:
+                    origin = None
+                    eta = start - t0 + travel(fleet[uid], i["cell"], i["lat"], i["lng"], b)
+                # first-due units win while they're free at dispatch; otherwise fastest wins
+                rank = (0 if due and start <= t0 and fleet[uid][0] == "S" + i.get("area", "") else 1, eta)
+                if best is None or rank < best[4]:
+                    best = (eta, uid, origin, start, rank)
             if best is None:
                 continue
-            eta, uid = best
+            eta, uid, origin, start, _ = best
             used.add(uid)
             turnout = (u["enroute"] - u["dispatch"]) if u["enroute"] and 0 <= u["enroute"] - u["dispatch"] < 600 else 60
             arrive = t0 + turnout + eta
             on_scene = (u["available"] - u["onscene"]) if u["available"] and u["onscene"] and u["available"] > u["onscene"] else 1200
             free[uid] = arrive + on_scene
             arrivals.append(arrive)
+            if positions:  # after the call the unit is at the hospital (if it transported) or still at the scene
+                end = (min(hospitals, key=lambda h: (h[0] - i["lat"]) ** 2 + (h[1] - i["lng"]) ** 2)
+                       if u.get("transport") and hospitals else (i["lat"], i["lng"]))
+                h = fleet[uid]
+                loc[uid] = end
+                home_at[uid] = free[uid] + travel.from_point(end[0], end[1], h[1], h[2], band(free[uid]))
             if log is not None:
                 h = fleet[uid]
-                log.append({"unit": uid, "type": u["type"], "from": (h[2], h[1]), "to": (i["lng"], i["lat"]),
+                frm = (origin[1], origin[0]) if origin else (h[2], h[1])
+                log.append({"unit": uid, "type": u["type"], "from": frm, "from_home": origin is None, "to": (i["lng"], i["lat"]),
                             "call": i["t"], "depart": arrive - eta + (start - t0), "arrive": arrive, "free": free[uid],
                             "incident": i["id"], "hood": i["hood"], "call_type": i["type"]})
         if arrivals:
-            out[i["id"]] = min(arrivals) - i["t"] + offset
+            out[i["id"]] = min(arrivals) - i["t"] + offset_for(offset, i["t"])
     return out
 
 
@@ -258,13 +310,21 @@ def score(test, sim):
             "pct_over_8min_sim": slow([s for s, _, _ in pairs]), "pct_over_8min_real": slow([r for _, r, _ in pairs])}
 
 
-def calibrate(train, stations):
+def calibrate(train, stations, positions=True, per_band=True, first_due=True):
     """Median gap (real - simulated) on the last training month, using a model fit on the months before it.
-    Covers what the sim leaves out: units not at their station, dispatch reassignments, etc."""
+    Covers what the sim leaves out (dispatch reassignments, crews not ready, ...). per_band: one offset per
+    time-of-day band instead of one for the whole day."""
     fit, cal = split(train)
     homes = unit_homes(fit, stations)
-    sim = simulate(cal, homes, TravelModel(fit, homes))
-    return median(i["real_response"] - sim[i["id"]] for i in cal if i["id"] in sim)
+    sim = simulate(cal, homes, TravelModel(fit, homes), positions=positions, first_due=first_due)
+    gaps = defaultdict(list)
+    for i in cal:
+        if i["id"] in sim:
+            gaps["all"].append(i["real_response"] - sim[i["id"]])
+            gaps[band(i["t"])].append(i["real_response"] - sim[i["id"]])
+    if not per_band:
+        return median(gaps["all"])
+    return {k: median(v) for k, v in gaps.items() if len(v) >= 50}
 
 
 def validate():
@@ -277,12 +337,14 @@ def validate():
     print(f"{len(incidents)} incidents; train {len(train)}, held-out {len(test)}; {len(homes)} units; "
           f"{learned.n_trips} idle-start trips learned; {len(learned.exact)} station-area-hour medians")
     const = median(i["real_response"] for i in train)
+    off_v1 = calibrate(train, stations, positions=False, per_band=False, first_due=False)
     off = calibrate(train, stations)
-    print(f"calibration offset (fit on the last training month, before the held-out month): {off:+.0f}s")
+    print(f"calibration (fit on the last training month, before the held-out month): v1 flat {off_v1:+.0f}s; "
+          f"v2 by time of day " + ", ".join(f"{k}:{v:+.0f}s" for k, v in sorted(off.items(), key=str)))
     results = {
         "baseline: city median": score(test, {i["id"]: const for i in test}),
-        "baseline: straight-line, one speed": score(test, simulate(test, homes, straight)),
-        "runnr: learned travel times": score(test, simulate(test, homes, learned)),
+        "baseline: straight-line, one speed": score(test, simulate(test, homes, straight, positions=False, first_due=False)),
+        "runnr v1: units always leave from home, flat calibration": score(test, simulate(test, homes, learned, offset=off_v1, positions=False, first_due=False)),
         "runnr: learned + calibrated": score(test, simulate(test, homes, learned, offset=off)),
     }
     print(f"\n{'model':38}{'med |err|':>10}{'hood corr':>10}{'hood |err|':>11}{'>8min sim':>10}{'>8min real':>11}")
@@ -330,7 +392,7 @@ def export(path=BUILD / "runtime.pkl.gz"):
     with gzip.open(path, "wb") as f:
         pickle.dump({"model": model, "homes": homes, "offset": off, "test": test,
                      "period": [test[0]["t"], test[-1]["t"]], "n_incidents": len(incidents)}, f)
-    print(f"runtime -> {path} ({path.stat().st_size / 1e6:.1f} MB), offset {off:+.0f}s, {len(test)} held-out incidents")
+    print(f"runtime -> {path} ({path.stat().st_size / 1e6:.1f} MB), offset by time of day {off}, {len(test)} held-out incidents")
 
 
 if __name__ == "__main__":
