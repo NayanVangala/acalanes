@@ -550,7 +550,10 @@ async function loadElevation() {
 }
 const onTerrain = () => (useGoogle() ? TERRAIN : NO_EXT);
 let G_SSE = 16;
-const DETAIL = { bay: 15, world: 9 };  // max tile depth outside SF (SF itself goes to ~18-19)
+const DETAIL = { bay: 14, world: 9 };  // max tile depth outside SF (SF itself goes to ~18-19)
+// Nothing outside the Bay is downloaded, so spend that budget on the city: SF tiles refine at a finer
+// screen-space error than the rest of the Bay (lower = sharper), and finer still at street level.
+const sfSSE = () => (view.zoom > 15.5 ? 4 : view.zoom > 13.5 ? 6 : 8);
 const SF_PAD = [-122.545, 37.69, -122.34, 37.845];
 const inBox = (ll, b) => ll[0] >= b[0] && ll[0] <= b[2] && ll[1] >= b[1] && ll[1] <= b[3];
 // does a tile's bounding volume reach the Bay Area? (tile centers alone fail for the planet-sized top tiles)
@@ -584,6 +587,8 @@ function initGoogle(key) {
   G_ONLOAD = (tileset) => {
     window.G_TILESET = tileset;  // handy for debugging tile loads in the console
     tileset.options.maximumScreenSpaceError = G_SSE;  // 8 = loaders.gl default; higher loads fewer, slightly softer tiles
+    // keep the city's detailed tiles cached instead of evicting and re-downloading them (loaders.gl default is 32 MB)
+    if ("maximumMemoryUsage" in tileset.options) tileset.options.maximumMemoryUsage = 768;
     // Full detail only over San Francisco: elsewhere stop refining early (rest of the Bay coarse, beyond it coarser).
     // Refinement is what triggers downloads, so this cuts requests, not just what's drawn.
     const tr = tileset._traverser;
@@ -593,7 +598,12 @@ function initGoogle(key) {
         const ll = tileLngLat(tile);
         if (!nearBay(tile)) return false;  // never refine (download) anything that doesn't reach the Bay Area
         if (ll && !inBox(ll, SF_PAD)) return tile.depth < DETAIL.bay && orig(tile, frameState, useParentMetric);
-        return orig(tile, frameState, useParentMetric);
+        // over San Francisco: refine against the sharper city threshold (the traverser reads its own options copy)
+        const o = tr.options;
+        if (!o || typeof o.maximumScreenSpaceError !== "number") return orig(tile, frameState, useParentMetric);
+        const keep = o.maximumScreenSpaceError;
+        o.maximumScreenSpaceError = Math.min(keep, sfSSE());
+        try { return orig(tile, frameState, useParentMetric); } finally { o.maximumScreenSpaceError = keep; }
       };
     }
     tileset.options.onTraversalComplete = (selected) => {
