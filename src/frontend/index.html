@@ -313,7 +313,7 @@ input, select { caret-color: var(--accent); }
 .col.right { border-left: 1px solid var(--rule); overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--rule-strong) transparent; }
 #panel.hidden { visibility: hidden; overflow: hidden; }
 .stage { position: relative; min-width: 0; overflow: hidden; }
-.stage #map { position: absolute; inset: 0; }
+.stage #map { position: absolute; inset: 0; background: linear-gradient(180deg, #8da3b4 0%, #b9c7d1 38%, #d5dde3 60%, #2a3946 100%); }
 
 /* left column */
 .col .brand { position: static; display: flex; align-items: center; gap: 8px; padding: 14px 12px 12px 16px; background: none; border: 0; border-bottom: 1px solid var(--rule); border-radius: 0; box-shadow: none; }
@@ -442,6 +442,17 @@ dialog p b { color: var(--ink); }
 .me-card { background: var(--raised); border: 1px solid var(--rule); border-radius: 8px; }
 .me-list { background: var(--raised); border: 1px solid var(--rule); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14); color: var(--ink); }
 
+.reply { gap: 10px; padding: 14px; border: 1px solid var(--rule-strong); border-radius: 8px; background: var(--raised); }
+.reply-q { font-size: 13px; color: var(--ink-faint); }
+.reply-h { margin: 0; font-size: 15px; line-height: 1.45; color: var(--ink); font-weight: 500; text-wrap: pretty; }
+.reply-facts { list-style: none; margin: 0; padding: 0; display: grid; }
+.reply-facts li { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 7px 0; border-top: 1px solid var(--rule); font-size: 13px; }
+.reply-facts li span { color: var(--ink-soft); }
+.reply-facts li b { text-align: right; font-weight: 600; }
+.reply-facts li em { grid-column: 1 / -1; font-style: normal; font-size: 12px; color: var(--ink-faint); }
+.reply-facts li.bad b { color: var(--bad); } .reply-facts li.warn b { color: var(--warn); } .reply-facts li.ok b { color: var(--ok); }
+.reply-a { margin: 0; font-size: 12.5px; color: var(--ink-soft); line-height: 1.45; }
+.reply-a b { color: var(--ink); font-weight: 600; }
 .checks.counters { display: block; gap: 0; font-size: inherit; color: inherit; }
 .checks.counters b { margin: 0; font-size: 14px; color: var(--ink); }
 .checks.counters .c-move b, .checks.counters .c-pol b, .checks.counters .c-wait b { color: var(--ink); }
@@ -469,6 +480,8 @@ dialog p b { color: var(--ink); }
     <button role="tab" data-tab="results" aria-selected="false">Results</button>
   </nav>
   <div class="scroll">
+    <section class="block reply" id="reply" data-pane="whatif" aria-live="polite" hidden></section>
+
     <section class="block" data-pane="whatif">
       <h2>Try a scenario</h2>
       <div class="options">
@@ -649,8 +662,8 @@ const BAY = [-122.75, 37.40, -121.80, 38.10];  // imagery around SF so the edges
 const BAY_MASK = [[[BAY[0], BAY[1]], [BAY[2], BAY[1]], [BAY[2], BAY[3]], [BAY[0], BAY[3]]],
   [[BBOX[0], BBOX[1]], [BBOX[0], BBOX[3]], [BBOX[2], BBOX[3]], [BBOX[2], BBOX[1]]]];  // outer ring with SF cut out
 // keep the camera over the city: center stays near SF, can't zoom out past the Bay
-const LIMIT = { lng: [-122.62, -122.18], lat: [37.62, 37.93], minZoom: 10.8, maxZoom: 20 };
-const maxPitchAt = (z) => (z < 11.5 ? 50 : z < 12.5 ? 60 : z < 14 ? 68 : 80);
+const LIMIT = { lng: [-122.56, -122.30], lat: [37.66, 37.88], minZoom: 11.5, maxZoom: 20 };
+const maxPitchAt = (z) => (z < 12 ? 45 : z < 12.8 ? 55 : z < 14 ? 65 : 80);  // low zoom + high tilt shows the horizon
 function clampView(v) {
   const longitude = Math.min(LIMIT.lng[1], Math.max(LIMIT.lng[0], v.longitude)), latitude = Math.min(LIMIT.lat[1], Math.max(LIMIT.lat[0], v.latitude));
   // in Google's 3D city the ground is up to ~280 m high: pivot the camera on the ground under it, not on sea level
@@ -724,7 +737,7 @@ let G_SSE = 16;
 const DETAIL = { bay: 14, world: 9 };  // max tile depth outside SF (SF itself goes to ~18-19)
 // Nothing outside the Bay is downloaded, so spend that budget on the city: SF tiles refine at a finer
 // screen-space error than the rest of the Bay (lower = sharper), and finer still at street level.
-const sfSSE = () => (view.zoom > 15.5 ? 4 : view.zoom > 13.5 ? 6 : 8);
+const sfSSE = () => (view.zoom > 15.5 ? 5 : view.zoom > 13.5 ? 8 : 12);  // sharp up close, light when the whole city is in view
 const SF_PAD = [-122.545, 37.69, -122.34, 37.845];
 const inBox = (ll, b) => ll[0] >= b[0] && ll[0] <= b[2] && ll[1] >= b[1] && ll[1] <= b[3];
 // does a tile's bounding volume reach the Bay Area? (tile centers alone fail for the planet-sized top tiles)
@@ -733,7 +746,7 @@ const BAY_ECEF = (() => {
   const n = a / Math.sqrt(1 - e2 * Math.sin(lat) ** 2);
   return [n * Math.cos(lat) * Math.cos(lng), n * Math.cos(lat) * Math.sin(lng), n * (1 - e2) * Math.sin(lat)];
 })();
-const BAY_RADIUS = 48000;  // meters from the Bay's center that we care about
+const BAY_RADIUS = 62000;  // meters from the Bay's center that we care about
 const MIN_DRAW_DEPTH = 10;  // coarser Google tiles span hundreds of km: drawing them shows the globe
 function nearBay(tile) {
   if (tile._nearBay !== undefined) return tile._nearBay;
@@ -1264,7 +1277,7 @@ function initDeck() {
       ambient: new deck.AmbientLight({ color: [255, 255, 255], intensity: 1.1 }),
       sun: new deck.DirectionalLight({ color: [255, 245, 230], intensity: 1.4, direction: [-2, -4, -6] }),
     })],
-    parameters: { clearColor: [11 / 255, 20 / 255, 27 / 255, 1] },
+    parameters: { clearColor: [0, 0, 0, 0] },  // transparent: the fog sky behind the canvas shows past the edge of the map
     onClick: ({ object, layer }) => {
       if (!object || !layer) return;
       if (layer.id.startsWith("stations")) toggleClosed(object.station);
@@ -1467,7 +1480,7 @@ async function run() {
     const ex = Object.keys(EXAMPLES).find((k) => JSON.stringify(EXAMPLES[k]) === lastRun);
     if (ex) { const d = RESULT.city.median - BASE.city.median, el = document.querySelector(`[data-meta="${ex}"]`);
       if (el) el.textContent = ex === "today" ? mmss(RESULT.city.median) : `${mmss(RESULT.city.median)} · ${signed(d)}`; }
-    setTab("results");  // show what changed
+    // stay on the What if tab: the reply and the right-hand check-list show what changed
   } catch (e) {
     $("#vsub").textContent = "The simulation didn’t finish. Press Run simulation to try again.";
   }
@@ -1764,22 +1777,54 @@ function readAs(sc) {
   if (sc.volume !== 1) parts.push(`911 calls ×${sc.volume}`);
   return parts.length ? parts.join(" · ") : "no change";
 }
+// an answer to a typed question: the AI read the question; every number below comes from the simulator or the records
+function showReply(question, html) {
+  const el = $("#reply");
+  el.innerHTML = `<div class="reply-q">“${esc(question)}”</div>${html}`;
+  el.hidden = false;
+  document.querySelector("#panel .scroll").scrollTop = 0;
+}
+function replyHTML(d) {
+  const facts = (d.facts || []).map((f) => `<li class="${f.tone || ""}"><span>${esc(f.k)}</span><b class="num">${esc(f.v)}</b>${f.note ? `<em>${esc(f.note)}</em>` : ""}</li>`).join("");
+  const assume = (d.assumptions || []).length ? `<p class="reply-a"><b>Assumed:</b> ${d.assumptions.map(esc).join(" ")}</p>` : "";
+  return `<p class="reply-h">${esc(d.headline || "")}</p>${facts ? `<ul class="reply-facts">${facts}</ul>` : ""}${assume}
+    <p class="ai-note">Read as: ${esc(d.read_as || "")} The AI only read the question; the numbers come from the simulator and October’s records.</p>`;
+}
+function scenarioReply(readAs) {
+  const c = RESULT.city, b = BASE.city, rows = hoodRows().filter((x) => Math.abs(x.d) >= 5).sort((x, y) => Math.abs(y.d) - Math.abs(x.d)).slice(0, 3);
+  const d = c.median - b.median;
+  const head = `${$("#vword").textContent}. ${$("#vsub").textContent}`;
+  const facts = [{ k: "Citywide typical wait", v: `${mmss(b.median)} → ${mmss(c.median)}`, tone: Math.abs(d) < 1 ? "" : d > 0 ? "bad" : "ok" },
+    { k: "Calls over 8 min", v: `${pct(b.over8)} → ${pct(c.over8)}` },
+    ...rows.map((x) => ({ k: x.name, v: `${mmss(x.b.median)} → ${mmss(x.r.median)}`, tone: x.d > 0 ? "bad" : "ok", note: signed(x.d) }))];
+  if (!rows.length) facts.push({ k: "Neighborhoods", v: "none change by more than 5 s", note: "nearby stations cover it" });
+  return replyHTML({ headline: head, facts, read_as: readAs });
+}
 $("#ask-form").onsubmit = async (e) => {
   e.preventDefault();
   const text = $("#ask").value.trim(), out = $("#ask-out");
   if (!text) return;
   $("#ask-go").disabled = true; out.hidden = false; out.className = "ask-out"; out.textContent = "Thinking…";
   try {
-    const r = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+    const r = await fetch("/api/ask", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, me: ME ? { lat: ME.lat, lng: ME.lng, label: ME.label } : null }) });
     if (r.status === 503 || r.status === 404) {
       out.className = "ask-out err"; out.textContent = "Asking in plain words isn’t set up on this server. Use the controls below instead.";
       $("#ask-form").hidden = true; return;
     }
     const d = await r.json();
     if (!r.ok || d.error) { out.className = "ask-out err"; out.textContent = d.error || "That question didn’t work. Try naming a station, a neighborhood or a call volume."; return; }
-    scenario = { closed: (d.closed || []).map(String), added: d.added || [], volume: d.volume || 1 };
-    out.innerHTML = `<span class="read-as">Read as: ${esc(readAs(scenario))}</span>${d.explanation ? esc(d.explanation) : ""}`;
-    renderScenario(); run();
+    out.hidden = true;
+    if (d.intent === "scenario") {
+      scenario = { closed: (d.closed || []).map(String), added: d.added || [], volume: d.volume || 1 };
+      renderScenario();
+      showReply(text, `<p class="reply-h">Running: ${esc(readAs(scenario))}…</p>`);
+      await run();
+      showReply(text, scenarioReply(`${readAs(scenario)}. ${d.read_as || ""}`));
+    } else {
+      showReply(text, replyHTML(d));
+      if (d.focus) setView({ longitude: d.focus.lng, latitude: d.focus.lat, zoom: Math.max(view.zoom, 14), pitch: 60 }, 1400);
+    }
   } catch (err) {
     out.className = "ask-out err"; out.textContent = "Couldn’t reach the server. Check your connection and try again.";
   } finally { $("#ask-go").disabled = false; }
