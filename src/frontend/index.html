@@ -884,6 +884,7 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
   <button class="fab" id="layers-btn" aria-label="Map layers" aria-expanded="false" title="Layers"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l9 4.5-9 4.5-9-4.5z"/><path d="M3 12l9 4.5 9-4.5M3 16.5l9 4.5 9-4.5"/></svg></button>
 </nav>
 <div class="menu-pop frost" id="menu-pop" role="menu" hidden>
+  <button type="button" role="menuitem" id="m-story"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19V5M4 19h16M8 15l3-4 3 2 4-6"/></svg><span><b>Data story</b><small>The question, data, method, proof, findings</small></span></button>
   <button type="button" role="menuitem" id="m-ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 9h6v6H9z"/><path d="M9 2v2M15 2v2M9 20v2M15 20v2M2 9h2M2 15h2M20 9h2M20 15h2"/></svg><span><b>AI activity</b><small>What the AI is doing, live</small></span></button>
   <button type="button" role="menuitem" id="m-moves"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M3 12h18"/></svg><span><b>Getting around</b><small>Mouse and keyboard controls</small></span></button>
   <button type="button" role="menuitem" id="m-about"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.01"/></svg><span><b>About Medio</b><small>What this is and who made it</small></span></button>
@@ -933,11 +934,10 @@ dialog { font-family: var(--font); border-radius: 20px; background: var(--frost-
   <svg viewBox="0 0 16 44" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
     <path d="M6 4v8M10 4v8"/><path class="chev" d="M6.5 17l4 5-4 5"/><path d="M6 32v8M10 32v8"/></svg>
 </button>
-<aside class="drawer frost" id="panel" data-tab="findings" aria-label="Medio panel">
+<aside class="drawer frost" id="panel" data-tab="whatif" aria-label="Medio panel">
   <header class="drawer-head">
     <nav class="tabs" role="tablist" aria-label="Panel sections">
-      <button role="tab" data-tab="findings" aria-selected="true">Story</button>
-      <button role="tab" data-tab="whatif" aria-selected="false">What if</button>
+      <button role="tab" data-tab="whatif" aria-selected="true">What if</button>
       <button role="tab" data-tab="breakdown" aria-selected="false">Breakdown</button>
       <button role="tab" data-tab="propose" aria-selected="false">Propose</button>
       <button role="tab" data-tab="location" aria-selected="false">You</button>
@@ -2666,6 +2666,7 @@ async function loadBreakdown() {
 $("#menu-btn").onclick = () => { const m = $("#menu-pop"); m.hidden = !m.hidden; $("#menu-btn").setAttribute("aria-expanded", String(!m.hidden)); };
 addEventListener("click", (e) => { const m = $("#menu-pop"); if (!m.hidden && !m.contains(e.target) && !$("#menu-btn").contains(e.target)) { m.hidden = true; $("#menu-btn").setAttribute("aria-expanded", "false"); } });
 $("#m-moves").onclick = () => { $("#menu-pop").hidden = true; showMoves(true); };
+$("#m-story").onclick = () => { $("#menu-pop").hidden = true; openPanel("findings"); document.querySelector("#panel .scroll").scrollTop = 0; };
 $("#m-about").onclick = () => { $("#menu-pop").hidden = true; $("#help").click(); };
 let aiTimer = 0;
 const AI_STEP = new Set(["Planner (Claude Haiku)", "Writer (Claude Haiku)"]);
