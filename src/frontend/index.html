@@ -671,6 +671,10 @@ body:has(#panel:not(.hidden)) .drawer-tab .chev { transform: rotate(180deg); }
 .timeline .play svg { width: 18px; height: 18px; }
 .timeline .clock b { font-size: 20px; font-weight: 600; color: var(--ink); }
 .timeline .clock select { font-size: 12.5px; color: var(--ink-soft); background: transparent; border: 0; height: 20px; padding: 0; }
+.tod-form { margin: 3px 0 0; }
+.tod-form input { width: 112px; height: 26px; padding: 0 8px; border: 1px solid var(--rule-strong); border-radius: 8px; background: var(--raised); color: var(--ink); font: inherit; font-size: 12.5px; }
+.tod-form input::placeholder { color: var(--ink-soft); }
+.tod-form input.bad { border-color: var(--bad); box-shadow: 0 0 0 2px rgba(194, 58, 43, .18); }
 .timeline .scrubwrap { height: 26px; }
 .timeline .hours { font-size: 11.5px; color: var(--ink-faint); }
 .timeline .seg { border: 0; background: var(--hover); border-radius: 999px; padding: 2px; gap: 2px; }
@@ -1174,7 +1178,7 @@ a.btn { display: inline-grid; place-items: center; text-decoration: none; color:
 
     <section class="block" data-pane="findings">
       <h2>Right now</h2>
-      <ul class="checks counters"><li><i class="box live"></i><span class="k">Median wait so far today</span><b class="num" id="n-med">—</b></li></ul>
+      <ul class="checks counters"><li><i class="box live"></i><span class="k">Typical wait at this time</span><b class="num" id="n-med">—</b></li></ul>
     </section>
     <section class="block" data-pane="findings" hidden>
       <section class="feed" id="feedbox" aria-live="off">
@@ -1203,7 +1207,7 @@ a.btn { display: inline-grid; place-items: center; text-decoration: none; color:
 
 <div class="timeline frost">
   <button class="play" id="play" aria-label="Pause replay"><svg viewBox="0 0 24 24" fill="currentColor" id="play-icon"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg></button>
-    <div class="clock"><span class="tl-k" id="tod-label">Time of day</span><b class="num" id="clock">08:00</b><select hidden id="day" aria-label="Day to replay" title="Pick another real day from October 2026"></select></div>
+    <div class="clock"><span class="tl-k" id="tod-label">Time of day</span><b class="num" id="clock">08:00</b><form class="tod-form" id="tod-form" autocomplete="off"><input id="tod-q" type="text" inputmode="text" spellcheck="false" placeholder="Type a time" aria-label="Type a time of day, like 6 pm or 18:30" title="Type a time (6 pm, 18:30, noon) and press Enter"></form><select hidden id="day" aria-label="Day to replay" title="Pick another real day from October 2026"></select></div>
     <div class="track">
       <div class="scrubwrap"><svg id="activity" viewBox="0 0 24 100" preserveAspectRatio="none" aria-hidden="true"></svg>
         <input type="range" id="scrub" min="0" max="86340" step="60" value="61200" aria-label="Time of day" title="Drag to any time of the day"></div>
@@ -2143,7 +2147,7 @@ function hud(veh) {
   const calls = REPLAY.calls;
   $("#n-wait").textContent = calls.filter((c) => c[2] <= simT && simT < c[3]).length;
   const done = calls.filter((c) => c[3] <= simT).map((c) => c[3] - c[2]).sort((a, b) => a - b);
-  $("#n-med").textContent = done.length ? mmss(done[done.length >> 1]) : "—";
+  $("#n-med").textContent = RESULT && RESULT.city ? mmss(RESULT.city.median) : "—";  // same time-of-day number as the banner (all of October)
   // feed: the latest departures up to now
   let lo = 0, hi = DEPARTS.length;
   while (lo < hi) { const m = (lo + hi) >> 1; DEPARTS[m] <= simT ? (lo = m + 1) : (hi = m); }
@@ -2664,6 +2668,28 @@ function setPlaying(p) {
 }
 $("#play").onclick = () => setPlaying(!playing);
 $("#scrub").oninput = (e) => { simT = +e.target.value; };
+// type a time: "6 pm", "6:30pm", "18:30", "9", "noon", "midnight" -> seconds after midnight, or null
+function parseTime(str) {
+  const t = String(str || "").trim().toLowerCase().replace(/\./g, "");
+  if (t === "noon") return 12 * 3600;
+  if (t === "midnight") return 0;
+  const m = t.match(/^(\d{1,2})(?:[:h ]?(\d{2}))?\s*(am|pm|a|p)?$/);
+  if (!m) return null;
+  let h = +m[1]; const min = +(m[2] || 0), ap = m[3];
+  if (ap) { if (h < 1 || h > 12) return null; if (ap[0] === "p" && h !== 12) h += 12; if (ap[0] === "a" && h === 12) h = 0; }
+  return h > 23 || min > 59 ? null : h * 3600 + min * 60;
+}
+$("#tod-form").onsubmit = (e) => {
+  e.preventDefault();
+  const input = $("#tod-q"), sec = parseTime(input.value);
+  input.classList.toggle("bad", sec === null);
+  if (sec === null) { input.title = "Try 6 pm, 18:30 or noon"; return; }
+  setPlaying(false);  // stay on the typed time
+  simT = sec; $("#scrub").value = Math.floor(sec / 60) * 60;
+  applyTOD(); hud(vehiclesAt(simT));
+  input.value = ""; input.placeholder = hhmm(sec); input.blur();
+};
+$("#tod-q").oninput = () => $("#tod-q").classList.remove("bad");
 document.querySelectorAll("[data-speed]").forEach((b) => (b.onclick = () => { speed = +b.dataset.speed; document.querySelectorAll("[data-speed]").forEach((x) => x.classList.toggle("on", x === b)); }));
 $("#day").onchange = async (e) => { return;  // day picker removed: the time-of-day slider uses the whole month
   const r = await fetch("/api/simulate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...JSON.parse(lastRun), day: +e.target.value }) });
