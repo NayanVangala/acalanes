@@ -250,6 +250,7 @@ dialog p b { color: var(--ink); }
     <section class="block">
       <h2>Map</h2>
       <div class="toggles">
+        <label class="toggle" id="t-g3d" hidden><input type="checkbox" id="l-g3d" checked>Google 3D city</label>
         <label class="toggle"><input type="checkbox" id="l-sat" checked>Satellite</label>
         <label class="toggle"><input type="checkbox" id="l-grid" checked>500 m grid</label>
         <label class="toggle"><input type="checkbox" id="l-hoods" checked>Response map</label>
@@ -285,6 +286,7 @@ dialog p b { color: var(--ink); }
   <button class="icon-btn" id="z-in" aria-label="Zoom in">+</button>
   <button class="icon-btn" id="z-out" aria-label="Zoom out">−</button>
   <button class="icon-btn" id="z-tilt" aria-label="Toggle 3D tilt" title="Tilt">3D</button>
+  <button class="icon-btn" id="z-drop" aria-label="Drop to street level behind a moving vehicle" title="Street level"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12M7 10l5 5 5-5M5 20h14"/></svg></button>
   <button class="icon-btn" id="z-fit" aria-label="Fit the city" title="Fit the city"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
 </div>
 
@@ -305,7 +307,7 @@ dialog p b { color: var(--ink); }
 
 <div class="glass follow" id="follow" hidden><span id="follow-text">Following</span><button class="btn" id="follow-stop">Stop (Esc)</button></div>
 
-<div class="attrib">Imagery © Esri, Maxar, Earthstar Geographics · Streets and data: DataSF</div>
+<div class="attrib" id="attrib">Imagery © Esri, Maxar, Earthstar Geographics · Streets and data: DataSF</div>
 
 <dialog id="about">
   <h2>Runnr</h2>
@@ -342,9 +344,31 @@ let META, HOODS, STATIONS, PEOPLE, VALID, BASE, RESULT, REPLAY, SEGS = [], DEPAR
 let scenario = { closed: [], added: [], volume: 1 };
 let lastRun = JSON.stringify(scenario);
 let addType = "MEDIC";
-let view = { ...HOME, zoom: 10.6, pitch: 0, bearing: 0 };
+let view = { maxPitch: 80, ...HOME, zoom: 10.6, pitch: 0, bearing: 0 };
 let deckgl, simT = 8 * 3600, speed = 300, playing = !reduced, lastFrame = performance.now();
-const show = { sat: true, grid: true, hoods: true, extrude: false, bld: true };
+const show = { sat: true, grid: true, hoods: true, extrude: false, bld: true, g3d: true };
+// ---------- Google Photorealistic 3D Tiles (only when the server has a key) ----------
+let GOOGLE_KEY = null, dropIn = false;
+const TERRAIN = deck._TerrainExtension ? [new deck._TerrainExtension()] : [];
+const G_CREDITS = new Set();
+let G_LOAD = null, G_ONLOAD = null;
+const useGoogle = () => !!GOOGLE_KEY && show.g3d;
+const onTerrain = () => (useGoogle() ? TERRAIN : []);
+function initGoogle(key) {
+  GOOGLE_KEY = key;
+  $("#t-g3d").hidden = false;
+  G_LOAD = { fetch: { headers: { "X-GOOG-API-KEY": key } } };
+  G_ONLOAD = (tileset) => {
+    tileset.options.onTraversalComplete = (selected) => {
+      G_CREDITS.clear();
+      for (const t of selected) {
+        const c = t.content && t.content.gltf && t.content.gltf.asset && t.content.gltf.asset.copyright;
+        if (c) c.split(";").forEach((x) => x.trim() && G_CREDITS.add(x.trim()));
+      }
+      return selected;
+    };
+  };
+}
 
 // ---------- color ----------
 const STOPS = [[390, [76, 141, 255]], [480, [255, 194, 75]], [600, [255, 77, 61]]];
@@ -462,11 +486,15 @@ async function loadBuildings() {
 function layers(t, veh) {
   const closed = new Set(scenario.closed);
   const pulse = (Math.sin(performance.now() / 260) + 1) / 2;
-  const L = [
-    new deck.SolidPolygonLayer({ id: "slab", data: SLAB, getPolygon: (d) => d, extruded: true, getElevation: 895,
-      getFillColor: [22, 34, 44], material: { ambient: 0.5, diffuse: 0.5 } }),
-  ];
-  if (show.sat) L.push(new deck.TileLayer({
+  const L = [];
+  if (useGoogle()) L.push(new deck.Tile3DLayer({
+    id: "google3d", data: "https://tile.googleapis.com/v1/3dtiles/root.json", loadOptions: G_LOAD,
+    onTilesetLoad: G_ONLOAD, operation: "terrain+draw",
+  }));
+  else L.push(new deck.SolidPolygonLayer({ id: "slab", data: SLAB, getPolygon: (d) => d, extruded: true, getElevation: 895,
+      getFillColor: [22, 34, 44], material: { ambient: 0.5, diffuse: 0.5 } }));
+  if (useGoogle()) { /* Google's tiles are the ground, the buildings and the imagery */ }
+  else if (show.sat) L.push(new deck.TileLayer({
     id: "sat", data: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
     minZoom: 10, maxZoom: 18, tileSize: 256, extent: BBOX,
     renderSubLayers: (props) => {
@@ -475,10 +503,10 @@ function layers(t, veh) {
         extensions: clipExt, clipBounds: BBOX, desaturate: 0.15, tintColor: [235, 240, 245] });
     },
   }));
-  else L.push(new deck.SolidPolygonLayer({ id: "plate", data: SLAB, getPolygon: (d) => d.map(([x, y]) => [x, y, 0]), getFillColor: [28, 44, 56] }));
+  else if (!useGoogle()) L.push(new deck.SolidPolygonLayer({ id: "plate", data: SLAB, getPolygon: (d) => d.map(([x, y]) => [x, y, 0]), getFillColor: [28, 44, 56] }));
   if (show.grid) L.push(new deck.PathLayer({ id: "grid", data: GRID, getPath: (d) => d.path, getColor: [255, 255, 255, 38],
-    widthUnits: "pixels", getWidth: 1, parameters: { depthTest: false } }));
-  if (show.bld && BUILDINGS) L.push(new deck.SolidPolygonLayer({
+    widthUnits: "pixels", getWidth: 1, parameters: { depthTest: false }, extensions: onTerrain() }));
+  if (show.bld && BUILDINGS && !useGoogle()) L.push(new deck.SolidPolygonLayer({
     id: "buildings", data: BUILDINGS, getPolygon: (b) => b[1], positionFormat: "XY", extruded: true,
     getElevation: (b) => b[0], getFillColor: [205, 212, 220, 235],
     material: { ambient: 0.42, diffuse: 0.62, shininess: 24, specularColor: [40, 44, 50] },
@@ -490,7 +518,7 @@ function layers(t, veh) {
     getLineColor: (f) => [...ramp((RESULT.hoods[f.properties.nhood] || {}).median || 400), 210],
     getLineWidth: 2, lineWidthUnits: "pixels",
     material: { ambient: 0.55, diffuse: 0.5 },
-    parameters: { depthTest: show.extrude },
+    parameters: { depthTest: show.extrude }, extensions: show.extrude ? [] : onTerrain(),
     transitions: { getElevation: 500 },
     updateTriggers: { getElevation: RESULT, getFillColor: [RESULT, show.extrude], getLineColor: RESULT },
   }));
@@ -499,13 +527,13 @@ function layers(t, veh) {
     elevationScale: stationScale(),
     getPosition: (s) => [s.lng, s.lat], getElevation: (s) => (closed.has(s.station) ? 30 : 260),
     getFillColor: (s) => (closed.has(s.station) ? [110, 118, 128] : [243, 154, 43]),
-    material: { ambient: 0.7, diffuse: 0.5 },
+    material: { ambient: 0.7, diffuse: 0.5 }, extensions: onTerrain(),
     updateTriggers: { getElevation: scenario.closed.join(), getFillColor: scenario.closed.join() },
   }));
   L.push(new deck.TripsLayer({
     id: "trails", data: SEGS, getPath: (d) => d.path, getTimestamps: (d) => d.ts, currentTime: t, trailLength: 240,
     fadeTrail: true, widthMinPixels: 2, capRounded: true, jointRounded: true,
-    getColor: (d) => (d.fire ? [...RGB.engine, 150] : [...RGB.medic, 150]), parameters: { depthTest: false },
+    getColor: (d) => (d.fire ? [...RGB.engine, 150] : [...RGB.medic, 150]), parameters: { depthTest: false }, extensions: onTerrain(),
   }));
   const waiting = REPLAY.calls.filter((c) => c[2] <= t && t < c[3] + 90);
   L.push(new deck.ScatterplotLayer({
@@ -513,14 +541,14 @@ function layers(t, veh) {
     getRadius: (c) => (t < c[3] ? 9 + pulse * 9 : 6), stroked: true, filled: true,
     getFillColor: (c) => (t < c[3] ? [...RGB.call, 60] : [...RGB.ok, 120]),
     getLineColor: (c) => (t < c[3] ? [...RGB.call, 255] : [...RGB.ok, 200]), lineWidthMinPixels: 2,
-    parameters: { depthTest: false }, updateTriggers: { getRadius: [t, pulse], getFillColor: t, getLineColor: t },
+    parameters: { depthTest: false }, extensions: onTerrain(), updateTriggers: { getRadius: [t, pulse], getFillColor: t, getLineColor: t },
   }));
   const flash = Math.floor(performance.now() / 260) % 2;
   const mesh = (id, m, getColor, extra = {}) => new deck.SimpleMeshLayer({
     id, data: veh.list, mesh: m, getPosition: (v) => v.p, getOrientation: (v) => [0, -v.h, 0],
     getScale: (v) => (v.fire ? [1, 1.3, 1.05] : [1, 1, 1]), sizeScale: vehicleScale(), getColor,
     material: { ambient: 0.55, diffuse: 0.6, shininess: 40, specularColor: [80, 80, 80] },
-    updateTriggers: { getColor: [flash] }, ...extra,
+    updateTriggers: { getColor: [flash] }, extensions: onTerrain(), ...extra,
   });
   L.push(mesh("vehicles", MESH.body, (v) => (v.fire ? [228, 52, 40] : [238, 241, 245]), { pickable: true }));
   L.push(mesh("v-cab", MESH.cab, (v) => (v.fire ? [190, 34, 26] : [226, 230, 236])));
@@ -585,7 +613,18 @@ function startFollow(unit) {
   $("#follow-text").textContent = `Following ${unit} · ${KIND[v.type] || v.type}`;
   $("#follow").hidden = false;
 }
-function stopFollow() { followUnit = null; $("#follow").hidden = true; }
+function stopFollow() { followUnit = null; dropIn = false; $("#follow").hidden = true; }
+function dropToStreet() {
+  const list = vehiclesAt(simT).list.filter((v) => v.state === 0);
+  const pick = (followUnit && list.find((v) => v.unit === followUnit)) || list.sort((a, b) =>
+    Math.hypot(a.p[0] - view.longitude, a.p[1] - view.latitude) - Math.hypot(b.p[0] - view.longitude, b.p[1] - view.latitude))[0];
+  if (!pick) { $("#follow-text").textContent = "No vehicle is driving right now. Press play."; $("#follow").hidden = false; return; }
+  startFollow(pick.unit);
+  dropIn = true;
+  $("#follow-text").textContent = `Street level behind ${pick.unit} · ${KIND[pick.type] || pick.type}`;
+  setView({ longitude: pick.p[0], latitude: pick.p[1], zoom: 18.3, pitch: 76, bearing: pick.h }, 1600);
+  followUntil = performance.now() + 1700;
+}
 
 // ---------- loop ----------
 let lastHud = 0;
@@ -597,11 +636,21 @@ function frame(now) {
   if (followUnit) {
     const v = veh.list.find((x) => x.unit === followUnit);
     if (!v) stopFollow();
-    else if (!view.transitionDuration || now > followUntil) { view = { ...view, longitude: v.p[0], latitude: v.p[1], transitionDuration: 0 }; deckgl.setProps({ viewState: view }); }
+    else if (now > followUntil) {  // let the fly-to finish before locking the camera on
+      const turn = dropIn ? (((v.h - view.bearing + 540) % 360) - 180) * 0.08 : 0;  // ease the camera round behind the vehicle
+      view = { ...view, longitude: v.p[0], latitude: v.p[1], bearing: view.bearing + turn, transitionDuration: 0 };
+      deckgl.setProps({ viewState: view });
+    }
   }
   deckgl.setProps({ layers: layers(simT, veh) });
-  if (now - lastHud > 200) { lastHud = now; hud(veh); }
+  if (now - lastHud > 200) { lastHud = now; hud(veh); attribution(); }
   requestAnimationFrame(frame);
+}
+const BASE_ATTRIB = document.getElementById("attrib").textContent;
+function attribution() {
+  const txt = useGoogle() ? `Google · ${[...G_CREDITS].join("; ") || "Map data ©Google"} · Streets and data: DataSF` : BASE_ATTRIB;
+  const el = $("#attrib");
+  if (el.textContent !== txt) el.textContent = txt;
 }
 function hud(veh) {
   $("#clock").textContent = hhmm(simT);
@@ -748,7 +797,8 @@ $("#help").onclick = () => $("#about").showModal();
 $("#z-in").onclick = () => setView({ zoom: Math.min(18, view.zoom + 1) }, 400);
 $("#z-out").onclick = () => setView({ zoom: Math.max(9, view.zoom - 1) }, 400);
 $("#z-tilt").onclick = () => setView(view.pitch > 10 ? { pitch: 0, bearing: 0 } : { pitch: 60, bearing: -24 }, 600);
-$("#z-fit").onclick = () => setView(HOME, 900);
+$("#z-fit").onclick = () => { stopFollow(); setView(HOME, 900); };
+$("#z-drop").onclick = dropToStreet;
 function setPlaying(p) {
   playing = p;
   $("#play").setAttribute("aria-label", p ? "Pause replay" : "Play replay");
@@ -762,7 +812,7 @@ $("#day").onchange = async (e) => {
   if (r.ok) { const d = await r.json(); RESULT = d; loadReplay(d.replay); renderAll(); }
 };
 const bind = (id, k) => ($(id).onchange = (e) => { show[k] = e.target.checked; });
-bind("#l-sat", "sat"); bind("#l-grid", "grid"); bind("#l-hoods", "hoods"); bind("#l-3d", "extrude"); bind("#l-bld", "bld");
+bind("#l-sat", "sat"); bind("#l-grid", "grid"); bind("#l-hoods", "hoods"); bind("#l-3d", "extrude"); bind("#l-bld", "bld"); bind("#l-g3d", "g3d");
 $("#follow-stop").onclick = stopFollow;
 $("#ask-form").onsubmit = async (e) => {
   e.preventDefault();
@@ -804,6 +854,7 @@ addEventListener("keydown", (e) => {
   renderAccuracy();
   renderAll();
   setPlaying(playing);
+  try { const c = await get("/api/config"); if (c.google_maps_key) initGoogle(c.google_maps_key); } catch (e) { /* no key: satellite mode */ }
   initDeck();
   requestAnimationFrame(frame);
   loadBuildings();

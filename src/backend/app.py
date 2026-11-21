@@ -23,6 +23,18 @@ import sim
 from sim import TravelModel  # noqa: F401  (needed to unpickle the model)
 
 from paths import BUILD, FRONTEND, SF
+from paths import ROOT as ROOT_DIR
+
+
+def env_key(name):
+    """Read NAME=value from the repo's .env (local dev only; Render uses real environment variables)."""
+    env = ROOT_DIR / ".env"
+    if env.exists():
+        for line in env.read_text().splitlines():
+            k, _, v = line.partition("=")
+            if k.strip() == name and v.strip():
+                return v.strip().strip('"').strip("'")
+    return None
 
 
 def data_file(name):
@@ -136,6 +148,10 @@ class Handler(BaseHTTPRequestHandler):
             self.reply((FRONTEND / "index.html").read_bytes(), "text/html; charset=utf-8")
         elif path == "/api/meta":
             self.reply(json.dumps(meta()))
+        elif path == "/api/config":
+            # Browser map key (Google Map Tiles API). It's public by design; restrict it to this site's domain in Google Cloud.
+            key = os.environ.get("GOOGLE_MAPS_API_KEY", "").strip().strip('"').strip("'") or env_key("GOOGLE_MAPS_API_KEY")
+            self.reply(json.dumps({"google_maps_key": key or None}))
         elif path.startswith("/data/") and Path(path).name in DATA_FILES and data_file(Path(path).name).exists():
             name = Path(path).name
             gz = data_file_gz(name) if "gzip" in self.headers.get("Accept-Encoding", "") else None
