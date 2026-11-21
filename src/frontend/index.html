@@ -418,6 +418,15 @@ const signed = (x, u = " s") => (x > 0 ? "+" : x < 0 ? "−" : "±") + Math.abs(
 const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const BBOX = [-122.528, 37.700, -122.350, 37.835];
+const BAY = [-123.30, 37.15, -121.60, 38.45];  // imagery around SF so the edges never go black
+const BAY_MASK = [[[BAY[0], BAY[1]], [BAY[2], BAY[1]], [BAY[2], BAY[3]], [BAY[0], BAY[3]]],
+  [[BBOX[0], BBOX[1]], [BBOX[0], BBOX[3]], [BBOX[2], BBOX[3]], [BBOX[2], BBOX[1]]]];  // outer ring with SF cut out
+// keep the camera over the city: center stays near SF, can't zoom out past the Bay
+const LIMIT = { lng: [-122.56, -122.32], lat: [37.69, 37.845], minZoom: 11.2 };
+function clampView(v) {
+  return { ...v, longitude: Math.min(LIMIT.lng[1], Math.max(LIMIT.lng[0], v.longitude)),
+    latitude: Math.min(LIMIT.lat[1], Math.max(LIMIT.lat[0], v.latitude)), zoom: Math.max(LIMIT.minZoom, v.zoom) };
+}
 const CELL = [0.0057, 0.0045];
 const HOME = { longitude: -122.428, latitude: 37.765, zoom: 12.6, pitch: 60, bearing: -24 };
 const EXAMPLES = {
@@ -763,17 +772,22 @@ function layers(t, veh) {
     id: "google3d", data: "https://tile.googleapis.com/v1/3dtiles/root.json", loadOptions: G_LOAD,
     onTilesetLoad: G_ONLOAD, operation: "terrain+draw",
   })));
-  else L.push(memo("slab", [], () => new deck.SolidPolygonLayer({ id: "slab", data: SLAB, getPolygon: (d) => d, extruded: true, getElevation: 895,
+  else if (!show.sat) L.push(memo("slab", [], () => new deck.SolidPolygonLayer({ id: "slab", data: SLAB, getPolygon: (d) => d, extruded: true, getElevation: 895,
     getFillColor: [22, 34, 44], material: { ambient: 0.5, diffuse: 0.5 } })));
-  if (!g && show.sat) L.push(memo("sat", [], () => new deck.TileLayer({
-    id: "sat", data: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    minZoom: 10, maxZoom: 18, tileSize: 256, extent: BBOX,
-    renderSubLayers: (props) => {
-      const b = props.tile.bbox;
-      return new deck.BitmapLayer(props, { data: null, image: props.data, bounds: [b.west, b.south, b.east, b.north],
-        extensions: clipExt, clipBounds: BBOX, desaturate: 0.15, tintColor: [235, 240, 245] });
-    },
-  })));
+  if (!g && show.sat) {
+    L.push(memo("sat", [], () => new deck.TileLayer({
+      id: "sat", data: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      minZoom: 9, maxZoom: 18, tileSize: 256, extent: BAY,
+      renderSubLayers: (props) => {
+        const b = props.tile.bbox;
+        return new deck.BitmapLayer(props, { data: null, image: props.data, bounds: [b.west, b.south, b.east, b.north],
+          desaturate: 0.15, tintColor: [235, 240, 245] });
+      },
+    })));
+    // the rest of the Bay stays visible but dimmed, so San Francisco reads as the focus
+    L.push(memo("bay-dim", [], () => new deck.SolidPolygonLayer({ id: "bay-dim", data: [BAY_MASK], getPolygon: (d) => d,
+      getFillColor: [11, 20, 27, 150], parameters: { depthTest: false } })));
+  }
   else if (!g) L.push(memo("plate", [], () => new deck.SolidPolygonLayer({ id: "plate", data: SLAB, getPolygon: (d) => d.map(([x, y]) => [x, y, 0]), getFillColor: [28, 44, 56] })));
   if (show.grid) L.push(memo("grid", [ext], () => new deck.PathLayer({ id: "grid", data: GRID, getPath: (d) => d.path, getColor: [255, 255, 255, 38],
     widthUnits: "pixels", getWidth: 1, parameters: { depthTest: false }, extensions: ext })));
@@ -887,7 +901,7 @@ function tooltip({ object, layer }) {
 }
 
 function setView(v, ms = 700) {
-  view = { ...view, ...v, transitionDuration: ms, transitionInterpolator: new deck.FlyToInterpolator() };
+  view = { ...clampView({ ...view, ...v }), transitionDuration: ms, transitionInterpolator: new deck.FlyToInterpolator() };
   deckgl.setProps({ viewState: view });
 }
 
@@ -897,7 +911,8 @@ function initDeck() {
     onViewStateChange: ({ viewState, interactionState }) => {
       const user = interactionState && (interactionState.isDragging || interactionState.isPanning || interactionState.isZooming || interactionState.isRotating);
       if (user) { if (followUnit) stopFollow(); hideHint(); }
-      view = viewState; deckgl.setProps({ viewState });
+      view = viewState.transitionDuration ? viewState : clampView(viewState);  // don't fight fly-to animations
+      deckgl.setProps({ viewState: view });
     },
     layers: [], getTooltip: tooltip,
     effects: [new deck.LightingEffect({
